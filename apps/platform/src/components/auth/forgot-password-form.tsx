@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   FormField,
   FormMessage,
+  ValidatedForm,
 } from "@lictory/platform/components/auth/form-field";
 import { Button } from "@lictory/ui/button";
 import { authClient } from "@lictory/platform/lib/auth-client";
@@ -56,14 +57,14 @@ export function ForgotPasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">
+    <ValidatedForm onSubmit={onSubmit} className="grid gap-4">
       <FormField
         id="email"
         name="email"
         label="Account email"
         type="email"
         autoComplete="email"
-        placeholder="you@company.com"
+        placeholder="e.g. you@company.com"
         required
         autoFocus
       />
@@ -76,6 +77,6 @@ export function ForgotPasswordForm() {
       >
         {pending ? "Sending link…" : "Send reset link"}
       </Button>
-    </form>
+    </ValidatedForm>
   );
 }

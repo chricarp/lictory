@@ -41,12 +41,11 @@ function mcp(request: APIRequestContext, token: string) {
     const body = (await response.json()) as {
       result: {
         isError?: boolean;
-        structuredContent?: Record<string, unknown>;
         content?: { text: string }[];
       };
     };
     expect(body.result.isError, JSON.stringify(body)).toBeFalsy();
-    return body.result.structuredContent!;
+    return JSON.parse(body.result.content![0]!.text) as Record<string, unknown>;
   };
 }
 
@@ -188,10 +187,10 @@ test("an agreed specification's work is claimed by an MCP agent and shows on the
   ).toBeVisible();
 
   // Ada releases the claim; the task returns to the queue.
-  await factory.getByRole("button", { name: "Release" }).click();
+  await factory.getByRole("button", { name: "Release claim…" }).click();
   const dialog = page.getByRole("dialog", { name: "Release this claim?" });
   await dialog.getByLabel("Note (optional)").fill("Taking this one myself.");
-  await dialog.getByRole("button", { name: "Release" }).click();
+  await dialog.getByRole("button", { name: "Release claim" }).click();
   await expect(factory.getByText("Agents can claim this now.")).toBeVisible();
   await expect(
     page.getByText("Taking this one myself.", { exact: false }),
@@ -350,4 +349,15 @@ test("an item opened right after the dispatcher claims it shows the claim and it
       "A linked code pull request is merged and none is still open",
     ),
   ).toBeVisible();
+
+  // The agent's page agrees with the item: the claim the dispatcher took
+  // for Forge's session is Forge's, listed under Claimed work, and nothing
+  // on the page says Forge has claimed nothing.
+  await page.goto(`/${seeded.slug}/factory/agents/${forge.id}`);
+  const held = page.getByRole("region", { name: /Claimed work/ });
+  await expect(
+    held.getByRole("link", { name: "Refund retries" }),
+  ).toBeVisible();
+  await expect(held).toContainText("DSP-1");
+  await expect(page.getByText(/has not claimed/)).toHaveCount(0);
 });

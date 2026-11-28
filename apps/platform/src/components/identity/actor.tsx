@@ -5,7 +5,7 @@ import { initials } from "@lictory/core/lib/work-items";
 import { safeProfileImage } from "@lictory/core/profile/photo";
 import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import { identityColor } from "@lictory/platform/components/identity/color";
+import { agentColor, identityColor } from "@lictory/ui/identity-color";
 import { SlackMark } from "@lictory/platform/components/identity/slack-mark";
 import { firstName } from "@lictory/platform/lib/session-state";
 
@@ -14,13 +14,14 @@ import { firstName } from "@lictory/platform/lib/session-state";
 // squares with a small robot badge, always named with the person they act
 // for, and automated acts as the policy and the person who set it.
 
-// Rendered sizes, in pixels. 16 is the smallest: below 20 a person's
-// initials would be unreadable, so their avatar is a plain colored dot named
-// by its tooltip. An agent's square keeps its one letter or emoji.
+// Rendered sizes, in pixels. 16 is the smallest: two initials would be
+// unreadable there, so a person's avatar carries the first one (like an
+// agent's square keeps its one letter or emoji) and the full name on hover.
+// Never a blank dot: a dot cannot be read as a person.
 export type ActorSize = 16 | 20 | 24 | 32 | 36;
 
 const text: Record<ActorSize, string> = {
-  16: "",
+  16: "text-[9px]",
   20: "text-[9.5px]",
   24: "text-[10.5px]",
   32: "text-xs",
@@ -93,7 +94,7 @@ export function PersonAvatar({
 }) {
   const src = safeProfileImage(person.image);
   const color = identityColor(person.external ? person.name : person.id);
-  const dot = size < 20;
+  const small = size < 20;
   const avatar = (
     <span
       role="img"
@@ -108,11 +109,13 @@ export function PersonAvatar({
       )}
     >
       <span className="absolute inset-0 overflow-hidden rounded-full">
-        {!dot && !src && (
+        {!src && (
           <span
             aria-hidden
             className="grid size-full place-items-center before:content-[attr(data-initials)]"
-            data-initials={initials(person.name)}
+            data-initials={
+              small ? initials(person.name).slice(0, 1) : initials(person.name)
+            }
           />
         )}
         {src && <Img src={src} className="rounded-full" />}
@@ -124,8 +127,8 @@ export function PersonAvatar({
       )}
     </span>
   );
-  // A dot has no initials to read, so it says who it is on hover.
-  return dot ? <Tooltip label={person.name}>{avatar}</Tooltip> : avatar;
+  // One letter does not say who it is, so the name comes on hover.
+  return small ? <Tooltip label={person.name}>{avatar}</Tooltip> : avatar;
 }
 
 function CornerBadge({
@@ -170,7 +173,7 @@ export function AgentAvatar({
   className?: string;
   ring?: boolean;
 }) {
-  const color = identityColor(`agent:${agent.id}`);
+  const color = agentColor(agent.id);
   const mark = agent.avatar?.trim();
   const style: CSSProperties = {
     width: size,

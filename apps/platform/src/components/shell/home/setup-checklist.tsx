@@ -1,4 +1,4 @@
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { ArrowRight, Check } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
@@ -13,20 +13,32 @@ import { setupSteps } from "@lictory/platform/components/shell/home/setup";
 // data. `ready` is false until every source has loaded, so a set-up
 // organization never sees the checklist flash.
 export function useSetup() {
-  const { organization, directory, isAdmin } = useWorkspace();
+  const { organization, directory, isAdmin, projects, items, view } =
+    useWorkspace();
+  const project = projects.find((p) => !p.archivedAt) ?? null;
   const factory = useFactory();
   const code = useCodeHosts();
   const channels = useChannels();
-  const ready = factory.complete && code.complete && channels.loaded;
+  const alone = directory.members.length <= 1;
+  const invited = usePendingInvitations(organization.id, isAdmin && alone);
+  const ready =
+    view.status !== "hydrating" &&
+    factory.complete &&
+    code.complete &&
+    channels.loaded &&
+    (!isAdmin || !alone || invited !== undefined);
   const result = useMemo(
     () =>
       setupSteps(
         {
+          project: project && { key: project.key },
+          workItems: items.length,
           codeConnections: code.connections,
           runners: factory.runners,
           agents: factory.agents,
           channels: channels.list,
           members: directory.members.length,
+          invited: invited ?? 0,
         },
         organization.slug,
         isAdmin,
@@ -37,11 +49,38 @@ export function useSetup() {
       factory.agents,
       channels.list,
       directory.members.length,
+      invited,
       organization.slug,
       isAdmin,
+      project,
+      items.length,
     ],
   );
   return { ...result, ready };
+}
+
+// Invitations are Better Auth records outside synchronized state; while an
+// administrator is still alone, Home asks once whether anyone was invited.
+function usePendingInvitations(organizationId: string, enabled: boolean) {
+  const [count, setCount] = useState<number>();
+  useEffect(() => {
+    if (!enabled) return;
+    let current = true;
+    void fetch(
+      `/api/invitations?organizationId=${encodeURIComponent(organizationId)}`,
+    )
+      .then((response) => (response.ok ? response.json() : []))
+      .then((rows: unknown) => {
+        if (current) setCount(Array.isArray(rows) ? rows.length : 0);
+      })
+      .catch(() => {
+        if (current) setCount(0);
+      });
+    return () => {
+      current = false;
+    };
+  }, [organizationId, enabled]);
+  return count;
 }
 
 // "Set up Northwind": the steps that make the factory work, each done when
@@ -116,6 +155,11 @@ export function SetupChecklist({
               >
                 {step.title}
               </span>
+              {step.done && step.note && (
+                <span className="block text-xs leading-4 text-muted-foreground">
+                  {step.note}
+                </span>
+              )}
               {!step.done && (
                 <span className="block text-xs leading-4 text-muted-foreground">
                   {step.action

@@ -118,13 +118,22 @@ export function resolveSessionWorkspace(
 
 // A repository a person names in their own words when they ask an agent
 // (`@forge fix the retry in acme/payments`): the Code module says which of
-// its repositories that is, in the message's transaction (reads only). Text
-// only chooses where the session works; the workspace resolver still checks
-// that the agent's owner may work with it. None by default.
+// its repositories that is, in the message's transaction (reads only). When
+// the message names none, the only repository linked to `homeProjectId`
+// (the item's project, else the channel's) is the default, so an ask in a
+// project's channel does not end in a scratch workspace whose work is
+// discarded. Text only chooses where the session works; the workspace
+// resolver still checks that the agent's owner may work with it. None by
+// default.
 export type SessionRepositoryNamer = {
   named(
     tx: Tx,
-    input: { organizationId: string; projectId: string | null; text: string },
+    input: {
+      organizationId: string;
+      projectId: string | null;
+      homeProjectId?: string | null;
+      text: string;
+    },
   ): Promise<string | null>;
 };
 const noNamer: SessionRepositoryNamer = { named: async () => null };

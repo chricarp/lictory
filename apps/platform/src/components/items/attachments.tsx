@@ -27,6 +27,7 @@ import {
   type FileContext,
   type FileEntry,
 } from "@lictory/platform/components/items/file-upload";
+import { ATTACHMENTS_UNAVAILABLE } from "@lictory/core/storage/errors";
 import { useAttachmentsAvailable } from "@lictory/platform/lib/session";
 
 // Last known list per item: a revisit renders it at once and refreshes after.
@@ -129,8 +130,7 @@ export function Attachments({
       )}
       {!available && (
         <p className="mb-2 text-xs text-muted-foreground">
-          Attachments are unavailable: this server has no file storage
-          configured. Ask an administrator to configure S3-compatible storage.
+          {ATTACHMENTS_UNAVAILABLE}
         </p>
       )}
       {files.length ? (

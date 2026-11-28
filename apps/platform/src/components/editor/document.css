@@ -288,11 +288,15 @@
   white-space: pre-wrap;
 }
 
-/* Discussions: a soft tint in the thread's colour (a highlighter for open
-   comments, red for blocking ones). The selected thread, or the one pointed
-   at here or in the panel, is tinted more and underlined. */
+/* Discussions: a soft tint and a solid 2px line under the text in the
+   thread's colour (a highlighter for open comments, red for blocking ones).
+   The line is the mark that does not depend on telling colours apart: it
+   keeps at least 3:1 against the page in every theme, where the tint alone
+   is about 1.3:1. The selected thread, or the one pointed at here or in the
+   panel, is tinted more and its line is thicker. */
 .page-document .page-comment {
   background: color-mix(in srgb, var(--warning) 15%, transparent);
+  box-shadow: inset 0 -2px 0 var(--warning);
   border-radius: 2px;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -300,18 +304,18 @@
 }
 .page-document .page-comment-blocking {
   background: color-mix(in srgb, var(--destructive) 10%, transparent);
+  box-shadow: inset 0 -2px 0 var(--destructive);
 }
 :where(.dark) .page-document .page-comment-blocking {
   background: color-mix(in srgb, var(--destructive) 16%, transparent);
 }
 .page-document .page-comment-active {
   background: color-mix(in srgb, var(--warning) 26%, transparent);
-  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--warning) 75%, transparent);
+  box-shadow: inset 0 -3px 0 var(--warning);
 }
 .page-document .page-comment-blocking.page-comment-active {
   background: color-mix(in srgb, var(--destructive) 18%, transparent);
-  box-shadow: inset 0 -2px 0
-    color-mix(in srgb, var(--destructive) 60%, transparent);
+  box-shadow: inset 0 -3px 0 var(--destructive);
 }
 :where(.dark) .page-document .page-comment-blocking.page-comment-active {
   background: color-mix(in srgb, var(--destructive) 26%, transparent);

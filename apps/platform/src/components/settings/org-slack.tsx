@@ -1,13 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import {
   ArrowUpRight,
-  Copy,
+  ChevronRight,
   Loader2,
   MessagesSquare,
   MoreHorizontal,
+  TriangleAlert,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
+import {
+  slackCredentialProblems,
+  type SlackCredentialField,
+} from "@lictory/core/channels/slack/credentials";
 import { Button } from "@lictory/ui/button";
+import { CommandBlock, CopyButton } from "@lictory/ui/command-block";
 import { Input } from "@lictory/ui/input";
 import { Switch } from "@lictory/ui/switch";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
@@ -126,15 +132,18 @@ export function SlackConnection() {
   const connection = reading?.connection;
   const status = connection?.status ?? "none";
   const mayDisconnect = status !== "disconnected" && status !== "pending";
-  const showSetup =
-    isAdmin && (editing || status === "none" || status === "disconnected");
+  // Setting up is a few steps with a manifest: they open on request, so an
+  // organization without Slack sees one sentence and one button.
+  const showSetup = isAdmin && editing;
+  const unconnected = status === "none" || status === "disconnected";
   return (
     <SettingsSection
       id="slack"
       icon={<MessagesSquare />}
       title="Slack"
-      description="Link Lictory channels to Slack channels so both sides see one conversation. Each message stays owned by the side it was written on."
-      footer="Lictory reads and writes messages and reactions only in Slack channels its app was invited to, maps people by their confirmed email, and never imports a channel's history unless someone linking it asks for a bounded number of recent messages."
+      description="Link Lictory channels to Slack channels so both sides see one conversation."
+      learnMore="slack"
+      footer="Lictory works only in Slack channels its app was invited to, matches people by confirmed email and imports no history unless asked."
     >
       <SettingsBody className="space-y-3 text-[13px]">
         {!connection ? (
@@ -168,7 +177,16 @@ export function SlackConnection() {
                   : "linked channels"}
               </span>
             )}
-            {isAdmin && status !== "none" && !showSetup && (
+            {isAdmin && unconnected && !showSetup && (
+              <Button
+                size="sm"
+                className="ml-auto"
+                onClick={() => setEditing(true)}
+              >
+                Set up Slack
+              </Button>
+            )}
+            {isAdmin && !unconnected && !showSetup && (
               <span className="ml-auto flex gap-1">
                 {confirming ? (
                   <>
@@ -215,7 +233,7 @@ export function SlackConnection() {
                     <span className="contents max-sm:hidden">
                       <Button
                         size="sm"
-                        variant="ghost"
+                        variant="secondary"
                         onClick={() => setEditing(true)}
                       >
                         Replace app
@@ -223,7 +241,7 @@ export function SlackConnection() {
                       {mayDisconnect && (
                         <Button
                           size="sm"
-                          variant="ghost"
+                          variant="secondary"
                           onClick={() => setConfirming(true)}
                         >
                           Disconnect…
@@ -290,9 +308,7 @@ export function SlackConnection() {
                 Let Lictory Intelligence read Slack messages
               </span>
               <span className="text-xs text-muted-foreground">
-                Off: messages written in Slack are withheld from Litto and other
-                AI features, so Slack content never reaches the AI provider.
-                Takes effect only while Lictory Intelligence is on.
+                Off: Slack messages never reach Litto or the AI provider.
               </span>
             </span>
           </label>
@@ -309,11 +325,7 @@ export function SlackConnection() {
         <AppSetup
           reading={reading}
           busy={busy}
-          onCancel={
-            status === "none" || status === "disconnected"
-              ? undefined
-              : () => setEditing(false)
-          }
+          onCancel={() => setEditing(false)}
           onSave={(fields) =>
             act("save", async () => {
               await callCapability("saveSlackApp", {
@@ -348,13 +360,17 @@ function AppSetup({
     clientSecret: string;
     signingSecret: string;
   }) => void;
-  onCancel?: () => void;
+  onCancel: () => void;
 }) {
   const manifest = JSON.stringify(reading.manifest, null, 2);
+  const unreachable = reading.urls ? notPublicHttps(reading.urls.events) : null;
   const [appId, setAppId] = useState(reading.connection.appId ?? "");
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [signingSecret, setSigningSecret] = useState("");
+  const [problems, setProblems] = useState<
+    Partial<Record<SlackCredentialField, string>>
+  >({});
   return (
     <SettingsBody className="space-y-4 border-t bg-muted/40 text-[13px]">
       <ol className="list-decimal space-y-1 pl-5">
@@ -368,8 +384,13 @@ function AppSetup({
           >
             api.slack.com/apps
           </a>
-          , choose <em>From a manifest</em>, pick your workspace and paste this
-          manifest.
+          , choose <em>From a manifest</em>, pick your workspace and paste
+          Lictory&apos;s manifest.{" "}
+          <CopyButton
+            text={manifest}
+            label="Copy the manifest"
+            className="ml-1 align-middle"
+          />
         </li>
         <li>
           Copy the App ID, Client ID, Client Secret and Signing Secret from the
@@ -381,92 +402,180 @@ function AppSetup({
           once the signing secret is saved.
         </li>
       </ol>
-      <div className="relative">
-        {/* Focusable so the manifest scrolls from the keyboard too. */}
-        <pre
-          aria-label="Slack app manifest"
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region needs a tab stop to scroll with arrow keys
-          tabIndex={0}
-          className="max-h-64 overflow-auto rounded-lg border bg-card p-3 font-mono text-[11.5px] leading-5 focus-ring outline-none"
+      {unreachable && (
+        <div
+          role="note"
+          aria-label="Slack cannot reach this server"
+          className="flex gap-2 rounded-lg border border-warning/25 bg-warning/5 p-3"
+        >
+          <TriangleAlert
+            aria-hidden
+            className="mt-0.5 size-4 shrink-0 text-warning"
+          />
+          <div className="flex flex-col gap-1 text-xs leading-5">
+            <p className="font-medium">Slack cannot reach {unreachable}</p>
+            <p className="text-muted-foreground">
+              Slack sends events and sign-ins only to a public HTTPS address,
+              and this manifest uses the server&apos;s own address. Whoever runs
+              this server sets a public HTTPS address for it first (on a laptop
+              trial, Slack sync cannot work).
+            </p>
+          </div>
+        </div>
+      )}
+      {/* The manifest is copied, not read: its JSON stays behind a
+          disclosure for whoever wants to check it. */}
+      <details className="group">
+        <summary className="inline-flex cursor-pointer items-center gap-1 rounded text-xs font-medium text-muted-foreground focus-ring outline-none select-none hover:text-foreground">
+          <ChevronRight
+            aria-hidden
+            className="size-3.5 transition-transform group-open:rotate-90 motion-reduce:transition-none"
+          />
+          Show the manifest
+        </summary>
+        <CommandBlock
+          label="Slack app manifest"
+          copyLabel="Copy the manifest from the block"
+          maxHeight="md"
+          className="mt-2"
         >
           {manifest}
-        </pre>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="absolute top-2 right-2"
-          onClick={() =>
-            void navigator.clipboard
-              .writeText(manifest)
-              .then(() => toast({ title: "Manifest copied", duration: 2500 }))
-          }
-        >
-          <Copy className="size-3.5" /> Copy
-        </Button>
-      </div>
+        </CommandBlock>
+      </details>
       <form
         className="grid gap-3 sm:grid-cols-2"
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          onSave({ appId, clientId, clientSecret, signingSecret });
+          const fields = { appId, clientId, clientSecret, signingSecret };
+          // A malformed field is named where it is, before anything is sent;
+          // the server checks the same and asks Slack about the rest.
+          const found = slackCredentialProblems(fields);
+          setProblems(
+            Object.fromEntries(found.map((p) => [p.field, p.message])),
+          );
+          if (found.length) {
+            e.currentTarget
+              .querySelector<HTMLInputElement>(`[name="${found[0]!.field}"]`)
+              ?.focus();
+            return;
+          }
+          onSave(fields);
           setClientSecret("");
           setSigningSecret("");
         }}
       >
-        <label className="grid gap-1">
-          App ID
-          <Input
-            value={appId}
-            onChange={(e) => setAppId(e.target.value)}
-            placeholder="A0123ABCDEF"
-            className="h-9 text-[13px]"
-            required
-          />
-        </label>
-        <label className="grid gap-1">
-          Client ID
-          <Input
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
-            placeholder="1234567890.1234567890"
-            className="h-9 text-[13px]"
-            required
-          />
-        </label>
-        <label className="grid gap-1">
-          Client Secret
-          <Input
-            type="password"
-            autoComplete="off"
-            value={clientSecret}
-            onChange={(e) => setClientSecret(e.target.value)}
-            className="h-9 text-[13px]"
-            required
-          />
-        </label>
-        <label className="grid gap-1">
-          Signing Secret
-          <Input
-            type="password"
-            autoComplete="off"
-            value={signingSecret}
-            onChange={(e) => setSigningSecret(e.target.value)}
-            className="h-9 text-[13px]"
-            required
-          />
-        </label>
+        <CredentialField
+          name="appId"
+          label="App ID"
+          value={appId}
+          onChange={setAppId}
+          placeholder="e.g. A0123ABCDEF"
+          problem={problems.appId}
+        />
+        <CredentialField
+          name="clientId"
+          label="Client ID"
+          value={clientId}
+          onChange={setClientId}
+          placeholder="e.g. 1234567890.1234567890"
+          problem={problems.clientId}
+        />
+        <CredentialField
+          name="clientSecret"
+          label="Client Secret"
+          secret
+          value={clientSecret}
+          onChange={setClientSecret}
+          problem={problems.clientSecret}
+        />
+        <CredentialField
+          name="signingSecret"
+          label="Signing Secret"
+          secret
+          value={signingSecret}
+          onChange={setSigningSecret}
+          problem={problems.signingSecret}
+        />
         <div className="flex gap-2 sm:col-span-2">
           <Button type="submit" disabled={busy !== undefined}>
             {busy === "save" && <Loader2 className="size-3.5 animate-spin" />}
             Save app
           </Button>
-          {onCancel && (
-            <Button type="button" variant="ghost" onClick={onCancel}>
-              Cancel
-            </Button>
-          )}
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
         </div>
       </form>
     </SettingsBody>
   );
+}
+
+// One credential: its label, the input, and what is wrong with it right
+// under it, tied to the input so a screen reader reads it with the field.
+function CredentialField({
+  name,
+  label,
+  value,
+  onChange,
+  placeholder,
+  secret = false,
+  problem,
+}: {
+  name: SlackCredentialField;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  secret?: boolean;
+  problem?: string;
+}) {
+  const id = useId();
+  return (
+    <div className="grid content-start gap-1">
+      <label htmlFor={id}>{label}</label>
+      <Input
+        id={id}
+        name={name}
+        type={secret ? "password" : "text"}
+        autoComplete="off"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="h-9 text-[13px] aria-invalid:border-destructive/60"
+        required
+        aria-invalid={problem ? true : undefined}
+        aria-describedby={problem ? `${id}-problem` : undefined}
+      />
+      {problem && (
+        <p id={`${id}-problem`} className="text-xs text-destructive">
+          {problem}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// The origin Slack cannot deliver to, when the manifest's events URL is not
+// a public HTTPS address (plain HTTP, localhost, a private or link-local
+// address, a .local or .internal name); null when it may be reachable.
+function notPublicHttps(address: string) {
+  let url: URL;
+  try {
+    url = new URL(address);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.replace(/^\[|\]$/g, "");
+  const local =
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal") ||
+    host === "::1" ||
+    /^(127|10)\./.test(host) ||
+    host.startsWith("192.168.") ||
+    host.startsWith("169.254.") ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+  return url.protocol !== "https:" || local ? url.origin : null;
 }

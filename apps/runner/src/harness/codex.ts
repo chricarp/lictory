@@ -3,6 +3,7 @@ import {
   IDLE_GRACE_MS,
   INTERRUPTED_WAIT_MS,
   type AgentHarness,
+  type Readiness,
   type HarnessContext,
   type HarnessResult,
   type HarnessRun,
@@ -63,10 +64,39 @@ export const codex: AgentHarness = {
     if (result.code !== 0) return null;
     return /([\d.]+)/.exec(result.stdout)?.[1] ?? result.stdout.trim();
   },
+  ready(config) {
+    return codexReadiness(config.harnesses.codex?.command ?? "codex");
+  },
   start(ctx) {
     return startCodex(ctx);
   },
 };
+
+// `codex login status` exits 0 and says how it is signed in ("Logged in
+// using ChatGPT"), or exits 1 with "Not logged in".
+export async function codexReadiness(command: string): Promise<Readiness> {
+  const result = await run(command, ["login", "status"], {
+    timeoutMs: 15_000,
+  });
+  const output = `${result.stdout}\n${result.stderr}`;
+  const how = /Logged in (using [^\n.]+)/i.exec(output)?.[1];
+  if (result.code === 0)
+    return {
+      state: "ready",
+      detail: how ? `signed in (${how.trim()})` : "signed in",
+    };
+  if (/not logged in/i.test(output))
+    return {
+      state: "not-ready",
+      detail: "is installed but not signed in, so its sessions would fail",
+      fix: "Sign in as the account the runner runs as with `codex login` (or `codex login --with-api-key`, reading the key from standard input). Then run `lictory-runner doctor` again.",
+    };
+  return {
+    state: "unknown",
+    detail: "did not say whether it is signed in",
+    fix: "Run `codex login status` as the account the runner runs as.",
+  };
+}
 
 function startCodex(ctx: HarnessContext): HarnessRun {
   const settings = ctx.config.harnesses.codex ?? {};

@@ -3,7 +3,9 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
+  type RefObject,
 } from "react";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
 import {
@@ -74,6 +76,12 @@ export function locateThreads(
   );
 }
 
+export type SuggestionDraft = {
+  quote: string;
+  section: string;
+  occurrence: number;
+} | null;
+
 type Value = {
   located: LocatedThread[];
   open: number;
@@ -89,6 +97,14 @@ type Value = {
   pending: Draft;
   startDiscussion: (draft: Draft) => void;
   setPending: (draft: Draft) => void;
+  // A suggested change being written on a selection (its passage).
+  suggesting: SuggestionDraft;
+  startSuggestion: (draft: SuggestionDraft) => void;
+  // The suggestion picked from its passage in the text.
+  activeSuggestion: string | null;
+  setActiveSuggestion: (id: string | null) => void;
+  // Opens a larger change of a passage in the editor (set by the page).
+  editSuggestion: RefObject<((quote: string) => void) | null>;
   // Opens the revision a thread was written on, its quote marked.
   showRevision: (revisionId: string, threadId?: string) => void;
 };
@@ -109,21 +125,26 @@ function readChoice(): boolean | undefined {
   }
 }
 
-// The discussions state of one item. Whether the panel is open is
-// remembered in this browser, like pane widths; until someone chooses, it
-// opens beside a specification with open discussions when the frame is
-// roomy enough for it next to the review rail.
+// The discussions state of one item. Whether the panel is open beside the
+// text is remembered in this browser, like pane widths; until someone
+// chooses, it opens beside a specification with open discussions when the
+// frame is roomy enough for it next to the review rail. Where the panel is
+// a sheet over the text (phones), it opens only when asked on this page:
+// a remembered "open" would cover the page and its controls on arrival.
 export function useSpecDiscussionsState({
   content,
   threads,
   reviewable,
   roomy,
+  docked,
   onShowRevision,
 }: {
   content: string;
   threads: readonly Thread[];
   reviewable: boolean;
   roomy: boolean;
+  // The panel sits beside the text (not a sheet over it).
+  docked: boolean;
   onShowRevision: (revisionId: string, threadId?: string) => void;
 }): Value {
   const located = useMemo(
@@ -134,15 +155,21 @@ export function useSpecDiscussionsState({
   const open = openThreads.length;
   const blocking = openThreads.filter((l) => l.thread.blocking).length;
   const [choice, setChoice] = useState<boolean | undefined>(readChoice);
-  const setPanelOpen = useCallback((next: boolean) => {
-    setChoice(next);
-    try {
-      localStorage.setItem(storageKey, next ? "open" : "closed");
-    } catch {
-      // Private windows: the choice lasts for this page.
-    }
-  }, []);
-  const panelOpen = reviewable && (choice ?? (roomy && open > 0));
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const setPanelOpen = useCallback(
+    (next: boolean) => {
+      if (!docked) return setSheetOpen(next);
+      setChoice(next);
+      try {
+        localStorage.setItem(storageKey, next ? "open" : "closed");
+      } catch {
+        // Private windows: the choice lasts for this page.
+      }
+    },
+    [docked],
+  );
+  const panelOpen =
+    reviewable && (docked ? (choice ?? (roomy && open > 0)) : sheetOpen);
   const [active, setActive] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [pending, setPending] = useState<Draft>(null);
@@ -150,6 +177,16 @@ export function useSpecDiscussionsState({
     (draft: Draft) => {
       setPending(draft);
       setPanelOpen(true);
+    },
+    [setPanelOpen],
+  );
+  const [suggesting, setSuggesting] = useState<SuggestionDraft>(null);
+  const [activeSuggestion, setActiveSuggestion] = useState<string | null>(null);
+  const editSuggestion = useRef<((quote: string) => void) | null>(null);
+  const startSuggestion = useCallback(
+    (draft: SuggestionDraft) => {
+      setSuggesting(draft);
+      if (draft) setPanelOpen(true);
     },
     [setPanelOpen],
   );
@@ -169,6 +206,11 @@ export function useSpecDiscussionsState({
       pending,
       startDiscussion,
       setPending,
+      suggesting,
+      startSuggestion,
+      activeSuggestion,
+      setActiveSuggestion,
+      editSuggestion,
       showRevision: onShowRevision,
     }),
     [
@@ -181,6 +223,9 @@ export function useSpecDiscussionsState({
       hovered,
       pending,
       startDiscussion,
+      suggesting,
+      startSuggestion,
+      activeSuggestion,
       onShowRevision,
     ],
   );

@@ -47,11 +47,10 @@ export function TypingIndicator({ channelId }: { channelId: string }) {
         : names.length === 2
           ? `${names[0]} and ${names[1]} are typing…`
           : "Several people are typing…";
+  // Not announced: the message itself is, when it arrives (see the
+  // workspace's announcer); typing would only interrupt.
   return (
-    <p
-      aria-live="polite"
-      className="h-4 truncate px-5 text-xs leading-4 text-muted-foreground sm:px-6"
-    >
+    <p className="h-4 truncate px-5 text-xs leading-4 text-muted-foreground sm:px-6">
       {text}
     </p>
   );

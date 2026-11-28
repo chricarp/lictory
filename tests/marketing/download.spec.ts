@@ -38,10 +38,20 @@ async function expectEveryDownload(page: Page) {
   );
   const main = page.getByRole("main");
   await expect(main).toContainText(
-    `curl -fsSL ${latest}lictory-runner-install.sh | sh`,
+    `curl -fsSLO ${latest}lictory-runner-install.sh && sh lictory-runner-install.sh`,
   );
   await expect(main).toContainText(
     `irm ${latest}lictory-runner-install.ps1 | iex`,
+  );
+  // This build was not told which files the release carries (the deploy
+  // passes NEXT_PUBLIC_RELEASE_ASSETS), so it offers every file and links
+  // the release to check, without telling visitors how the site was built.
+  await expect(main).not.toContainText("built without");
+  await expect(
+    main.getByRole("link", { name: "See what it carries" }),
+  ).toHaveAttribute(
+    "href",
+    "https://github.com/chricarp/lictory/releases/latest",
   );
 }
 
@@ -240,18 +250,29 @@ test("Download is in the navigation, the sitemap and llms.txt", async ({
 }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/");
-  // A click before React hydrates "/" leaves its canonical link behind.
-  await page.waitForLoadState("networkidle");
+  // A click before React hydrates "/" is replayed as a client navigation that
+  // leaves the server-rendered canonical link of "/" behind (crawlers load
+  // each page fresh and never see it). Network silence does not prove
+  // hydration; React attaching its fiber to the link does (as in seo.spec.ts).
   const nav = page.getByRole("navigation", { name: "Sections", exact: true });
-  await nav.getByRole("link", { name: "Download", exact: true }).click();
+  const download = nav.getByRole("link", { name: "Download", exact: true });
+  await expect
+    .poll(() =>
+      download.evaluate((a) =>
+        Object.keys(a).some((key) => key.startsWith("__reactFiber$")),
+      ),
+    )
+    .toBe(true);
+  await download.click();
   await expect(page).toHaveURL(/\/download$/);
-  await expect(
-    nav.getByRole("link", { name: "Download", exact: true }),
-  ).toHaveAttribute("aria-current", "location");
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
-    "href",
-    /\/download$/,
-  );
+  await expect(download).toHaveAttribute("aria-current", "location");
+  await expect
+    .poll(() =>
+      page
+        .locator('link[rel="canonical"]')
+        .evaluateAll((links) => links.map((link) => link.getAttribute("href"))),
+    )
+    .toEqual([expect.stringMatching(/\/download$/)]);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Open navigation" }).click();

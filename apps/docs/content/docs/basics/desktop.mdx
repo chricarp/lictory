@@ -13,7 +13,8 @@ browser tab does not do well:
 - **Several servers** side by side, each with its own sign-in, one click (or
   ⌘1 to ⌘9) apart.
 - **Lictory links** (`lictory://`) that open straight in the app.
-- **Open at login**, a tray icon and updates that install themselves.
+- **Open at login**, a tray icon and, for signed builds and the AppImage,
+  updates that install themselves (see [Updates](#updates)).
 
 ## Install it
 
@@ -29,7 +30,11 @@ serves the newest stable release. The same files are in the
 - **Linux:** `Lictory-linux-x64.AppImage` or `Lictory-linux-arm64.AppImage`
   (make it executable and run it; it needs no installation and updates
   itself), or `lictory_amd64.deb` / `lictory_arm64.deb` for Debian and
-  Ubuntu.
+  Ubuntu (installed with apt; it does not update itself).
+
+If the download page says a file is not in the newest release, that
+release was published without it: use an earlier release that has it, or
+build the app from source (`bun run --cwd apps/desktop package`).
 
 Each release also carries the same installers with its version in the name
 (`Lictory-<version>-mac-universal.dmg`, …), for when you need a specific
@@ -42,7 +47,7 @@ If a release was built without the project's signing certificates, macOS
 says the app is from an unidentified developer (Control-click the app, then
 **Open**) and Windows SmartScreen asks before running it (**More info › Run
 anyway**). Such a build does not update itself; **Settings › Updates** says
-so and links to the releases page.
+so and links to the download page.
 
 ## Connect to your server
 
@@ -53,6 +58,10 @@ is its address: the one you open Lictory at in your browser, for example
 The app checks that the address is a Lictory server, then shows its sign-in
 page. Sign in as you do in the browser, including with your company's single
 sign-on.
+
+Once you are signed in, the server is shown by your organization's name
+and initials in the bar on the left (if you belong to several organizations
+there, by its address).
 
 To add another server, choose **+** at the bottom of the bar on the left
 (or **File › Add Server…**). Each server keeps its own sign-in. Right-click a
@@ -66,14 +75,28 @@ of you, the ones Lictory also emails by default (see
 [Notifications](/inbox/notifications)). Updates that only inform you stay in
 your Inbox. Click a notification to open what it is about.
 
-While you are looking at a server, its notifications are not repeated: you
-see them in its Inbox. The badge counts what is unread and waiting on you
-across all your servers (requests, assignments, and mentions and direct
-messages in the organization you have open; reading a conversation clears
-its count); each server's button shows its own count.
+You get them while you work in the app too; only a notification about the
+page you are looking at is not repeated. The badge counts what waits on you: in the
+organization you have open, the numbers its sidebar shows (your Inbox's
+to-dos, unread mentions and direct messages; reading a conversation clears
+its count, answering a request clears it from your to-dos), plus unread
+requests from your other organizations. Updates that only inform you, such as
+an assignment, notify you but do not count. Each server's button shows its
+own count.
 
 Turn notifications or their sound off in **Settings** (⌘, or Ctrl+,). Your
 notification preferences in Lictory still decide what reaches you at all.
+On Linux, notifications need libnotify (`libnotify4` on Debian and Ubuntu,
+installed with the `.deb`) and a notification service; **Settings** tells
+you if they are missing.
+
+## When the connection drops
+
+If your computer loses its network, the top bar shows **Offline** until it
+is back; Lictory reconnects by itself. If a server cannot be loaded, the app
+says why in plain words (for example, that the server refused the
+connection or that no server has that name) and what to try, and keeps
+trying in the background.
 
 ## Shortcuts
 
@@ -104,11 +127,44 @@ stay signed in there.
 
 ## Updates
 
-The app checks for a new version in the background and installs it the next
-time it starts; **Settings › Updates** shows the state and lets you check
-now. A `.deb` is updated by your package manager instead. If your computer
-is managed, your administrator can turn self-updating off with
-`LICTORY_DESKTOP_UPDATES=off`.
+Where the app can update itself, it checks for a new version in the
+background and installs it the next time it starts; **Settings › Updates**
+shows the state and lets you check now. Whether it can depends on how it was
+built and installed:
+
+| You installed                | Updates                                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| macOS `.dmg`, Windows `.exe` | Itself, when the release was signed. An unsigned build says so in **Settings › Updates**. |
+| Linux AppImage               | Itself (each update is checked against the release's checksum).                           |
+| Debian or Ubuntu `.deb`      | Not by itself: no apt repository serves Lictory. Install the newest `.deb` over it.       |
+
+When the app does not update itself, **Settings › Updates** says why and
+links to [lictory.com/download](https://lictory.com/download); installing
+the new version over the old one keeps your servers and sign-ins. If the
+newest release has no update for your system yet, Settings says so and the
+app checks again later. If your computer is managed, your administrator can
+turn self-updating off with `LICTORY_DESKTOP_UPDATES=off`.
+
+## For administrators
+
+To spare people typing the address, send them a link such as
+`lictory://lictory.example.com/`: the app asks once and adds the server. On
+managed computers, your tooling can instead write `servers.json` into the
+app's data folder (`~/Library/Application Support/Lictory` on macOS,
+`%APPDATA%\Lictory` on Windows, `~/.config/Lictory` on Linux) before the
+first launch:
+
+```json
+{
+  "servers": [
+    { "id": "managed-lictory", "origin": "https://lictory.example.com" }
+  ]
+}
+```
+
+The `id` is any 8 to 64 letters, digits or dashes. Writing the file after
+the first launch replaces the person's own list. Set
+`LICTORY_DESKTOP_UPDATES=off` where your management tool installs updates.
 
 ## Privacy
 

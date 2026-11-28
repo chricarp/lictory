@@ -1,13 +1,11 @@
 import { useMemo } from "react";
 import { Factory } from "lucide-react";
-import {
-  sessionTitle,
-  type SessionStatus,
-} from "@lictory/core/factory/entities";
+import type { SessionStatus } from "@lictory/core/factory/entities";
 import { identifier } from "@lictory/core/lib/work-items";
 import { sessionState } from "@lictory/platform/lib/session-state";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import { titleBeside } from "@lictory/platform/components/factory/parts";
 import {
   useFactory,
   waitingOnMe,
@@ -44,12 +42,27 @@ function RunningSessionsCard() {
     const asked = new Set(
       waitingOnMe(sessions, agentById, userId).map((s) => s.id),
     );
-    return sessions.filter((s) => atWork.has(s.status) && !asked.has(s.id));
+    // Working sessions first; those waiting on a teammate after them.
+    return sessions
+      .filter((s) => atWork.has(s.status) && !asked.has(s.id))
+      .sort(
+        (a, b) =>
+          Number(a.status === "waiting") - Number(b.status === "waiting"),
+      );
   }, [sessions, agentById, userId]);
   const org = organization.slug;
+  // The heading says what the rows say: sessions held up by a teammate are
+  // not "at work".
+  const held = working.filter((s) => s.status === "waiting").length;
+  const title =
+    held === 0
+      ? "Agents at work"
+      : held === working.length
+        ? "Agents waiting on teammates"
+        : "Agents at work or waiting";
   return (
     <Panel
-      title="Agents at work"
+      title={title}
       icon={<Factory />}
       count={working.length}
       more={{ label: "Factory", href: factoryPaths.overview(org) }}
@@ -62,6 +75,8 @@ function RunningSessionsCard() {
         const project = item
           ? projects.find((p) => p.id === item.projectId)
           : undefined;
+        const key =
+          item && project ? identifier(project, item.number) : undefined;
         const state = sessionState(session, {
           claim: item ? claims.get(item.id) : null,
           decider: memberName(agent?.ownerId ?? session.requestedById),
@@ -73,10 +88,9 @@ function RunningSessionsCard() {
             leading={
               agent ? <AgentAvatar agent={agent} size={20} /> : undefined
             }
-            identifier={
-              item && project ? identifier(project, item.number) : undefined
-            }
-            title={sessionTitle(session.title)}
+            identifier={key}
+            // The key leads; the title does not repeat it.
+            title={titleBeside(session.title, key)}
             meta={
               <AgentActor
                 agent={agent}
@@ -85,7 +99,8 @@ function RunningSessionsCard() {
               />
             }
             chips={<SessionStateChip state={state} />}
-            time={session.updatedAt}
+            // A narrow column: the title keeps the room a time would take
+            // (the state says it is live).
           />
         );
       })}

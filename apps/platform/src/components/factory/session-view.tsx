@@ -5,6 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { MissingState } from "@lictory/ui/status-page";
 import {
   CircleStop,
   GitBranch,
@@ -14,10 +15,13 @@ import {
   RotateCcw,
   Server,
   SquareTerminal,
+  TriangleAlert,
 } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { agentSession } from "@lictory/core/contracts/state-machines";
 import { sessionTitle } from "@lictory/core/factory/entities";
+import { notKeptMeaning } from "@lictory/platform/lib/session-state";
+import { useAnnounceSession } from "@lictory/platform/components/factory/announce";
 import { cn } from "@lictory/core/lib/utils";
 import {
   absoluteTime,
@@ -27,9 +31,9 @@ import {
 import { paths } from "@lictory/core/lib/paths";
 import { Button } from "@lictory/ui/button";
 import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
-import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
 import { toast } from "@lictory/ui/toast";
+import { Tooltip } from "@lictory/ui/tooltip";
 import { Link, useParams } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
@@ -45,8 +49,10 @@ import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
   MiddleTruncate,
   SessionStarter,
+  useSessionDuration,
   useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
+import { formatDuration } from "@lictory/platform/components/factory/overview-blocks";
 import {
   useFactory,
   useSession,
@@ -56,6 +62,10 @@ import {
   TranscriptRow,
   transcriptItems,
 } from "@lictory/platform/components/factory/transcript";
+import {
+  StartSessionDialog,
+  startableAgents,
+} from "@lictory/platform/components/factory/start-session";
 
 // One agent session, read like a coding agent's transcript: the header
 // says what it is and where it stands (back, title, state, Interrupt,
@@ -76,6 +86,8 @@ export function SessionView() {
   const { session, complete } = useSession(sessionId);
   const stateOf = useSessionStateOf();
   const [limit, setLimit] = useState(WINDOW);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [startingAgain, setStartingAgain] = useState(false);
   const { events } = useSessionEvents(sessionId, limit);
   const org = organization.slug;
   const transcript = useMemo(() => transcriptItems(events), [events]);
@@ -92,6 +104,27 @@ export function SessionView() {
       ),
     [events],
   );
+  // Summaries the log already shows, so the outcome does not repeat them.
+  const shownSummaries = useMemo(
+    () =>
+      new Set(
+        events.flatMap((e) => {
+          const text = (e.data as { text?: unknown } | null)?.text;
+          return e.type === "summary" && typeof text === "string"
+            ? [text.trim()]
+            : [];
+        }),
+      ),
+    [events],
+  );
+  // Its requests and its outcome are announced while the page is open.
+  useAnnounceSession(
+    session,
+    (session && agentById.get(session.agentId)?.name) ?? "The agent",
+    session ? sessionTitle(session.title) : "",
+    session?.error,
+  );
+  const ran = useSessionDuration(session);
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const back = {
@@ -110,12 +143,20 @@ export function SessionView() {
       <div className="flex h-full min-h-0 flex-col">
         <PageHeader title="Session" back={back} />
         {complete ? (
-          <EmptyState title="This session does not exist">
-            It may belong to another organization.{" "}
-            <Link href={back.href} className="underline">
-              Back to the Factory
-            </Link>
-          </EmptyState>
+          // The same not-found as items and channels: what is missing, why
+          // it may be, and the way back.
+          <MissingState
+            illustration="search"
+            headingLevel={2}
+            title="This session does not exist"
+            action={
+              <Button variant="secondary" render={<Link href={back.href} />}>
+                Back to the Factory
+              </Button>
+            }
+          >
+            It may belong to another organization, or the link may be wrong.
+          </MissingState>
         ) : (
           <LoadingState label="Loading the session" />
         )}
@@ -155,9 +196,20 @@ export function SessionView() {
   const canInterrupt = steer && allows("interrupt");
   const canCancel = (steer || isAdmin) && allows("cancel");
   const interrupt = act("interruptAgentSession", "Interrupting");
-  const cancel = act("cancelAgentSession", "Canceling");
+  const cancelNow = act("cancelAgentSession", "Canceling");
+  // Cancel ends the run (Interrupt only pauses it): asked once, so the
+  // destructive one is never picked in a hurry.
+  const cancel = () => setConfirmingCancel(true);
   const asks = session.status === "waiting" ? session.approvals : [];
+  // Its work was not kept: whoever may start the agent starts the same
+  // task again, choosing a repository this time.
+  const canStartAgain = !!agent && startableAgents([agent], userId).length > 0;
   const itemKey = item && project ? identifier(project, item.number) : null;
+  // Where it was asked for: its channel thread, if a mention started it.
+  const thread =
+    session.channelId && session.threadRootMessageId
+      ? `${paths.channel(org, session.channelId)}?thread=${session.threadRootMessageId}`
+      : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -170,22 +222,26 @@ export function SessionView() {
             {/* Laptops: labelled buttons. Phones: one labelled menu, so
                 the title keeps the bar. */}
             {canInterrupt && (
-              <Button
-                variant="secondary"
-                className="max-md:hidden"
-                onClick={interrupt}
-              >
-                <Hand className="size-3.5" aria-hidden /> Interrupt
-              </Button>
+              <Tooltip label={INTERRUPT_HINT} side="bottom">
+                <Button
+                  variant="secondary"
+                  className="max-md:hidden"
+                  onClick={interrupt}
+                >
+                  <Hand className="size-3.5" aria-hidden /> Interrupt
+                </Button>
+              </Tooltip>
             )}
             {canCancel && (
-              <Button
-                variant="secondary"
-                className="max-md:hidden"
-                onClick={cancel}
-              >
-                <CircleStop className="size-3.5" aria-hidden /> Cancel
-              </Button>
+              <Tooltip label={CANCEL_HINT} side="bottom">
+                <Button
+                  variant="secondary"
+                  className="max-md:hidden"
+                  onClick={cancel}
+                >
+                  <CircleStop className="size-3.5" aria-hidden /> Cancel…
+                </Button>
+              </Tooltip>
             )}
             {(canInterrupt || canCancel) && (
               <Menu>
@@ -205,53 +261,105 @@ export function SessionView() {
                   {canInterrupt && (
                     <MenuItem onSelect={() => void interrupt()}>
                       <Hand className="size-3.5 text-muted-foreground" />{" "}
-                      Interrupt
+                      <span>
+                        Interrupt
+                        <span className="block text-xs text-muted-foreground">
+                          It stops and waits for you
+                        </span>
+                      </span>
                     </MenuItem>
                   )}
                   {canCancel && (
                     <MenuItem onSelect={() => void cancel()}>
                       <CircleStop className="size-3.5 text-muted-foreground" />{" "}
-                      Cancel session
+                      <span>
+                        Cancel session…
+                        <span className="block text-xs text-muted-foreground">
+                          It ends; Retry starts it over
+                        </span>
+                      </span>
                     </MenuItem>
                   )}
                 </MenuContent>
               </Menu>
             )}
             {steer && allows("retry") && (
-              <Button onClick={act("retryAgentSession", "Retrying")}>
-                <RotateCcw className="size-3.5" aria-hidden /> Retry
-              </Button>
+              <Tooltip label={RETRY_HINT} side="bottom">
+                {/* On phones an icon, so the session's title keeps the
+                    room; the word stays its name. */}
+                <Button
+                  className="max-sm:size-8 max-sm:px-0"
+                  onClick={act("retryAgentSession", "Retrying")}
+                >
+                  <RotateCcw className="size-3.5" aria-hidden />{" "}
+                  <span className="max-sm:sr-only">Retry</span>
+                </Button>
+              </Tooltip>
             )}
           </>
         }
       />
-      {/* Who and where, on one line (it scrolls sideways on phones). The
-          branch gives way first, cut in the middle, so who started the
-          session and when stay in view. */}
+      {confirmingCancel && canCancel && (
+        <div
+          role="alert"
+          className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-destructive/5 px-4 py-2.5 text-[13px] sm:px-6"
+        >
+          <span className="mr-auto">
+            Cancel this session? It ends now; Retry starts it over from the
+            task. To pause it instead, choose Interrupt.
+          </span>
+          <Button variant="ghost" onClick={() => setConfirmingCancel(false)}>
+            Keep it running
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setConfirmingCancel(false);
+              void cancelNow();
+            }}
+          >
+            Cancel session
+          </Button>
+        </div>
+      )}
+      {/* Who and where, on one line. The branch gives way first, cut in
+          the middle, so who started the session and when stay in view. On
+          phones the facts wrap instead: who acts and who is accountable
+          must never be the part scrolled out of sight. */}
       <div
         data-session-meta
-        className="flex h-9 shrink-0 [scrollbar-width:none] items-center gap-x-3 overflow-x-auto border-b px-4 text-xs whitespace-nowrap text-muted-foreground sm:px-6 [&>*:not([data-shrink])]:shrink-0"
+        className="flex shrink-0 items-center gap-x-3 border-b px-4 text-xs whitespace-nowrap text-muted-foreground max-sm:flex-wrap max-sm:gap-y-1.5 max-sm:py-2 sm:h-9 sm:scroll-fade-x sm:[scrollbar-width:none] sm:overflow-x-auto sm:px-6 [&>*:not([data-shrink])]:shrink-0"
       >
         <SessionStateChip state={state} className="sm:hidden" />
+        {/* Who and what first: the agent, who started it, the item and
+            its pull request. Then, quieter, where it runs. */}
         <AgentActor agent={agent} ownerId={agent?.ownerId} size={20} />
-        {agent && <Meta>{harnessLabel(agent.harness)}</Meta>}
-        {runner && (
-          <Meta icon={<Server />} label="Runner">
-            {runner.name}
-          </Meta>
+        <span className="flex items-center gap-1">
+          started by <SessionStarter session={session} />
+          <time
+            dateTime={session.createdAt}
+            title={absoluteTime(session.createdAt)}
+          >
+            {relativeTime(session.createdAt)}
+          </time>
+        </span>
+        {ran !== null && (
+          <span className="tabular-nums">
+            {!state.active
+              ? "ran "
+              : session.status === "waiting"
+                ? "open for "
+                : "running for "}
+            {formatDuration(ran)}
+          </span>
         )}
         {itemKey && (
           <Link
             href={paths.item(org, project!.key, itemKey)}
-            className="rounded-sm font-mono focus-ring outline-none hover:text-foreground"
+            className="rounded-sm font-mono text-foreground focus-ring outline-none hover:underline"
           >
             {itemKey}
           </Link>
-        )}
-        {session.branch && (
-          <Meta icon={<GitBranch />} label="Branch" shrink>
-            <MiddleTruncate text={session.branch} className="font-mono" />
-          </Meta>
         )}
         {session.pullRequestId ? (
           <Link
@@ -272,15 +380,23 @@ export function SessionView() {
             </a>
           )
         )}
-        <span className="flex items-center gap-1">
-          Started by <SessionStarter session={session} />
-          <time
-            dateTime={session.createdAt}
-            title={absoluteTime(session.createdAt)}
-          >
-            {relativeTime(session.createdAt)}
-          </time>
-        </span>
+        <span aria-hidden className="h-3.5 w-px bg-border" />
+        {runner && (
+          <Meta icon={<Server />} label="Runner">
+            {runner.name}
+          </Meta>
+        )}
+        {agent && <Meta>{harnessLabel(agent.harness)}</Meta>}
+        {/* A branch exists only in a repository: a session that started
+            in an empty workspace has none to show. */}
+        {session.branch &&
+          (session.repositoryId ??
+            session.repositoryUrl ??
+            !session.startedAt) && (
+            <Meta icon={<GitBranch />} label="Branch" shrink>
+              <MiddleTruncate text={session.branch} className="font-mono" />
+            </Meta>
+          )}
         {session.attempts > 1 && (
           <span>
             Attempt {session.attempts} of {session.maxAttempts}
@@ -332,17 +448,79 @@ export function SessionView() {
             })}
           </ol>
           {/* The outcome, unless the log already ends with the same error. */}
-          {Boolean(session.resultSummary ?? session.error) &&
+          {Boolean(
+            session.resultSummary ?? session.error ?? session.discardedFiles,
+          ) &&
             ["completed", "failed"].includes(session.status) &&
             !(session.error && shownErrors.has(session.error.trim())) && (
-              <Result summary={session.resultSummary} error={session.error} />
+              <Result
+                // The summary the log already shows is not repeated.
+                summary={
+                  session.resultSummary &&
+                  shownSummaries.has(session.resultSummary.trim())
+                    ? null
+                    : session.resultSummary
+                }
+                error={session.error}
+                discardedFiles={session.discardedFiles ?? 0}
+                onStartAgain={
+                  canStartAgain ? () => setStartingAgain(true) : undefined
+                }
+              />
             )}
+          {/* A failure is the start of a decision: retry as is, or go
+              back to the work or the conversation and change the ask. */}
+          {session.status === "failed" && steer && (itemKey ?? thread) && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Retry runs the same task again. To change what it is asked,
+              {itemKey ? (
+                <>
+                  {" "}
+                  update{" "}
+                  <Link
+                    href={paths.item(org, project!.key, itemKey)}
+                    className="font-mono text-foreground underline-offset-2 focus-ring outline-none hover:underline"
+                  >
+                    {itemKey}
+                  </Link>
+                </>
+              ) : null}
+              {itemKey && thread ? " or" : ""}
+              {thread ? (
+                <>
+                  {" "}
+                  reply in{" "}
+                  <Link
+                    href={thread}
+                    className="text-foreground underline-offset-2 focus-ring outline-none hover:underline"
+                  >
+                    its thread
+                  </Link>
+                </>
+              ) : null}{" "}
+              and start a new session.
+            </p>
+          )}
         </div>
       </div>
+      {/* Waiting for a message: the composer says so to the person who
+          can answer (one call to action, not a banner repeating it); the
+          others, who have no composer, get the line instead. */}
+      {session.status === "waiting" && !asks.length && !steer && (
+        <p
+          data-waiting-for-message
+          className="flex shrink-0 items-center justify-center gap-1.5 border-t bg-warning/5 px-4 py-2 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))] sm:px-6 dark:bg-transparent"
+        >
+          <Hand className="size-3.5 shrink-0" aria-hidden />
+          {`${state.label}: ${agent?.name ?? "the agent"} waits for the next message.`}
+        </p>
+      )}
       {asks.length > 0 && (
         <section
           aria-label={steer ? "Waiting on you" : state.label}
-          className="max-h-[55%] shrink-0 overflow-y-auto border-t bg-warning/5 px-4 py-3 sm:px-6"
+          // Urgency is a rule in the warning color along its top; a tint
+          // over the whole band read as dirty olive on near-black.
+          className="max-h-[55%] shrink-0 overflow-y-auto border-t-2 border-warning/60 bg-warning/5 px-4 py-3 sm:px-6 dark:bg-transparent"
         >
           <div className="mx-auto max-w-3xl space-y-2">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
@@ -398,9 +576,24 @@ export function SessionView() {
           />
         </div>
       )}
+      {startingAgain && (
+        <StartSessionDialog
+          onClose={() => setStartingAgain(false)}
+          agentId={session.agentId}
+          workItemId={session.workItemId ?? undefined}
+          prompt={session.prompt}
+        />
+      )}
     </div>
   );
 }
+
+const INTERRUPT_HINT =
+  "Stops the agent’s current turn. It keeps its work and waits for your next message.";
+const CANCEL_HINT =
+  "Ends the session. Retry starts it over from the task, with the messages you sent.";
+const RETRY_HINT =
+  "Runs the session again from the task; your earlier messages are sent again.";
 
 function Meta({
   icon,
@@ -434,30 +627,56 @@ function Meta({
 function Result({
   summary,
   error,
+  discardedFiles,
+  onStartAgain,
 }: {
   summary: string | null;
   error: string | null;
+  // Files it changed with no repository linked, discarded as it ended.
+  discardedFiles: number;
+  // Opens Start session with the same agent, task and item.
+  onStartAgain?: () => void;
 }) {
+  const unkept = !error && discardedFiles > 0;
   return (
     <div
       className={cn(
         "mt-4 rounded-xl px-4 py-3 text-[13px] shadow-(--shadow-border)",
-        error ? "bg-destructive/6" : "bg-success/6",
+        error ? "bg-destructive/6" : unkept ? "bg-warning/8" : "bg-success/6",
       )}
     >
       <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
         <SquareTerminal className="size-3.5" aria-hidden />
-        {error ? "The session failed" : "The agent reports it is done"}
+        {error
+          ? "The session failed"
+          : unkept
+            ? "The agent reports it is done, but its work was not kept"
+            : "The agent reports it is done"}
       </p>
       {summary && <p className="mt-1 whitespace-pre-wrap">{summary}</p>}
       {error && (
         <p className="mt-1 whitespace-pre-wrap text-destructive">{error}</p>
       )}
-      {!error && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          A claim, not proof: the pull request, its checks and the Definition of
-          Done decide.
-        </p>
+      {unkept ? (
+        <>
+          <p className="mt-2 flex items-start gap-1.5 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]">
+            <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0" />
+            {notKeptMeaning(discardedFiles)}
+          </p>
+          {onStartAgain && (
+            <Button variant="secondary" className="mt-3" onClick={onStartAgain}>
+              <RotateCcw className="size-3.5" aria-hidden /> Start again with a
+              repository…
+            </Button>
+          )}
+        </>
+      ) : (
+        !error && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            A claim, not proof: the pull request, its checks and the Definition
+            of Done decide.
+          </p>
+        )
       )}
     </div>
   );

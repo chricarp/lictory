@@ -3,7 +3,6 @@ import {
   CircleAlert,
   CircleCheck,
   CircleDashed,
-  CircleMinus,
   ExternalLink,
   GitPullRequest,
 } from "lucide-react";
@@ -15,6 +14,7 @@ import {
   type DoneCheckResult,
   type DoneEvaluationEntity,
 } from "@lictory/core/claims/contracts";
+import { canOverrideDoneCheck } from "@lictory/core/contracts/protocol";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import { relativeTime } from "@lictory/core/lib/work-items";
@@ -22,24 +22,129 @@ import { Button } from "@lictory/ui/button";
 import { Dialog } from "@lictory/ui/dialog";
 import { SectionLabel } from "@lictory/ui/primitives";
 import { StatusChip } from "@lictory/ui/status-chip";
-import { firstName } from "@lictory/platform/lib/session-state";
+import {
+  activeStatuses,
+  firstName,
+  sessionState,
+  type SessionState,
+} from "@lictory/platform/lib/session-state";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import { ClaimOwner } from "@lictory/platform/components/claims/claim-badge";
 import {
   claimState,
-  doneCheckGlyph,
+  deliveredEvidence,
+  type DeliveredEvidence,
 } from "@lictory/platform/components/claims/claim-state";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { waitsForRunner } from "@lictory/core/factory/entities";
+import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import {
+  useFactory,
+  useSession,
+} from "@lictory/platform/components/factory/store";
+import { useAnnounceChange } from "@lictory/platform/components/shell/announcer";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   leaseLeft,
+  leaseLeftLabel,
   useAgentLabel,
   useAgents,
   useAutonomy,
   useClaimability,
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
+
+// The claim's state chip and when it changed.
+function ClaimStateLine({
+  claim,
+  state,
+}: {
+  claim: ClaimEntity;
+  state: SessionState;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <SessionStateChip state={state} />
+      <span className="text-xs text-muted-foreground">
+        {claim.sessionWaitingSince
+          ? `since ${relativeTime(claim.sessionWaitingSince)}`
+          : `claimed ${relativeTime(claim.claimedAt)}`}
+      </span>
+    </div>
+  );
+}
+
+function LeaseLine({ claim }: { claim: ClaimEntity }) {
+  return (
+    <p className="text-xs text-muted-foreground">
+      {leaseLeft(claim) > 0
+        ? `Lease ends in ${leaseLeftLabel(claim)} unless the agent renews it.`
+        : "Lease ended; the next sweep returns it to the queue."}
+    </p>
+  );
+}
+
+// A claim held by a session: while the session runs the claim reads as it
+// does; once the session completed, the claim holds the item for delivery
+// (until the Definition of Done passes), so it says Completed, not Running.
+function ClaimSessionState({
+  claim,
+  sessionId,
+  state,
+}: {
+  claim: ClaimEntity;
+  sessionId: string;
+  state: SessionState;
+}) {
+  const { session } = useSession(sessionId);
+  const ended = session && !activeStatuses.includes(session.status);
+  if (!ended)
+    return (
+      <>
+        <ClaimStateLine claim={claim} state={state} />
+        {claim.state === "active" && <LeaseLine claim={claim} />}
+      </>
+    );
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <SessionStateChip state={sessionState(session)} />
+        <span className="text-xs text-muted-foreground">
+          {session.completedAt && relativeTime(session.completedAt)}
+        </span>
+      </div>
+      {leaseLeft(claim) > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Held for delivery for at most {leaseLeftLabel(claim)} more, until the
+          Definition of Done passes.
+        </p>
+      )}
+    </>
+  );
+}
+
+// A claim's session before it runs: starting, or queued with no online
+// runner that can run its agent (it would otherwise wait silently).
+function StartingSession({ sessionId }: { sessionId: string }) {
+  const { organization } = useWorkspace();
+  const { session } = useSession(sessionId);
+  const { runners, agentById } = useFactory();
+  const agent = session ? agentById.get(session.agentId) : undefined;
+  if (!session || !waitsForRunner(session, agent, runners))
+    return "A session is starting for it.";
+  return (
+    <>
+      Its session is queued: no online runner can run {agent?.name}.{" "}
+      <Link
+        href={factoryPaths.runners(organization.slug)}
+        className="rounded-sm text-foreground underline underline-offset-2 focus-ring outline-none"
+      >
+        Runners
+      </Link>
+    </>
+  );
+}
 
 const textareaClass =
   "w-full resize-y rounded-xl border bg-card px-3 py-2 text-[13px] shadow-xs outline-none focus-visible:ring-3 focus-visible:ring-ring/15";
@@ -56,6 +161,18 @@ export function ClaimPanel() {
   const verdict = useClaimability()(item);
   const { policy } = useAutonomy(project.id);
   const [releasing, setReleasing] = useState(false);
+  // An agent claiming the item, waiting on people or letting it go is
+  // announced while the item is open.
+  useAnnounceChange(
+    item.id,
+    claim ? `${claim.agentName}\u0000${claimState(claim).label}` : "",
+    (previous, next) => {
+      const [agent, state] = next.split("\u0000");
+      if (!next) return `${previous.split("\u0000")[0]} released the item`;
+      if (!previous) return `${agent} claimed the item`;
+      return `${agent}: ${state}`;
+    },
+  );
   if (project.deliveryMode !== "native") return null;
   // Work still being refined belongs to readiness and the delivery scope
   // panel; the factory speaks up once only the scope decision, a blocker or
@@ -101,18 +218,18 @@ export function ClaimPanel() {
               the item is someone else's, whose work it is. It wraps rather
               than truncating the agent's name. */}
           <ClaimOwnerWithAgent claim={claim} assigneeId={item.assigneeId} />
-          <div className="flex flex-wrap items-center gap-2">
-            <SessionStateChip state={state} />
-            <span className="text-xs text-muted-foreground">
-              {claim.sessionWaitingSince
-                ? `since ${relativeTime(claim.sessionWaitingSince)}`
-                : `claimed ${relativeTime(claim.claimedAt)}`}
-            </span>
-          </div>
+          {claim.agentSessionId && !claim.sessionWaitingSince ? (
+            <ClaimSessionState
+              claim={claim}
+              sessionId={claim.agentSessionId}
+              state={state}
+            />
+          ) : (
+            <ClaimStateLine claim={claim} state={state} />
+          )}
           {claim.sessionWaitingSince && claim.agentSessionId ? (
             <p className="text-xs text-muted-foreground">
-              Its session waits on {firstName(owner)}&apos;s answer to an
-              approval request.{" "}
+              Its session waits on {firstName(owner)}&apos;s answer.{" "}
               <Link
                 href={paths.factorySession(
                   organization.slug,
@@ -132,14 +249,16 @@ export function ClaimPanel() {
               about the specification. It resumes when people resolve{" "}
               {claim.waitingThreadIds.length === 1 ? "it" : "them"}.
             </p>
-          ) : (
+          ) : claim.state === "starting" ? (
             <p className="text-xs text-muted-foreground">
-              {claim.state === "starting"
-                ? "A session is starting for it."
-                : leaseLeft(claim) > 0
-                  ? `Lease ends in ${leaseLeft(claim)} min unless the agent renews it.`
-                  : "Lease ended; the next sweep returns it to the queue."}
+              {claim.agentSessionId ? (
+                <StartingSession sessionId={claim.agentSessionId} />
+              ) : (
+                "A session is starting for it."
+              )}
             </p>
+          ) : claim.agentSessionId ? null : (
+            <LeaseLine claim={claim} />
           )}
           {claim.lastProgress && (
             <blockquote className="border-l-2 pl-2 text-xs text-foreground/80">
@@ -161,7 +280,7 @@ export function ClaimPanel() {
               variant="outline"
               onClick={() => setReleasing(true)}
             >
-              Release
+              Release claim…
             </Button>
           )}
         </div>
@@ -275,7 +394,7 @@ export function ReleaseDialog({
   return (
     <Dialog
       title="Release this claim?"
-      description={`${agent} stops holding the item. It returns to the status it had before the claim, unless someone moved it since. The dispatcher does not start it again until someone retries.`}
+      description={`${agent} stops holding the item, so another agent or a person can take it. The item returns to the status it had before the claim, unless someone moved it since. The agent's session is not stopped: cancel it from the session if it should stop. The dispatcher does not start the item again until someone retries.`}
       onClose={onClose}
       onSubmit={() => void release()}
       footer={
@@ -284,7 +403,7 @@ export function ReleaseDialog({
             Cancel
           </Button>
           <Button type="submit" disabled={pending}>
-            {pending ? "Releasing…" : "Release"}
+            {pending ? "Releasing…" : "Release claim"}
           </Button>
         </>
       }
@@ -317,15 +436,38 @@ const pullRequestStateLabel: Record<"open" | "merged" | "closed", string> = {
 };
 
 // The delivery twin of readiness: what must be true before the item is
-// Done, from evidence. Shown while work is in progress or claimed.
+// Done, from evidence. Shown while work is in progress or claimed, and on a
+// Done item as the evidence it was delivered on.
 export function DefinitionOfDonePanel() {
-  const { item, project, entities } = useItem();
-  const { organization } = useWorkspace();
+  const { item, project, entities, activity } = useItem();
+  const { organization, delivery } = useWorkspace();
   const evaluation = entities.find(
     (e): e is DoneEvaluationEntity =>
       e.type === "doneEvaluation" && e.workItemId === item.id,
   );
-  if (project.deliveryMode !== "native" || !evaluation) return null;
+  // A check passing (or failing again) is announced while the item is open.
+  useAnnounceChange(
+    item.id,
+    evaluation?.checks
+      .map((c) => `${c.passed ? "+" : "-"}${c.label}`)
+      .join("\u0000"),
+    (previous, next) => {
+      const before = new Set(previous.split("\u0000"));
+      const changed = next
+        .split("\u0000")
+        .filter((c) => c && !before.has(c))
+        .map((c) => `${c.slice(1)}: ${c.startsWith("+") ? "met" : "not met"}`);
+      return changed.length
+        ? `Definition of Done: ${changed.join("; ")}`
+        : null;
+    },
+  );
+  if (project.deliveryMode !== "native") return null;
+  if (!evaluation) {
+    const done = delivery.statuses.get(item.statusId)?.category === "done";
+    const delivered = done ? deliveredEvidence(activity) : undefined;
+    return delivered ? <DeliveredPanel evidence={delivered} /> : null;
+  }
   const { checks } = evaluation;
   const passed = checks.filter((c) => c.passed).length;
   return (
@@ -356,7 +498,7 @@ export function DefinitionOfDonePanel() {
               key={c.key}
               className={cn(
                 "h-1.5 flex-1 rounded-full",
-                c.passed ? "bg-success" : "bg-foreground/10",
+                c.passed ? "bg-success" : "inset-ring inset-ring-input",
               )}
             />
           ))}
@@ -377,6 +519,11 @@ export function DefinitionOfDonePanel() {
             />
           ))}
         </ul>
+      )}
+      {!evaluation.code.connected && evaluation.code.explanation && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {evaluation.code.explanation}
+        </p>
       )}
       {evaluation.code.pullRequests.length > 0 && (
         <ul className="mt-3 space-y-1">
@@ -402,9 +549,9 @@ export function DefinitionOfDonePanel() {
               <StatusChip
                 tone={
                   pr.state === "merged"
-                    ? "success"
+                    ? "merged"
                     : pr.state === "open"
-                      ? "info"
+                      ? "success"
                       : "neutral"
                 }
                 className="ml-auto"
@@ -424,7 +571,7 @@ export function DefinitionOfDonePanel() {
           {evaluation.held}
         </p>
       )}
-      <p className="mt-2 text-[11px] text-muted-foreground">
+      <p className="mt-2 text-xs text-muted-foreground">
         {evaluation.passed
           ? "Every check passes."
           : "The item moves to Done by itself when every check passes."}{" "}
@@ -434,6 +581,83 @@ export function DefinitionOfDonePanel() {
         >
           Definition of Done
         </Link>
+      </p>
+    </section>
+  );
+}
+
+// A Done item: the checks that passed when its Definition of Done moved it
+// to Done, and the pull requests they read. History, not a live evaluation.
+function DeliveredPanel({ evidence }: { evidence: DeliveredEvidence }) {
+  return (
+    <section
+      aria-label="Definition of Done"
+      data-rail-section="done"
+      className="scroll-mt-4"
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <SectionLabel>Definition of Done</SectionLabel>
+        <span className="text-xs text-success tabular-nums">
+          {evidence.checks.length} / {evidence.checks.length} checks
+        </span>
+      </div>
+      <ul className="space-y-1.5">
+        {evidence.checks.map((check) => (
+          <li
+            key={check.key}
+            data-done-check="passed"
+            className="flex items-start gap-2 text-[13px] leading-5"
+          >
+            <CircleCheck
+              role="img"
+              aria-label="Passed"
+              className="mt-0.5 size-4 shrink-0 text-success"
+            />
+            <div className="min-w-0 flex-1">
+              <p>{check.label}</p>
+              {(check.overridden || check.detail) && (
+                <p className="text-xs text-muted-foreground">
+                  {check.overridden ? "Passed by hand." : check.detail}
+                </p>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {evidence.pullRequests.length > 0 && (
+        <ul className="mt-3 space-y-1">
+          {evidence.pullRequests.map((pr) => (
+            <li
+              key={`${pr.title}:${pr.headSha}`}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            >
+              <GitPullRequest aria-hidden className="size-3.5 shrink-0" />
+              {pr.url ? (
+                <a
+                  href={pr.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-w-0 items-center gap-1 truncate hover:text-foreground"
+                >
+                  <span className="truncate">{pr.title}</span>
+                  <ExternalLink aria-hidden className="size-3 shrink-0" />
+                </a>
+              ) : (
+                <span className="truncate">{pr.title}</span>
+              )}
+              <StatusChip
+                tone={pr.state === "merged" ? "merged" : "neutral"}
+                className="ml-auto"
+              >
+                {pullRequestStateLabel[pr.state]}
+              </StatusChip>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 text-xs text-muted-foreground">
+        Every check passed {relativeTime(evidence.at)}, which moved the item to
+        Done.
       </p>
     </section>
   );
@@ -479,23 +703,22 @@ function DoneCheckRow({
       setPending(false);
     }
   };
-  const glyph = doneCheckGlyph(check, evaluation);
+  // Without a code host every code check fails for the same reason; the
+  // panel says it once, below the list.
+  const detail =
+    !evaluation.code.connected && check.detail === evaluation.code.explanation
+      ? undefined
+      : check.detail;
   return (
     <li
-      data-done-check={glyph}
+      data-done-check={check.passed ? "passed" : "open"}
       className="flex items-start gap-2 text-[13px] leading-5"
     >
-      {glyph === "passed" ? (
+      {check.passed ? (
         <CircleCheck
           role="img"
           aria-label="Passed"
           className="mt-0.5 size-4 shrink-0 text-success"
-        />
-      ) : glyph === "no_checks" ? (
-        <CircleMinus
-          role="img"
-          aria-label="Passed: no checks reported"
-          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
         />
       ) : (
         <CircleDashed
@@ -506,13 +729,13 @@ function DoneCheckRow({
       )}
       <div className="min-w-0 flex-1">
         <p className={cn(!check.passed && "text-foreground")}>{check.label}</p>
-        {/* The evidence behind the state, passed or not ("No required
-            checks reported on this branch."), unless it only repeats the
+        {/* The evidence behind the state, passed or not ("The code host
+            has reported no checks for …"), unless it only repeats the
             label; a check passed by hand says who did instead. */}
-        {check.detail &&
+        {detail &&
           !check.override &&
-          check.detail.replace(/\.$/, "") !== check.label && (
-            <p className="text-xs text-muted-foreground">{check.detail}</p>
+          detail.replace(/\.$/, "") !== check.label && (
+            <p className="text-xs text-muted-foreground">{detail}</p>
           )}
         {check.override && (
           <p className="text-xs text-muted-foreground">
@@ -551,7 +774,7 @@ function DoneCheckRow({
                 {signOff.signedOffBy ? "Withdraw sign-off" : "Sign off"}
               </Button>
             )}
-            {capabilities.changeProperties &&
+            {canOverrideDoneCheck(capabilities) &&
               (check.override ? (
                 <Button
                   size="sm"
@@ -612,7 +835,7 @@ function OverrideDialog({
   return (
     <Dialog
       title={`Pass “${check.label}” by hand?`}
-      description="An override is recorded with your name and reason in the item's history. It applies to this item's accepted revision only."
+      description="The check then counts as passed without its evidence, for this item's accepted revision only. Your name and reason are recorded in the item's history and the organization's audit log; you or anyone who changes properties here can withdraw it."
       onClose={onClose}
       onSubmit={() => {
         if (reason.trim()) void onConfirm(reason.trim());

@@ -225,9 +225,7 @@ test("project administrators edit the Definition of Ready per type, review its i
     page.getByText(/Kept on Definition of Ready version 1/),
   ).toBeVisible();
   await expect(
-    page.getByText(
-      "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work.",
-    ),
+    page.getByText("All checks pass for this revision."),
   ).toBeVisible();
 
   // PAY-2 follows the new rules: only the sign-off is missing.
@@ -239,9 +237,7 @@ test("project administrators edit the Definition of Ready per type, review its i
   await page.getByRole("button", { name: "Sign off", exact: true }).click();
   await expect(page.getByText(/Signed off by Ada Admin/)).toBeVisible();
   await expect(
-    page.getByText(
-      "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work.",
-    ),
+    page.getByText("All checks pass for this revision."),
   ).toBeVisible();
   await page.screenshot({ path: "/tmp/lictory-readiness-item.png" });
   await page.reload();

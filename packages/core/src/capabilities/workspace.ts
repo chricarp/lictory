@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
+import { readAdministratorHealth } from "@lictory/core/domain/administrator-health";
 import { committedEvents } from "@lictory/core/lib/analytics/events";
 import { deliveryIndex } from "@lictory/core/lib/work-items";
 import {
@@ -468,7 +469,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   },
   deletePullRequest: {
     title: "Close pull request",
-    description: `Close a pull request and remove it from the item. Open discussions on it are resolved. The text of a merged pull request stays in the specification. ${specificationPullRequest.rule("close")}`,
+    description: `Close an unmerged pull request and remove it from the item. Open discussions on it are resolved. A merged pull request stays: it records who approved which result. ${specificationPullRequest.rule("close")}`,
     destructive: true,
   },
   requestPullRequestReview: {
@@ -493,7 +494,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   createSuggestion: {
     title: "Create suggestion",
     description:
-      "Legacy: propose replacement Markdown for the specification with a title and rationale. New proposals use createBranch, commitBranch and createPullRequest instead. Anyone in the organization can suggest; `open: false` saves a draft.",
+      "Suggest new wording for a specification that is not ready yet: the complete proposed Markdown (usually one passage changed), a title and a rationale. One person accepts or rejects it (setSuggestionReviewer names who), and people see it beside the passage it changes, as their own Suggest does. A ready specification is protected, so its changes, and larger rewrites or child work, are pull requests: createBranch, commitBranch and createPullRequest. Anyone in the organization can suggest; `open: false` saves a draft.",
   },
   updateSuggestion: {
     title: "Update suggestion",
@@ -506,7 +507,7 @@ const commandDocs: Record<CommandType, CommandDoc> = {
   setSuggestionReviewer: {
     title: "Set suggestion reviewer",
     description:
-      "Author: assign or unassign a reviewer who holds a discipline in the project that can both edit specifications and review.",
+      "Author: assign or unassign a reviewer who holds a discipline in the project that can both edit specifications and review. While nobody is assigned, such a person may assign themselves.",
   },
   decideSuggestion: {
     title: "Review suggestion",
@@ -1002,9 +1003,12 @@ const listWorkItems = defineCapability({
       .nullable()
       .optional()
       .describe("A member id, or null for unassigned items."),
-    parentId: id.optional(),
+    parentId: id.optional().describe("Only direct children of this work item."),
     iterationId: id.optional(),
-    refinementState: z.enum(refinementStates).optional(),
+    refinementState: z
+      .enum(refinementStates)
+      .optional()
+      .describe("Only items in this refinement state."),
     lifecycle: z
       .enum([
         "proposal",
@@ -1016,7 +1020,10 @@ const listWorkItems = defineCapability({
         "completed",
         "canceled",
       ])
-      .optional(),
+      .optional()
+      .describe(
+        "Only items at this lifecycle stage, across delivery modes; ready means checks pass and delivery has not started.",
+      ),
     query: z.string().max(120).optional(),
     includeArchived: z.boolean().default(false),
     offset: z.number().int().min(0).default(0),
@@ -1071,7 +1078,7 @@ const getWorkItem = defineCapability({
   name: "getWorkItem",
   title: "Get work item",
   description:
-    "A work item with its current specification (Markdown), readiness checks, reviews and approvals, discussions with messages, suggestions, branches, pull requests, relations, Lictory Intelligence runs and recent activity. Identify it by id or by key (e.g. PAY-142). Earlier revision contents are included only with includeRevisionContent.",
+    "A work item with its current specification (Markdown, once, under specification), readiness checks, reviews and approvals, discussions with messages, suggestions, branches, pull requests, relations, Lictory Intelligence runs and recent activity. The item names its type, status, assignee, team and iteration (`names`) beside their ids, so no getWorkspace lookup is needed to read it. Identify it by id or by key (e.g. PAY-142). Revision contents are included only with includeRevisionContent.",
   kind: "query",
   surfaces: everywhere,
   input: z
@@ -1081,9 +1088,21 @@ const getWorkItem = defineCapability({
       key: z
         .string()
         .regex(/^[A-Za-z][A-Za-z0-9]{1,9}-\d+$/)
-        .optional(),
-      includeRevisionContent: z.boolean().default(false),
-      activityLimit: z.number().int().min(0).max(500).default(50),
+        .optional()
+        .describe(
+          "The work item key, such as PAY-142; give workItemId or key.",
+        ),
+      includeRevisionContent: z
+        .boolean()
+        .default(false)
+        .describe("true includes the content of earlier revisions."),
+      activityLimit: z
+        .number()
+        .int()
+        .min(0)
+        .max(500)
+        .default(50)
+        .describe("How many recent activity entries to include."),
     })
     .refine((q) => Boolean(q.workItemId) !== Boolean(q.key), {
       message: "Give exactly one of workItemId or key.",
@@ -1165,8 +1184,37 @@ const getWorkItem = defineCapability({
     const revisions = of("revision").sort((a, b) => b.number - a.number);
     const current = revisions.find((r) => r.id === item.revisionId);
     const messages = of("message");
+    const person = (userId: string | null) =>
+      userId
+        ? (roster.members.find((m) => m.id === userId)?.name ??
+          roster.formerMembers.find((m) => m.id === userId)?.name ??
+          null)
+        : null;
+    const status = roster.statuses.find((st) => st.id === item.statusId);
+    const iteration = item.iterationId
+      ? roster.iterations.find((it) => it.id === item.iterationId)
+      : undefined;
     return {
-      item: { key: keyOf(item, roster.projects), ...item },
+      item: {
+        key: keyOf(item, roster.projects),
+        ...item,
+        // What the ids above name, so an agent reads the item without
+        // looking each one up in getWorkspace.
+        names: {
+          type: roster.types.find((t) => t.id === item.typeId)?.name ?? null,
+          status: status
+            ? { name: status.name, category: status.category }
+            : null,
+          assignee: person(item.assigneeId),
+          team: item.teamId
+            ? (roster.teams.find((t) => t.id === item.teamId)?.name ?? null)
+            : null,
+          iteration: iteration
+            ? (iteration.name ?? `Iteration ${iteration.number}`)
+            : null,
+          createdBy: person(item.createdById),
+        },
+      },
       specification: current
         ? {
             revisionId: current.id,
@@ -1175,10 +1223,10 @@ const getWorkItem = defineCapability({
             content: current.content,
           }
         : null,
+      // The current text is under specification; revisions list history
+      // without repeating it unless includeRevisionContent asks for it.
       revisions: revisions.map((r) =>
-        q.includeRevisionContent || r.id === current?.id
-          ? r
-          : { ...r, content: undefined },
+        q.includeRevisionContent ? r : { ...r, content: undefined },
       ),
       readiness: of("readiness")[0]?.checks ?? [],
       reviews: of("review"),
@@ -1210,6 +1258,8 @@ const getWorkItem = defineCapability({
           key: keyOf(c, roster.projects),
           title: c.title,
           statusId: c.statusId,
+          status:
+            roster.statuses.find((st) => st.id === c.statusId)?.name ?? null,
           refinementState: c.refinementState,
         })),
       externalLinks: entities.filter(
@@ -1232,7 +1282,11 @@ const getInsights = defineCapability({
   surfaces: everywhere,
   input: z.object({
     organizationId,
-    topic: z.enum(insightTopics),
+    topic: z
+      .enum(insightTopics)
+      .describe(
+        "refinement (specification states, reviews, readiness), delivery (status, burndown, velocity, blocked work) or people (workload, pending reviews).",
+      ),
     projectId: id.optional(),
     teamId: id.optional(),
   }),
@@ -1337,6 +1391,21 @@ const listMilestones = defineCapability({
   },
 });
 
+// What the server knows is wrong with the organization's background work
+// (stuck or failing jobs, failed hand-offs; for instance administrators the
+// replication slot too), for the "Needs an administrator" card.
+const getAdministratorHealth = defineCapability({
+  name: "getAdministratorHealth",
+  title: "Administrator health",
+  description:
+    "Organization administrators: problems the server knows about in this organization's background work, the same database checks the instance monitor runs: notifications, email or Lictory Intelligence runs waiting for the worker, email that failed, Lictory Intelligence runs failing, hand-offs that failed and were not retried, and (for instance administrators) the replication slot that keeps browsers current. Empty while all is well.",
+  kind: "query",
+  surfaces: everywhere,
+  input: z.object({ organizationId }),
+  run: (ctx, input) =>
+    readAdministratorHealth(ctx.db, ctx.principal.userId, input.organizationId),
+});
+
 export const workspaceCapabilities: AnyCapability[] = [
   listOrganizations,
   getWorkspace,
@@ -1351,5 +1420,6 @@ export const workspaceCapabilities: AnyCapability[] = [
   getReadinessHistory,
   previewReadinessChecks,
   syncDirectory,
+  getAdministratorHealth,
   ...commandCapabilities,
 ] as AnyCapability[];

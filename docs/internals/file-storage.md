@@ -37,8 +37,10 @@ variables. Resolution:
 - No `S3_*` and no `R2_*` value: attachments are disabled. The API and worker
   start and log `attachments: disabled`; `/api/session` reports
   `attachments: false`, so the editor offers no upload and the attachment
-  panel says that attachments are unavailable; upload and download requests
-  fail with `503` and that explanation, whatever client sends them.
+  panel says that attachments are off on this server, who turns them on and
+  that links work meanwhile (`ATTACHMENTS_UNAVAILABLE`, one sentence for
+  every surface); upload and download requests fail with `503` and the same
+  explanation, whatever client sends them.
 - Any `S3_*` value together with any `R2_*` value: rejected, because neither
   can silently win.
 - A partial set (for example a bucket without credentials), an endpoint that

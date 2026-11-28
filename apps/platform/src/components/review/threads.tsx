@@ -296,10 +296,10 @@ export function Thread({
   // discussions say which revision (or branch commit) they were written on.
   const versioned = reviewable || Boolean(thread.commitId);
   const writtenOn = thread.commitId
-    ? `commit ${thread.commitId.slice(0, 8)}`
+    ? "a proposed change"
     : `revision ${revision ?? "?"}`;
   const writtenOnLabel = thread.commitId
-    ? `Written on commit ${thread.commitId.slice(0, 8)}`
+    ? `Written on a version of a proposed change (${thread.commitId.slice(0, 8)})`
     : `Written on revision ${revision ?? "?"}`;
   const revisionLink = !versioned ? null : !thread.commitId &&
     revision !== undefined &&
@@ -359,7 +359,7 @@ export function Thread({
     );
   const blockingTitle =
     thread.pullRequestId || thread.suggestionId
-      ? "Must be resolved before this change can merge."
+      ? "Must be resolved before this change can apply."
       : "Must be resolved before the specification is ready.";
   const foldable = own.length >= FOLD_FROM;
   const opening = own[0];
@@ -855,7 +855,7 @@ function ReplyField({
         </p>
       )}
       <div className="flex items-center gap-1.5">
-        <span className="min-w-0 text-[11px] leading-4 text-muted-foreground touch:hidden">
+        <span className="min-w-0 text-xs leading-4 text-muted-foreground touch:hidden">
           {sendKeys} to send · Close keeps a draft
         </span>
         {/* Closing keeps what was written (a draft); discarding is
@@ -886,6 +886,20 @@ function ReplyField({
 
 // Starts a discussion: a one-line field at rest that opens into an editor
 // (with the quoted passage, when there is one) while writing.
+// Focuses the element once it renders (a new discussion card appears a
+// frame or two after the write), unless focus already moved elsewhere.
+function focusWhenShown(selector: string) {
+  let tries = 0;
+  const attempt = () => {
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const target = document.querySelector<HTMLElement>(selector);
+    if (target) target.focus();
+    else if (tries++ < 20) window.setTimeout(attempt, 50);
+  };
+  requestAnimationFrame(attempt);
+}
+
 export function ThreadComposer({
   draft,
   onDraftChange,
@@ -955,6 +969,9 @@ export function ThreadComposer({
     const text = body.trim();
     if (!text || !current || sending) return;
     setError(undefined);
+    // The editor is disabled while sending, which drops focus to the page;
+    // a keyboard author is brought back to what they just posted.
+    const hadFocus = Boolean(formRef.current?.contains(document.activeElement));
     setSending(true);
     const threadId = crypto.randomUUID();
     // Posting applies at once (and queues while offline); text the server
@@ -981,10 +998,12 @@ export function ThreadComposer({
       setAnchorDraft("");
       onDraftChange(null);
       onCreated?.(threadId);
+      if (hadFocus) focusWhenShown(`[data-thread-id="${threadId}"]`);
     } catch (e) {
       setError(
         `Not posted${e instanceof Error ? `: ${e.message}` : "."} Your text is kept; post it again when ready.`,
       );
+      if (hadFocus) requestAnimationFrame(() => editorRef.current?.focus());
     } finally {
       setSending(false);
     }
@@ -1034,7 +1053,7 @@ export function ThreadComposer({
       ref={formRef}
       aria-busy={sending || undefined}
       className={cn(
-        "scroll-mt-16 scroll-mb-4 rounded-xl bg-card ring-1 ring-foreground/10 transition-shadow",
+        "scroll-mt-16 scroll-mb-4 rounded-xl bg-card ring-1 ring-input transition-shadow",
         active && "ring-2 ring-primary/25",
       )}
       onFocus={() => setFocused(true)}
@@ -1101,13 +1120,13 @@ export function ThreadComposer({
               onCheckedChange={(checked) => setBlocking(checked === true)}
               title={
                 change
-                  ? "The change cannot merge until this discussion is resolved."
+                  ? "The change cannot apply until this discussion is resolved."
                   : "The specification cannot become ready until this discussion is resolved."
               }
               className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground ring-1 ring-foreground/10 transition-colors outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-destructive/8 data-checked:text-[color-mix(in_oklab,var(--destructive)_80%,var(--foreground))] data-checked:ring-destructive/25 data-checked:focus-visible:ring-ring/60 touch:h-11 touch:px-3"
             >
               <CircleAlert className="size-3.5" aria-hidden />
-              {change ? "Blocks merging" : "Blocks readiness"}
+              {change ? "Blocks applying" : "Blocks readiness"}
             </Checkbox>
           )}
           {reviewable && current && !change && (

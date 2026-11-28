@@ -81,13 +81,30 @@ test("a channel synced with Slack shows both sides of one conversation @smoke", 
   await routeSlackAuthorize(page);
   await page.goto(`/${seeded.slug}/settings/integrations`);
   const section = page.locator("#slack");
+  // Without Slack the card is one sentence and one button; the steps and
+  // the manifest open on request.
+  await section.getByRole("button", { name: "Set up Slack" }).click();
+  await section.getByText("Show the manifest").click();
   await expect(section.getByLabel("Slack app manifest")).toContainText(
     `/api/slack/events/${seeded.organizationId}`,
   );
+  // This server's plain-HTTP localhost address is one Slack cannot reach.
+  await expect(
+    section.getByRole("note", { name: "Slack cannot reach this server" }),
+  ).toContainText(`Slack cannot reach ${process.env.E2E_PLATFORM_URL}`);
   await section.getByLabel("App ID").fill(FAKE_SLACK_APP.appId);
   await section.getByLabel("Client ID").fill(FAKE_SLACK_APP.clientId);
-  await section.getByLabel("Client Secret").fill(FAKE_SLACK_APP.clientSecret);
   await section.getByLabel("Signing Secret").fill(FAKE_SLACK_APP.signingSecret);
+  // A malformed secret is named at its field, which takes the focus.
+  const clientSecret = section.getByLabel("Client Secret");
+  await clientSecret.fill("not a secret");
+  await section.getByRole("button", { name: "Save app" }).click();
+  await expect(clientSecret).toBeFocused();
+  await expect(clientSecret).toHaveAttribute("aria-invalid", "true");
+  await expect(clientSecret).toHaveAccessibleDescription(
+    /The Client Secret is not in Slack's format/,
+  );
+  await clientSecret.fill(FAKE_SLACK_APP.clientSecret);
   await section.getByRole("button", { name: "Save app" }).click();
   await expect(section.getByText("Not installed yet")).toBeVisible();
   await section.getByRole("button", { name: "Install in Slack" }).click();

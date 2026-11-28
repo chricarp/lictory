@@ -1,8 +1,10 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { access, mkdir, writeFile } from "node:fs/promises";
 import { homedir, platform, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { run } from "@lictory/runner/process";
 import { homeDirectory } from "@lictory/runner/config";
+import { EXIT } from "@lictory/runner/output";
 
 // `lictory-runner install-service`: runs `lictory-runner start` at boot
 // (systemd on Linux, launchd on macOS) and restarts it if it stops. On
@@ -48,6 +50,9 @@ export function systemdUnit(options: {
     ...(options.system ? [`User=${options.user}`] : []),
     "Restart=always",
     "RestartSec=5",
+    // Not registered, or the credential was revoked: restarting cannot
+    // help until a person registers the runner again.
+    `RestartPreventExitStatus=${EXIT.needsPerson} ${EXIT.usage}`,
     // Sessions get time to hand back their work.
     "TimeoutStopSec=30",
     "KillSignal=SIGTERM",
@@ -93,20 +98,93 @@ ${args}
 `;
 }
 
+// Where install-service writes the service definition.
+function servicePath(os: string, system: boolean, user = homedir()) {
+  if (os === "linux")
+    return system
+      ? "/etc/systemd/system/lictory-runner.service"
+      : join(user, ".config", "systemd", "user", "lictory-runner.service");
+  if (os === "darwin")
+    return system
+      ? "/Library/LaunchDaemons/com.lictory.runner.plist"
+      : join(user, "Library", "LaunchAgents", "com.lictory.runner.plist");
+  return null;
+}
+
+const exists = (path: string) =>
+  access(path).then(
+    () => true,
+    () => false,
+  );
+
+// The command that prints the installed service's log: the journal on
+// Linux, the file launchd writes on macOS. Null when no service is
+// installed: a runner started by hand logs to its terminal only.
+export async function serviceLogCommand(
+  options: { follow: boolean; lines: number },
+  os = platform(),
+  home = homeDirectory(),
+  user = homedir(),
+) {
+  for (const system of [true, false]) {
+    const path = servicePath(os, system, user);
+    if (!path || !(await exists(path))) continue;
+    if (os === "linux")
+      return [
+        "journalctl",
+        ...(system ? [] : ["--user"]),
+        "-u",
+        "lictory-runner",
+        "-n",
+        String(options.lines),
+        "--no-pager",
+        ...(options.follow ? ["-f"] : []),
+      ];
+    return [
+      "tail",
+      "-n",
+      String(options.lines),
+      ...(options.follow ? ["-f"] : []),
+      join(home, "logs", "runner.log"),
+    ];
+  }
+  return null;
+}
+
+// `lictory-runner logs`: says which log it shows, then shows it.
+export async function showLogs(options: {
+  follow: boolean;
+  lines: number;
+  log: (line: string) => void;
+}) {
+  const command = await serviceLogCommand(options);
+  if (!command) {
+    options.log(
+      [
+        "No runner service is installed on this machine, so there is no log file to show.",
+        "A runner started with `lictory-runner start` writes its log to that terminal; `lictory-runner status` shows its state and last error.",
+        "To keep a log, run it as a service: lictory-runner install-service --enable.",
+      ].join("\n"),
+    );
+    return EXIT.failed;
+  }
+  options.log(`Showing the runner service's log: ${command.join(" ")}`);
+  return new Promise<number>((resolve) => {
+    const child = spawn(command[0]!, command.slice(1), { stdio: "inherit" });
+    child.on("error", (error) => {
+      options.log(`${command[0]} could not run: ${error.message}`);
+      resolve(EXIT.failed);
+    });
+    child.on("close", (code) => resolve(code ?? EXIT.ok));
+  });
+}
+
 export async function installService(options: ServiceOptions) {
   const home = homeDirectory();
   const { log } = options;
   switch (platform()) {
     case "linux": {
-      const path = options.system
-        ? "/etc/systemd/system/lictory-runner.service"
-        : join(
-            homedir(),
-            ".config",
-            "systemd",
-            "user",
-            "lictory-runner.service",
-          );
+      const path = servicePath("linux", options.system)!;
       await mkdir(dirname(path), { recursive: true });
       await writeFile(
         path,
@@ -133,26 +211,35 @@ export async function installService(options: ServiceOptions) {
         log("The runner service is enabled and running.");
       } else
         log(`Start it with:\n  ${steps.map((s) => s.join(" ")).join("\n  ")}`);
-      if (!options.system)
-        log(
-          "A user service stops when you log out unless lingering is on: loginctl enable-linger $USER",
-        );
+      // A user service ends with the last login session unless lingering
+      // is on: on a build server that is the moment its admin logs out.
+      if (!options.system) {
+        const linger = await run("loginctl", [
+          "show-user",
+          userInfo().username,
+          "--property=Linger",
+        ]);
+        if (linger.stdout.trim() !== "Linger=yes")
+          log(
+            "Warning: this user service stops when you log out. Keep it running with `loginctl enable-linger $USER`, or install a system service instead (`install-service --system`; see the runner documentation).",
+          );
+        else
+          log(
+            "Lingering is on for this user, so the service keeps running after you log out.",
+          );
+      }
+      log("Read its log with `lictory-runner logs` (add --follow to watch).");
       return;
     }
     case "darwin": {
-      const path = options.system
-        ? "/Library/LaunchDaemons/com.lictory.runner.plist"
-        : join(
-            homedir(),
-            "Library",
-            "LaunchAgents",
-            "com.lictory.runner.plist",
-          );
+      const path = servicePath("darwin", options.system)!;
       const logs = join(home, "logs");
       await mkdir(logs, { recursive: true });
       await mkdir(dirname(path), { recursive: true });
       await writeFile(path, launchdPlist({ home, logs }));
-      log(`Wrote ${path}. Logs go to ${logs}/runner.log.`);
+      log(
+        `Wrote ${path}. Logs go to ${logs}/runner.log (\`lictory-runner logs\` shows them).`,
+      );
       const load = ["launchctl", "load", "-w", path];
       if (options.enable) {
         const result = await run(load[0]!, load.slice(1));

@@ -13,7 +13,10 @@ import {
   factorySection,
 } from "@lictory/platform/components/factory/nav";
 import { agentHomeCards } from "@lictory/platform/components/shell/home/agent-cards";
-import { codeSection } from "@lictory/platform/components/code/code-nav";
+import {
+  codePalette,
+  codeSection,
+} from "@lictory/platform/components/code/code-nav";
 
 // The navigation registry: what each module contributes to the shell. A
 // module adds itself by exporting a definition and listing it here; replacing
@@ -31,9 +34,11 @@ export type NavBadge = {
   // "strong" is addressed to me (mentions, direct messages, requests); a
   // "quiet" count is activity worth a glance.
   tone: "strong" | "quiet";
-  // Counts toward the desktop app's dock or taskbar badge. Only mentions and
-  // direct messages do (the desktop contract); the shell adds them to the
-  // desktop bridge as one source (lib/desktop-bridge.ts).
+  // Counts toward the desktop app's dock or taskbar badge: what waits on
+  // the person (the Inbox's To do, mentions, direct messages), so the dock
+  // shows the sidebar's numbers. The shell adds them to the desktop bridge
+  // as one source (lib/desktop-bridge.ts). A count another one already
+  // contains (the Factory's agents are in To do) never docks.
   dock?: boolean;
   // A quiet dot after the count for lesser news, named for assistive
   // technology: the Inbox counts what waits on me and dots unread updates.
@@ -60,18 +65,23 @@ export type NavSection = {
   Section: ComponentType<NavSectionProps>;
 };
 
-// Sidebar order: Home, Inbox, Channels, Direct messages, Factory, Code,
-// Projects, Spaces. Account and settings sit below them.
+// Sidebar order: the organization-wide destinations as single rows (Home,
+// Inbox, Factory, Code), then the project in context with its work, its
+// knowledge (Spaces), and last the conversations, whose lists grow with the
+// organization (Channels, Direct messages). Account and settings sit below.
 export const navSections: readonly NavSection[] = [
   homeSection,
   inboxSection,
-  channelsSection,
-  directMessagesSection,
   factorySection,
   codeSection,
   projectsSection,
   spacesSection,
+  channelsSection,
+  directMessagesSection,
 ];
+
+// The leading sections drawn as one block of single rows.
+export const topSections = 4;
 
 // One result in the command palette.
 export type PaletteEntry = {
@@ -98,10 +108,12 @@ export type PaletteProvider = {
   useEntries: (query: string) => readonly PaletteEntry[];
 };
 
-// Conversations, then agent sessions and agents.
+// Conversations, then agent sessions, agents and the factory's actions,
+// then pull requests.
 export const paletteProviders: readonly PaletteProvider[] = [
   channelsPalette,
   factoryPalette,
+  codePalette,
 ];
 
 export type HomeCard = {

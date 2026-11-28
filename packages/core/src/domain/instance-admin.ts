@@ -712,7 +712,7 @@ export async function setUpInstance(
   if (existing)
     throw new InstanceAdminError(
       "already_set_up",
-      "This installation already has an instance administrator. Use lictory admin grant <email> to add another.",
+      "This installation already has an instance administrator. Add another with `lictory admin grant <email>` on the server (`bun run admin grant <email>` in a checkout).",
       409,
     );
   if (signInOptions.password && input.administrator.password === undefined)

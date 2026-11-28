@@ -1,5 +1,5 @@
 import { Link } from "@lictory/platform/lib/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ArrowUpRight, Loader2, PlugZap, Plus } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { paths } from "@lictory/core/lib/paths";
@@ -72,7 +72,8 @@ export function JiraConnections() {
       id="jira"
       icon={<PlugZap />}
       title="Jira"
-      description="Connect a Jira Cloud site once; each project that hands work off to Jira then picks one of its Jira projects in its own delivery settings."
+      description="Connect a Jira Cloud site once; projects pick their Jira project in their own delivery settings."
+      learnMore="jira"
       action={
         isAdmin && !connecting ? (
           <Button
@@ -191,7 +192,7 @@ function ConnectionRow({
                 </Button>
                 <Button
                   size="sm"
-                  variant="ghost"
+                  variant="secondary"
                   onClick={() => setConfirming(true)}
                 >
                   Disconnect…
@@ -236,6 +237,13 @@ function ConnectForm({
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [error, setError] = useState<string>();
+  const errorId = useId();
+  // A refusal is about the credential: its fields turn red and point at
+  // the message.
+  const refused = {
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": error ? errorId : undefined,
+  } as const;
   const [busy, setBusy] = useState(false);
   return (
     <SettingsBody className="border-b bg-muted/40">
@@ -267,7 +275,7 @@ function ConnectForm({
           <Input
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://your-company.atlassian.net"
+            placeholder="e.g. https://your-company.atlassian.net"
             className="h-9 text-[13px]"
             readOnly={!!initialUrl}
             required
@@ -294,6 +302,7 @@ function ConnectForm({
             placeholder="The Atlassian account Lictory acts as"
             className="h-9 text-[13px]"
             required
+            {...refused}
           />
         </label>
         <label className="grid gap-1 text-[13px]">
@@ -305,6 +314,7 @@ function ConnectForm({
             onChange={(e) => setApiToken(e.target.value)}
             className="h-9 text-[13px]"
             required
+            {...refused}
           />
           <span className="text-xs text-muted-foreground">
             Create one at{" "}
@@ -319,7 +329,7 @@ function ConnectForm({
             . Issues are created as this account.
           </span>
         </label>
-        <InlineError>{error}</InlineError>
+        <InlineError id={errorId}>{error}</InlineError>
         <div className="flex gap-2">
           <Button type="submit" disabled={busy}>
             {busy && <Loader2 className="size-3.5 animate-spin" />}
@@ -355,7 +365,8 @@ export function ProjectHandoffTarget({
       id="handoff"
       icon={<PlugZap />}
       title="Jira hand-off"
-      description="The Jira project ready work from this project is exported to, and which Jira issue type each work item type becomes."
+      description="Where ready work is handed off, and the Jira issue type each work item type becomes."
+      learnMore="jiraTypes"
       footer="Lictory writes the summary, description and labels. Status, assignee, sprint and comments stay owned by Jira and are read back on the hand-off view."
     >
       {connections.length === 0 ? (
@@ -474,7 +485,7 @@ function TargetSummary({
             <TypeIcon type={t} />
             <span className="w-28 truncate">{t.name}</span>
             <span className="text-muted-foreground">
-              {target.typeMapping[t.id] ? "Mapped" : "Not exported"}
+              {target.typeMapping[t.id] ? "Mapped" : "Not handed off"}
             </span>
           </li>
         ))}
@@ -482,7 +493,7 @@ function TargetSummary({
       {unmapped.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {unmapped.map((t) => t.name).join(", ")}{" "}
-          {unmapped.length === 1 ? "is" : "are"} not exported. Map{" "}
+          {unmapped.length === 1 ? "is" : "are"} not handed off. Map{" "}
           {unmapped.length === 1 ? "it" : "them"} to a Jira issue type to hand
           {unmapped.length === 1 ? " it" : " them"} off.
         </p>
@@ -491,6 +502,62 @@ function TargetSummary({
     </SettingsBody>
   );
 }
+
+// What Jira will receive for a type, said before anything is handed off:
+// a different issue type, and parents Jira cannot nest it under.
+function MappingNote({
+  type,
+  chosen,
+  types,
+  mapping,
+  external,
+}: {
+  type: ReturnType<typeof enabledTypes>[number];
+  chosen: ExternalType;
+  types: ReturnType<typeof enabledTypes>;
+  mapping: Record<string, string>;
+  external: ExternalType[];
+}) {
+  const plural = (name: string) =>
+    /s$/i.test(name)
+      ? name
+      : /[^aeiou]y$/i.test(name)
+        ? `${name.slice(0, -1)}ies`
+        : `${name}s`;
+  const renamed = chosen.name.toLowerCase() !== type.name.toLowerCase();
+  // Lictory parents whose Jira type does not sit above this one.
+  const flattened = types.filter((parent) => {
+    const mapped = external.find((x) => x.id === mapping[parent.id]);
+    return (
+      parent.level > type.level &&
+      mapped !== undefined &&
+      mapped.hierarchyLevel <= chosen.hierarchyLevel
+    );
+  });
+  if (!renamed && !flattened.length) return null;
+  return (
+    <p className="pl-36 text-xs text-muted-foreground">
+      {renamed &&
+        `${plural(type.name)} arrive in Jira as ${plural(chosen.name)}. `}
+      {flattened.length > 0 &&
+        `Jira cannot nest ${article(chosen.name)} ${chosen.name} under ${flattened
+          .map((p) => {
+            const mapped = external.find((x) => x.id === mapping[p.id])!;
+            return `${article(mapped.name)} ${mapped.name}`;
+          })
+          .filter((v, i, all) => all.indexOf(v) === i)
+          .join(
+            " or ",
+          )}, so ${plural(type.name).toLowerCase()} under ${flattened
+          .map((p) => `${article(p.name)} ${p.name}`)
+          .join(
+            " or ",
+          )} go under the nearest issue Jira accepts above them, or without a parent. In Lictory they stay where they are.`}
+    </p>
+  );
+}
+
+const article = (name: string) => (/^[aeiou]/i.test(name) ? "an" : "a");
 
 function suggestMapping(
   types: ReturnType<typeof enabledTypes>,
@@ -684,7 +751,7 @@ function TargetEditor({
                     }
                   >
                     <DropdownSelectOption value="">
-                      Not exported
+                      Not handed off
                     </DropdownSelectOption>
                     {external.types.map((x) => (
                       <DropdownSelectOption key={x.id} value={x.id}>
@@ -702,6 +769,14 @@ function TargetEditor({
                     on {chosen.name}, which Lictory cannot fill. Give it a
                     default in Jira or pick another type.
                   </p>
+                ) : chosen ? (
+                  <MappingNote
+                    type={t}
+                    chosen={chosen}
+                    types={types}
+                    mapping={mapping}
+                    external={external.types}
+                  />
                 ) : null}
               </div>
             );

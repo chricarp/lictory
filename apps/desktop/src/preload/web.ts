@@ -48,6 +48,12 @@ const bridge: DesktopBridge = {
   setBadge(count: number) {
     ipcRenderer.send(WEB.setBadge, count);
   },
+  setOrganizationName(name: string | null) {
+    ipcRenderer.send(
+      WEB.organization,
+      typeof name === "string" ? name.slice(0, 200) : null,
+    );
+  },
   onNavigate(listener: (path: string) => void) {
     if (typeof listener !== "function") return () => undefined;
     listeners.add(listener);
@@ -57,5 +63,12 @@ const bridge: DesktopBridge = {
   },
 };
 
-if (origin && window.location.origin === origin)
+if (origin && window.location.origin === origin) {
   contextBridge.exposeInMainWorld("lictoryDesktop", bridge);
+  // The shell shows when this computer loses its network: the page itself
+  // keeps what it shows and reconnects on its own.
+  const online = () => ipcRenderer.send(WEB.online, navigator.onLine);
+  window.addEventListener("online", online);
+  window.addEventListener("offline", online);
+  online();
+}

@@ -7,6 +7,7 @@ import {
   type WebContents,
 } from "electron";
 import { attachContextMenu } from "./context-menu";
+import { serverViewScrollbars, styleScrollbars } from "./scrollbars";
 import {
   decideNavigation,
   decideWindowOpen,
@@ -17,6 +18,10 @@ import {
   decidePermission,
   type MediaKind,
 } from "../shared/permissions";
+import {
+  describeNetworkError,
+  type NetworkProblem,
+} from "../shared/net-errors";
 import { partitionFor, type Server } from "../shared/servers";
 import { inAppPathOf, originOf } from "../shared/urls";
 
@@ -34,7 +39,7 @@ export type ServerViewHost = {
   switchTo(serverId: string, url: string): void;
   openExternal(url: string): void;
   confirmMedia(server: Server, kinds: MediaKind[]): Promise<boolean>;
-  loadFailed(serverId: string, message: string): void;
+  loadFailed(serverId: string, problem: NetworkProblem): void;
   loaded(serverId: string): void;
   navigated(serverId: string, path: string | null): void;
   titleChanged(serverId: string): void;
@@ -241,7 +246,7 @@ export function createServerView(
       const where = originOf(url) ? new URL(url).host : server.name;
       host.loadFailed(
         server.id,
-        `${where} could not be loaded (${description || `error ${code}`}).`,
+        describeNetworkError(description || code, where),
       );
     },
   );
@@ -250,10 +255,11 @@ export function createServerView(
   });
   contents.on("render-process-gone", (_event, details) => {
     if (details.reason === "clean-exit") return;
-    host.loadFailed(
-      server.id,
-      `This page stopped working (${details.reason.replace(/-/g, " ")}).`,
-    );
+    host.loadFailed(server.id, {
+      summary: "This server's page stopped working.",
+      next: "Try again to reload it. If it keeps happening, restart Lictory.",
+      code: details.reason,
+    });
   });
   const navigated = (_event: unknown, url: string) =>
     host.navigated(server.id, inAppPathOf(url, server.origin));
@@ -262,6 +268,10 @@ export function createServerView(
     if (isMainFrame) navigated(event, url);
   });
   contents.on("page-title-updated", () => host.titleChanged(server.id));
+  if (styleScrollbars)
+    contents.on("dom-ready", () => {
+      void contents.insertCSS(serverViewScrollbars).catch(() => undefined);
+    });
   contents.on("did-start-loading", () => host.loadingChanged(server.id));
   contents.on("did-stop-loading", () => host.loadingChanged(server.id));
   attachContextMenu(contents, {

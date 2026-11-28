@@ -13,7 +13,7 @@ export function InputGroup({ className, ...props }: ComponentProps<"div">) {
       data-slot="input-group"
       role="group"
       className={cn(
-        "group/input-group relative flex w-full min-w-0 flex-col rounded-[1.25rem] bg-card shadow-(--shadow-border) transition-shadow duration-200",
+        "group/input-group relative flex w-full min-w-0 flex-col rounded-[1.25rem] bg-card inset-ring inset-ring-input transition-shadow duration-200",
         "has-[[data-slot=textarea]:focus-visible]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--foreground)_22%,transparent),0_0_0_4px_color-mix(in_srgb,var(--foreground)_5%,transparent)]",
         "has-[[data-slot=textarea]:disabled]:bg-muted/40",
         className,
@@ -55,7 +55,7 @@ export function InputGroupTextarea({
     <Textarea
       autoResize
       className={cn(
-        "block max-h-60 min-h-11 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-6 outline-none placeholder:text-muted-foreground/80 disabled:cursor-not-allowed sm:min-h-[52px] touch:text-base",
+        "block max-h-60 min-h-11 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 text-[14px] leading-6 outline-none placeholder:text-placeholder disabled:cursor-not-allowed sm:min-h-[52px] touch:text-base",
         className,
       )}
       {...props}

@@ -13,6 +13,7 @@ import {
   CircleAlert,
   CircleCheckBig,
   GitPullRequestArrow,
+  ListFilter,
   Mail,
   MessageSquare,
   MessagesSquare,
@@ -32,7 +33,7 @@ import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import {
   categoryLabels,
   notificationCategories,
@@ -103,6 +104,15 @@ export function NotificationFeed() {
     teamId: null,
     category: null,
   });
+  // Phones show the filters behind one button, so the list starts on the
+  // first screen instead of under three rows of controls.
+  const [filtersShown, setFiltersShown] = useState(false);
+  const filtersSet = [
+    filters.everywhere,
+    filters.projectId,
+    filters.teamId,
+    filters.category,
+  ].filter(Boolean).length;
   const [page, setPage] = useState<NotificationPage | null>(null);
   const [error, setError] = useState<string>();
   const [loadingMore, setLoadingMore] = useState(false);
@@ -223,135 +233,166 @@ export function NotificationFeed() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
-        <Segmented
-          aria-label="Show notifications"
-          className="gap-0"
-          value={filters.status}
-          onValueChange={(status) => setFilters((f) => ({ ...f, status }))}
-        >
-          {(["unread", "all", "archived"] as const).map((s) => (
-            <SegmentedItem key={s} value={s} className="flex-none capitalize">
-              {s}
-            </SegmentedItem>
-          ))}
-        </Segmented>
-        <FilterMenu
-          label={filters.everywhere ? "All organizations" : organization.name}
-          active={filters.everywhere}
-          title="Organization"
-          options={[
-            {
-              value: "here",
-              label: organization.name,
-              hint: "This organization",
-            },
-            { value: "all", label: "All organizations" },
-          ]}
-          value={filters.everywhere ? "all" : "here"}
-          onSelect={(v) =>
-            setFilters((f) => ({
-              ...f,
-              everywhere: v === "all",
-              projectId: null,
-              teamId: null,
-            }))
-          }
-        />
-        {!filters.everywhere && (
-          <>
+      <div className="border-b">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-2 px-4 py-2">
+          <Segmented
+            aria-label="Show notifications"
+            className="gap-0"
+            value={filters.status}
+            onValueChange={(status) => setFilters((f) => ({ ...f, status }))}
+          >
+            {(["unread", "all", "archived"] as const).map((s) => (
+              <SegmentedItem key={s} value={s} className="flex-none capitalize">
+                {s}
+              </SegmentedItem>
+            ))}
+          </Segmented>
+          <button
+            type="button"
+            aria-expanded={filtersShown}
+            aria-controls="inbox-filters"
+            onClick={() => setFiltersShown((v) => !v)}
+            className={cn(
+              "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs sm:hidden",
+              filtersSet > 0
+                ? "border-primary/30 bg-primary/5 text-foreground"
+                : "text-muted-foreground",
+            )}
+          >
+            <ListFilter className="size-3.5" aria-hidden />
+            Filters
+            {filtersSet > 0 && (
+              <span className="tabular-nums">· {filtersSet}</span>
+            )}
+          </button>
+          <div
+            id="inbox-filters"
+            className={cn(
+              "flex flex-wrap items-center gap-2 max-sm:order-last max-sm:basis-full sm:contents",
+              !filtersShown && "max-sm:hidden",
+            )}
+          >
             <FilterMenu
-              label={projectName(filters.projectId) ?? "Any project"}
-              active={!!filters.projectId}
-              title="Project"
+              label={
+                filters.everywhere ? "All organizations" : organization.name
+              }
+              active={filters.everywhere}
+              title="Organization"
               options={[
-                { value: "", label: "Any project" },
-                ...projects.map((p) => ({
-                  value: p.id,
-                  label: p.name,
-                  hint: p.key,
-                })),
+                {
+                  value: "here",
+                  label: organization.name,
+                  hint: "This organization",
+                },
+                { value: "all", label: "All organizations" },
               ]}
-              value={filters.projectId ?? ""}
+              value={filters.everywhere ? "all" : "here"}
               onSelect={(v) =>
-                setFilters((f) => ({ ...f, projectId: v || null }))
+                setFilters((f) => ({
+                  ...f,
+                  everywhere: v === "all",
+                  projectId: null,
+                  teamId: null,
+                }))
               }
             />
-            {teams.length > 0 && (
-              <FilterMenu
-                label={teamName(filters.teamId) ?? "Any team"}
-                active={!!filters.teamId}
-                title="Team"
-                options={[
-                  { value: "", label: "Any team" },
-                  ...teams.map((t) => ({
-                    value: t.id,
-                    label: teamName(t.id) ?? t.name,
-                  })),
-                ]}
-                value={filters.teamId ?? ""}
-                onSelect={(v) =>
-                  setFilters((f) => ({ ...f, teamId: v || null }))
-                }
-              />
+            {!filters.everywhere && (
+              <>
+                <FilterMenu
+                  label={projectName(filters.projectId) ?? "Any project"}
+                  active={!!filters.projectId}
+                  title="Project"
+                  options={[
+                    { value: "", label: "Any project" },
+                    ...projects.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                      hint: p.key,
+                    })),
+                  ]}
+                  value={filters.projectId ?? ""}
+                  onSelect={(v) =>
+                    setFilters((f) => ({ ...f, projectId: v || null }))
+                  }
+                />
+                {teams.length > 0 && (
+                  <FilterMenu
+                    label={teamName(filters.teamId) ?? "Any team"}
+                    active={!!filters.teamId}
+                    title="Team"
+                    options={[
+                      { value: "", label: "Any team" },
+                      ...teams.map((t) => ({
+                        value: t.id,
+                        label: teamName(t.id) ?? t.name,
+                      })),
+                    ]}
+                    value={filters.teamId ?? ""}
+                    onSelect={(v) =>
+                      setFilters((f) => ({ ...f, teamId: v || null }))
+                    }
+                  />
+                )}
+              </>
             )}
-          </>
-        )}
-        <FilterMenu
-          label={
-            filters.category ? categoryLabels[filters.category] : "Any type"
-          }
-          active={!!filters.category}
-          title="Type"
-          options={[
-            { value: "", label: "Any type" },
-            ...notificationCategories.map((c) => ({
-              value: c,
-              label: categoryLabels[c],
-            })),
-          ]}
-          value={filters.category ?? ""}
-          onSelect={(v) =>
-            setFilters((f) => ({
-              ...f,
-              category: (v || null) as NotificationCategory | null,
-            }))
-          }
-        />
-        <div className="ml-auto flex items-center gap-3">
-          {unreadElsewhere.length > 0 && !filters.everywhere && (
-            <p className="text-xs text-muted-foreground">
-              Also unread in{" "}
-              {unreadElsewhere.map((o, i) => (
-                <span key={o.id}>
-                  {i > 0 && ", "}
-                  <Link
-                    href={paths.inbox(o.slug, "updates")}
-                    className="font-medium text-foreground hover:underline"
-                  >
-                    {o.name} ({o.count})
-                  </Link>
-                </span>
-              ))}
-            </p>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => void markAllRead()}
-            disabled={!page?.items.some((n) => !n.readAt)}
-          >
-            <CheckCheck className="size-3.5" /> Mark all read
-          </Button>
-          <Tooltip label="Notification settings">
-            <Link
-              href={paths.notificationSettings(organization.slug)}
-              aria-label="Notification settings"
-              className="grid size-8 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground sm:hidden"
+            <FilterMenu
+              label={
+                filters.category ? categoryLabels[filters.category] : "Any type"
+              }
+              active={!!filters.category}
+              title="Type"
+              options={[
+                { value: "", label: "Any type" },
+                ...notificationCategories.map((c) => ({
+                  value: c,
+                  label: categoryLabels[c],
+                })),
+              ]}
+              value={filters.category ?? ""}
+              onSelect={(v) =>
+                setFilters((f) => ({
+                  ...f,
+                  category: (v || null) as NotificationCategory | null,
+                }))
+              }
+            />
+          </div>
+          <div className="ml-auto flex items-center gap-3">
+            {unreadElsewhere.length > 0 && !filters.everywhere && (
+              <p className="text-xs text-muted-foreground">
+                Also unread in{" "}
+                {unreadElsewhere.map((o, i) => (
+                  <span key={o.id}>
+                    {i > 0 && ", "}
+                    <Link
+                      href={paths.inbox(o.slug, "updates")}
+                      className="font-medium text-foreground hover:underline"
+                    >
+                      {o.name} ({o.count})
+                    </Link>
+                  </span>
+                ))}
+              </p>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void markAllRead()}
+              disabled={!page?.items.some((n) => !n.readAt)}
             >
-              <Settings2 className="size-4" aria-hidden />
-            </Link>
-          </Tooltip>
+              <CheckCheck className="size-3.5" aria-hidden />
+              <span className="max-sm:sr-only">Mark all read</span>
+            </Button>
+            <Tooltip label="Notification settings">
+              <Link
+                href={paths.notificationSettings(organization.slug)}
+                aria-label="Notification settings"
+                className="grid size-8 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground sm:hidden"
+              >
+                <Settings2 className="size-4" aria-hidden />
+              </Link>
+            </Tooltip>
+          </div>
         </div>
       </div>
       {error && (
@@ -388,7 +429,7 @@ export function NotificationFeed() {
             addressed to you appear here.
           </EmptyState>
         ) : (
-          <ul className="divide-y">
+          <ul className="mx-auto w-full max-w-5xl divide-y">
             {rows.map((row) => {
               const ids = row.items.map((n) => n.id);
               return (
@@ -427,6 +468,21 @@ export function NotificationFeed() {
     </div>
   );
 }
+
+// Events nobody performed by hand: they show what happened, not a person.
+const automaticKinds: ReadonlySet<string> = new Set([
+  "item_ready",
+  "item_unready",
+  "approval_invalidated",
+  "page_approval_invalidated",
+  "relation_blocked",
+  "pull_request_mergeable",
+  "export_failed",
+  "export_completed",
+  "code_write_failed",
+  "agent_approval_requested",
+  "agent_session_finished",
+]);
 
 function Row({
   row,
@@ -473,7 +529,7 @@ function Row({
   const time = (
     <time
       dateTime={n.createdAt}
-      title={new Date(n.createdAt).toLocaleString()}
+      title={absoluteTime(n.createdAt)}
       className="shrink-0 text-xs text-muted-foreground tabular-nums"
     >
       {relativeTime(n.createdAt)}
@@ -489,20 +545,15 @@ function Row({
           onOpen(href);
         }}
         className={cn(
-          "flex items-start gap-3 py-2.5 pr-4 pl-4 focus-ring-inset outline-none hover:bg-muted/60",
+          "flex min-h-12 items-center gap-3 px-3.5 py-2 focus-ring-inset outline-none hover:bg-muted/60",
           !unread && "text-muted-foreground",
         )}
       >
-        <span
-          aria-hidden
-          className={cn(
-            "mt-2 size-1.5 shrink-0 rounded-full",
-            unread ? "bg-primary" : "bg-transparent",
-          )}
-        />
+        {/* One leading mark, as in To do: who did it, or what happened when
+            nobody did (readiness is evidence, not someone's act). */}
         <span
           className={cn(
-            "mt-0.5 grid size-5 shrink-0 place-items-center",
+            "grid w-5 shrink-0 place-items-center",
             urgent
               ? "text-destructive"
               : n.kind === "item_ready"
@@ -510,25 +561,39 @@ function Row({
                 : "text-muted-foreground",
           )}
         >
-          <Icon className="size-4" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p
-            className={cn(
-              "flex items-center gap-2 text-[13px] leading-5",
-              unread && "font-medium text-foreground",
-            )}
-          >
-            {n.actorName && (
+          {n.actorName && !automaticKinds.has(n.kind) ? (
+            // The kind of event rides on the avatar, so a run of updates by
+            // one person still reads as approvals, moves and assignments.
+            <span className="relative">
               <PersonAvatar
                 person={{ id: n.actorId ?? n.actorName, name: n.actorName }}
                 size={20}
               />
+              <span
+                aria-hidden
+                className="absolute -right-1.5 -bottom-1 grid size-3.5 place-items-center rounded-full bg-card text-muted-foreground shadow-(--shadow-border) [&_svg]:size-2.5"
+              >
+                <Icon />
+              </span>
+            </span>
+          ) : (
+            <Icon className="size-4" aria-hidden />
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p
+            className={cn(
+              // Phones give the headline two lines, so the item it names
+              // ("…a discussion on PAY-11") is not the part that is cut.
+              "text-[13px] leading-5 max-sm:line-clamp-2 sm:truncate",
+              unread && "font-semibold text-foreground",
             )}
-            <span className="min-w-0 truncate">{headline}</span>
+          >
+            {unread && <span className="sr-only">Unread: </span>}
+            {headline}
           </p>
           {(title ?? body) && (
-            <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
+            <p className="mt-0.5 truncate text-xs leading-4 text-muted-foreground">
               {title && <span className="text-foreground/80">{title}</span>}
               {title && body && " · "}
               {body}
@@ -551,6 +616,12 @@ function Row({
             </p>
           )}
         </div>
+        {unread && (
+          <span
+            aria-hidden
+            className="size-2 shrink-0 rounded-full bg-primary"
+          />
+        )}
         <span className="mt-0.5 group-focus-within:invisible group-hover:invisible max-sm:hidden">
           {time}
         </span>

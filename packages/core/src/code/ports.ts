@@ -40,7 +40,9 @@ import {
 export type CheckEvidence = {
   sha: string;
   state: "pending" | "success" | "failure" | "none";
-  // Every check passed (or the host reported none and none are required).
+  // No counted check failed or is still running. True when the host
+  // reported none; the Definition of Done and Autopilot also need
+  // `counted` > 0 (docs/internals/claims.md#definition-of-done).
   passed: boolean;
   failing: string[];
   pending: string[];
@@ -49,6 +51,8 @@ export type CheckEvidence = {
   requiredKnown: boolean;
   // How many checks count (required ones, or every reported one).
   counted: number;
+  // How many checks the host reported for the commit.
+  reported: number;
 };
 
 export type PullRequestEvidence = {
@@ -99,6 +103,7 @@ function checkEvidence(
     pending,
     requiredKnown,
     counted: counted.length,
+    reported: runs.length,
   };
 }
 
@@ -145,6 +150,7 @@ function claimsEvidence(
       required: counted.counted,
       failing: counted.failing,
       pending: counted.pending,
+      reported: counted.reported,
     },
     approvals: [...lictory, ...host],
     // What the host would refuse besides checks: a draft, requested
@@ -686,6 +692,44 @@ function sameRepository(
   return (
     normalized(row.cloneUrl) === stated || normalized(row.webUrl) === stated
   );
+}
+
+// The repository a project works in when it has exactly one linked (on a
+// connection that is not archived); null for none or several.
+export async function onlyProjectRepository(
+  db: Database | Tx,
+  organizationId: string,
+  projectId: string,
+) {
+  const rows = await db
+    .select({ id: s.codeRepositoryProject.repositoryId })
+    .from(s.codeRepositoryProject)
+    .innerJoin(
+      s.codeRepository,
+      and(
+        eq(
+          s.codeRepository.organizationId,
+          s.codeRepositoryProject.organizationId,
+        ),
+        eq(s.codeRepository.id, s.codeRepositoryProject.repositoryId),
+      ),
+    )
+    .innerJoin(
+      s.codeConnection,
+      and(
+        eq(s.codeConnection.organizationId, s.codeRepository.organizationId),
+        eq(s.codeConnection.id, s.codeRepository.connectionId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.codeRepositoryProject.organizationId, organizationId),
+        eq(s.codeRepositoryProject.projectId, projectId),
+        isNull(s.codeConnection.archivedAt),
+      ),
+    )
+    .limit(2);
+  return rows.length === 1 ? rows[0]!.id : null;
 }
 
 // A repository a person names in a message ("in acme/payments", or its web

@@ -1,7 +1,9 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
+import { useSearchParams } from "@lictory/platform/lib/navigation";
 import {
   Archive,
   Bot,
+  Check,
   Moon,
   Pencil,
   Play,
@@ -32,7 +34,7 @@ import {
 } from "@lictory/platform/components/factory/parts";
 import { agentActivity } from "@lictory/platform/components/factory/overview-blocks";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { MissingState } from "@lictory/ui/status-page";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -54,7 +56,11 @@ import { useRouter } from "@lictory/platform/lib/navigation";
 export function FactoryAgents() {
   const { userId, isAdmin } = useWorkspace();
   const { agents } = useFactory();
-  const [editing, setEditing] = useState<AgentEntity | "new" | null>(null);
+  // `?new=1` (the command palette's "New agent") opens the form.
+  const search = useSearchParams();
+  const [editing, setEditing] = useState<AgentEntity | "new" | null>(() =>
+    search.get("new") === "1" ? "new" : null,
+  );
   const [starting, setStarting] = useState<AgentEntity | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const active = agents.filter((a) => !a.archivedAt);
@@ -99,6 +105,8 @@ export function FactoryAgents() {
         <MissingState
           headingLevel={2}
           icon={Bot}
+          // The Factory's empty tabs share the Overview's art.
+          illustration="planning"
           title="No agents yet"
           action={
             <Button onClick={() => setEditing("new")}>
@@ -311,16 +319,15 @@ function AgentRow({
             label="first"
             className="shrink-0"
           />
-          <span aria-hidden>·</span>
-          <span className="shrink-0">{agentKindLabel(agent)}</span>
-          {agent.model && (
-            <span className="truncate font-mono">{agent.model}</span>
-          )}
-          <span aria-hidden>·</span>
+          <span className="flex min-w-0 items-center gap-1">
+            <span className="shrink-0">{agentKindLabel(agent)}</span>
+            {agent.model && (
+              <span className="truncate font-mono">{agent.model}</span>
+            )}
+          </span>
           <span className="shrink-0">
             {agent.access === "read" ? "Read only" : "Read and write"}
           </span>
-          <span aria-hidden>·</span>
           <span className="truncate">
             {projects?.length ? projects.join(", ") : "Every project"}
             {agent.shared && " · Shared"}
@@ -328,20 +335,20 @@ function AgentRow({
         </>
       }
       // The row's actions (on hover or focus), then one fixed column for
-      // the state and the last activity, so every row's state lines up.
+      // the state and the last activity, so every row's state lines up. On
+      // phones the actions stay on the agent's page, so the name keeps the
+      // row's width.
       chips={
         <>
-          <span className="relative z-10 flex items-center gap-1 opacity-0 transition-opacity duration-100 group-focus-within/row:opacity-100 group-hover/row:opacity-100 motion-reduce:transition-none touch:opacity-100">
+          {/* Phones keep the agent's name: its actions are on its page. */}
+          <span className="relative z-10 flex items-center gap-1 opacity-0 transition-opacity duration-100 group-focus-within/row:opacity-100 group-hover/row:opacity-100 motion-reduce:transition-none max-sm:hidden touch:opacity-100">
             {actions}
           </span>
           <span className="flex items-center justify-end gap-3 sm:w-60">
             {status}
             <span className="w-24 text-right text-xs text-muted-foreground tabular-nums max-sm:hidden">
               {lastActive && (
-                <time
-                  dateTime={lastActive}
-                  title={new Date(lastActive).toLocaleString()}
-                >
+                <time dateTime={lastActive} title={absoluteTime(lastActive)}>
                   Active {relativeTime(lastActive)}
                 </time>
               )}
@@ -527,7 +534,7 @@ export function AgentDialog({
               data-autofocus
               value={name}
               maxLength={60}
-              placeholder="Forge"
+              placeholder="e.g. Forge"
               onChange={(e) => {
                 setName(e.target.value);
                 if (!handleEdited) setHandle(handleOf(e.target.value));
@@ -569,7 +576,7 @@ export function AgentDialog({
             id={ids.description}
             value={description}
             maxLength={500}
-            placeholder="Implements ready payments stories"
+            placeholder="e.g. Implements ready payments stories"
             onChange={(e) => setDescription(e.target.value)}
           />
         </div>
@@ -584,6 +591,7 @@ export function AgentDialog({
                   id={ids.harness}
                   value={harness}
                   onValueChange={setHarness}
+                  size="lg"
                   className="w-full"
                 >
                   {harnessIds
@@ -625,6 +633,7 @@ export function AgentDialog({
                 id={ids.runner}
                 value={defaultRunnerId}
                 onValueChange={setDefaultRunnerId}
+                size="lg"
                 className="w-full"
                 placeholder="Any runner that can run it"
               >
@@ -653,7 +662,7 @@ export function AgentDialog({
                 value={instructions}
                 rows={3}
                 maxLength={8000}
-                placeholder="Run the tests before you commit. Keep pull requests small."
+                placeholder="e.g. Run the tests before you commit. Keep pull requests small."
                 onChange={(e) => setInstructions(e.target.value)}
                 className={cn(
                   inputClass,
@@ -744,13 +753,17 @@ function ProjectToggle({
       title={title}
       aria-pressed={pressed}
       onClick={onToggle}
+      // Chosen looks like the chosen segment of the access control above
+      // (a raised chip with the control edge), plus a check: one "selected"
+      // in the dialog.
       className={cn(
-        "h-7 rounded-full px-3 text-xs ring-1 outline-none ring-inset focus-visible:ring-2 focus-visible:ring-ring/60",
+        "inline-flex h-7 items-center gap-1 rounded-lg px-2.5 text-xs font-medium focus-ring outline-none",
         pressed
-          ? "bg-primary/10 font-medium text-foreground ring-primary/30"
-          : "text-muted-foreground ring-border hover:bg-muted",
+          ? "bg-card text-foreground inset-ring inset-ring-input"
+          : "text-muted-foreground inset-ring inset-ring-border hover:bg-muted hover:text-foreground",
       )}
     >
+      {pressed && <Check aria-hidden className="size-3" />}
       {label}
     </button>
   );

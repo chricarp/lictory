@@ -85,6 +85,24 @@ test("account pages meet WCAG 2.2 AA automated checks", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(appAlert(page)).toBeVisible();
   await expectNoAccessibilityViolations(page, "sign-in with an error");
+  // Every field says what is wrong next to it and keeps saying it; the
+  // first field to fix takes focus and is described by its message.
+  await page.goto("/sign-up");
+  await page.getByLabel("Work email").fill("not-an-email");
+  await page.getByRole("button", { name: "Create account" }).click();
+  const name = page.getByLabel("Full name");
+  await expect(name).toBeFocused();
+  await expect(name).toHaveAttribute("aria-invalid", "true");
+  await expect(name).toHaveAccessibleDescription("Full name is required.");
+  await expect(page.getByLabel("Work email")).toHaveAccessibleDescription(
+    "Enter an email address like name@company.com.",
+  );
+  await expect(page.getByText("3 fields need attention.")).toBeVisible();
+  await expectNoAccessibilityViolations(page, "sign-up with field errors");
+  // A fixed field drops its message as soon as it is valid.
+  await name.fill("Alex Example");
+  await expect(name).not.toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("Full name is required.")).toHaveCount(0);
 });
 
 test("specification review meets WCAG 2.2 AA automated checks", async ({
@@ -176,11 +194,58 @@ test("board and backlog meet WCAG 2.2 AA automated checks", async ({
   await expect(page.getByText("Partial refunds")).toBeVisible();
   await settled(page);
   await expectNoAccessibilityViolations(page, "board");
+  // Names are the words shown, without the initial tile or the count.
+  await expect(
+    page.getByRole("button", { name: "Access AXB", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Inbox", exact: true }),
+  ).toBeVisible();
+
+  // Every drag has a keyboard and single-pointer alternative (WCAG 2.5.7):
+  // a card moves to another column from its Move button, and focus stays on
+  // it in the new column, which its name reads out.
+  const card = page.locator("[data-card]", { hasText: "Add a refunds column" });
+  await card
+    .getByRole("button", { name: "Move AXB-2, 2 of 2 in Backlog" })
+    .focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("menuitemradio", { name: "Done", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Move AXB-2, 1 of 1 in Done" }),
+  ).toBeFocused();
+  await expectNoAccessibilityViolations(page, "board after a move");
 
   await page.goto(seeded.projectPath("/backlog"));
   await expect(page.getByText("Refund email is late")).toBeVisible();
   await settled(page);
   await expectNoAccessibilityViolations(page, "backlog");
+  // Backlog rows rank from Move too: the second row of the sprint to the top.
+  const sprintRows = page
+    .getByRole("region", { name: "Iteration" })
+    .locator("[data-row]");
+  await expect(sprintRows).toHaveCount(2);
+  const second = (await sprintRows
+    .nth(1)
+    .locator("span.font-mono")
+    .first()
+    .textContent())!;
+  await sprintRows
+    .nth(1)
+    .getByRole("button", { name: new RegExp(`^Move ${second}, 2 of 2 in `) })
+    .focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu", { name: `Move ${second}` });
+  await expect(
+    menu.getByRole("menuitem", { name: "Move down" }),
+  ).toBeDisabled();
+  await menu.getByRole("menuitem", { name: "Move to top" }).click();
+  await expect(sprintRows.nth(0)).toContainText(second);
+  await expect(
+    sprintRows
+      .nth(0)
+      .getByRole("button", { name: new RegExp(`^Move ${second}, 1 of 2 in `) }),
+  ).toBeFocused();
 });
 
 test("settings meet WCAG 2.2 AA automated checks", async ({ page }) => {
@@ -193,6 +258,34 @@ test("settings meet WCAG 2.2 AA automated checks", async ({ page }) => {
   ).toBeVisible();
   await settled(page);
   await expectNoAccessibilityViolations(page, "account settings");
+
+  // Single-key shortcuts can be turned off (WCAG 2.1.4); Mod shortcuts stay.
+  const singleKeys = page.getByRole("switch", { name: "Single-key shortcuts" });
+  const saved = () =>
+    page.waitForResponse((r) => r.url().endsWith("/api/preferences") && r.ok());
+  await expect(singleKeys).toBeChecked();
+  await Promise.all([saved(), singleKeys.click()]);
+  await expect(singleKeys).not.toBeChecked();
+  await page.goto(seeded.projectPath("/items"));
+  await expect(
+    page.getByRole("heading", { name: "All items", level: 1 }),
+  ).toBeVisible();
+  await page.keyboard.press("c");
+  await page.keyboard.press("/");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+k");
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await page.goto(paths.account());
+  await expect(singleKeys).not.toBeChecked();
+  await Promise.all([saved(), singleKeys.click()]);
+  await expect(singleKeys).toBeChecked();
+  await page.goto(seeded.projectPath("/items"));
+  await expect(
+    page.getByRole("heading", { name: "All items", level: 1 }),
+  ).toBeVisible();
+  await page.keyboard.press("c");
+  await expect(page.getByRole("dialog", { name: /^Create/ })).toBeVisible();
 
   for (const section of [
     "general",
@@ -325,7 +418,10 @@ async function startRunner(seeded: Seeded, baseURL: string) {
     script,
     JSON.stringify([
       { say: "Reading the refunds module." },
-      { ask: "Write CHANGES.md" },
+      {
+        ask: "Write CHANGES.md",
+        action: { tool: "Write", input: { file_path: "CHANGES.md" } },
+      },
       { summary: "Added CHANGES.md." },
     ]),
   );
@@ -389,10 +485,20 @@ test("the shell, a conversation with an agent session, the Factory and the perso
     .first();
   await asked.getByRole("button", { name: /repl(y|ies)/ }).click();
   const thread = page.getByRole("complementary", { name: /thread/i });
-  const card = thread.getByRole("region", { name: "Forge session" });
-  await expect(card.getByRole("button", { name: "Approve" })).toBeVisible({
+  const card = thread.getByRole("article", { name: /^Forge session/ });
+  // The request is answered on the session's card, beside its state.
+  const request = card.locator("[data-approval-request]");
+  await expect(request.getByRole("button", { name: "Approve" })).toBeVisible({
     timeout: 60_000,
   });
+  // Several requests can be open at once: each decision names its request,
+  // starting with the word it shows.
+  await expect(
+    request.getByRole("button", { name: /^Approve: Write CHANGES\.md$/ }),
+  ).toBeVisible();
+  await expect(
+    request.getByRole("button", { name: /^Deny: Write CHANGES\.md$/ }),
+  ).toBeVisible();
   const threadPath = `${paths.channel(seeded.slug, channelId)}?thread=${await asked.getAttribute("data-message-id")}`;
   const sessionPath = await card
     .getByRole("link", { name: /Open session/ })
@@ -405,7 +511,9 @@ test("the shell, a conversation with an agent session, the Factory and the perso
   const surfaces = async (scheme: "light" | "dark") => {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
     await page.goto(threadPath);
-    await expect(card.getByRole("button", { name: "Approve" })).toBeVisible();
+    await expect(
+      request.getByRole("button", { name: "Approve" }),
+    ).toBeVisible();
     await scan(`${scheme}: channel with a thread holding an agent's request`);
 
     await page.goto(paths.channels(seeded.slug));
@@ -421,18 +529,29 @@ test("the shell, a conversation with an agent session, the Factory and the perso
     await expect(page.getByText("Write CHANGES.md").first()).toBeVisible();
     await scan(`${scheme}: home`);
 
-    await page.goto(`/${seeded.slug}/inbox`);
+    await page.goto(`/${seeded.slug}/inbox?view=todo`);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await scan(`${scheme}: inbox`);
-
-    await page.goto(paths.factory(seeded.slug));
-    const needs = page.getByRole("region", { name: "Needs you" });
-    await expect(needs.getByText("Write CHANGES.md")).toBeVisible();
-    await scan(`${scheme}: factory overview`);
     // The request opened in place, with its context.
-    await needs.getByRole("button", { name: "Review" }).first().click();
-    await expect(needs.getByRole("button", { name: "Approve" })).toBeVisible();
-    await scan(`${scheme}: factory overview with a request open`);
+    const todo = page.getByRole("list", { name: "Waiting on you" });
+    await todo
+      .getByRole("button", { name: /^Review/ })
+      .first()
+      .click();
+    await expect(todo.getByRole("button", { name: "Approve" })).toBeVisible();
+    await scan(`${scheme}: inbox with a request open`);
+
+    // The factory lists the same requests as the Inbox, answered in place.
+    await page.goto(paths.factory(seeded.slug));
+    const needs = page.getByRole("region", { name: "Agents need you" });
+    await expect(
+      needs.getByRole("button", { name: /^Review/ }).first(),
+    ).toBeVisible();
+    await expect(needs.getByRole("link", { name: /Inbox/ })).toHaveAttribute(
+      "href",
+      paths.inbox(seeded.slug, "todo"),
+    );
+    await scan(`${scheme}: factory overview`);
 
     await page.goto(`${paths.factory(seeded.slug)}/agents`);
     await expect(
@@ -446,6 +565,14 @@ test("the shell, a conversation with an agent session, the Factory and the perso
   };
   await surfaces("light");
   await surfaces("dark");
+
+  // The design-system gallery shows each example on both themes; the dark
+  // copy is for the eye only, so its landmarks are not announced twice.
+  await page.goto(`/${seeded.slug}/design-system`);
+  await expect(
+    page.getByRole("heading", { name: "Design system", level: 1 }),
+  ).toBeVisible();
+  await expectNoAccessibilityViolations(page, "design-system gallery");
 });
 
 test("a code pull request and a space page meet WCAG 2.2 AA automated checks", async ({

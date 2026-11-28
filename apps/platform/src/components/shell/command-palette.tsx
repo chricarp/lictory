@@ -14,7 +14,12 @@ import {
   CommandItem,
   CommandList,
 } from "@ui-sdk/react/command";
-import { Dialog, DialogBackdrop, DialogContent } from "@ui-sdk/react/dialog";
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogClose,
+  DialogContent,
+} from "@ui-sdk/react/dialog";
 import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
 import {
   ArrowRight,
@@ -28,7 +33,6 @@ import {
   FolderKanban,
   KanbanSquare,
   Library,
-  Lightbulb,
   ListOrdered,
   Monitor,
   Moon,
@@ -38,6 +42,7 @@ import {
   Settings2,
   Sun,
   UserRound,
+  X,
 } from "lucide-react";
 import type { Appearance } from "@lictory/core/lib/appearance";
 import { spaceLevelAtLeast } from "@lictory/core/contracts/protocol";
@@ -72,6 +77,7 @@ import { useShell } from "@lictory/platform/components/workspace/shell";
 import { useAgents } from "@lictory/platform/components/claims/claims";
 import { startableAgents } from "@lictory/platform/components/factory/start-session";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import { organizationSettingsSections } from "@lictory/platform/components/settings/organization-sections";
 import { useDock } from "@lictory/platform/components/intelligence/dock/store";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
 import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
@@ -290,12 +296,19 @@ export function CommandPalette({
           : !(capabilities.editSpecifications || capabilities.changeProperties)
       )
         continue;
+      // A specification-backed type starts as a proposal (the dialog it
+      // opens says so), so the palette names it the same way: one entry per
+      // type, no separate "New proposal" beside "Create Story".
       list.push({
         id: `create-${type.id}`,
-        label: `Create ${type.name}`,
+        label: type.hasSpecification
+          ? `New ${type.name} proposal`
+          : `Create ${type.name}`,
         group: "Create",
         icon: <TypeIcon type={type} />,
-        keywords: "new item proposal task",
+        keywords: type.hasSpecification
+          ? "create new item proposal idea feature specification"
+          : "new item task",
         run: () => {
           onClose();
           openCreate({
@@ -370,6 +383,40 @@ export function CommandPalette({
         run: () => go(paths.notificationSettings(org)),
       },
     );
+    // Each section of organization settings and of the Factory, so "audit",
+    // "runners" or "code hosts" lands on the page, not on its parent.
+    for (const section of organizationSettingsSections)
+      list.push({
+        id: `settings-${section.id}`,
+        label: `Organization settings · ${section.label}`,
+        group: "Navigate",
+        icon: <Settings className="size-4" />,
+        keywords: `settings ${section.keywords}`,
+        run: () => go(paths.settings(org, section.id)),
+      });
+    for (const [id, label, keywords, href] of [
+      ["agents", "Agents", "agents harness owner scope", factoryPaths.agents],
+      [
+        "runners",
+        "Runners",
+        "runners machines register install",
+        factoryPaths.runners,
+      ],
+      [
+        "sessions",
+        "Sessions",
+        "sessions runs agent history",
+        factoryPaths.sessions,
+      ],
+    ] as const)
+      list.push({
+        id: `factory-${id}`,
+        label: `Factory · ${label}`,
+        group: "Navigate",
+        icon: <Bot className="size-4" />,
+        keywords: `factory ${keywords}`,
+        run: () => go(href(org)),
+      });
     // Every module in the sidebar, by name.
     for (const section of navSections) {
       if (section.id === "projects") continue;
@@ -383,24 +430,6 @@ export function CommandPalette({
         run: () => go(section.href(org)),
       });
     }
-    // A proposal in the project in context, when I may write one.
-    if (
-      currentProject &&
-      capabilities.editSpecifications &&
-      enabledTypes(delivery, currentProject.id).some((t) => t.hasSpecification)
-    )
-      list.push({
-        id: "new-proposal",
-        label: "New proposal",
-        identifier: currentProject.key,
-        group: "Create",
-        icon: <Lightbulb className="size-4" />,
-        keywords: "create proposal idea feature specification",
-        run: () => {
-          onClose();
-          openCreate({ intent: "proposal", projectId: currentProject.id });
-        },
-      });
     // A page in a space I may edit: the space opens with its new page dialog.
     for (const space of spaces)
       if (!space.archivedAt && spaceLevelAtLeast(levelOf(space.id), "edit"))
@@ -828,7 +857,9 @@ export function CommandPalette({
         initialFocus={() => inputRef.current}
         className={cn(
           dialogPanelClass,
-          "top-[14vh] max-h-[calc(100dvh-14vh-1rem)] max-w-lg gap-0",
+          // At most about twelve rows tall: a long result list scrolls
+          // inside the palette instead of filling the screen.
+          "top-[14vh] max-h-[min(calc(100dvh-14vh-1rem),34rem)] max-w-lg gap-0",
         )}
       >
         <Command
@@ -851,12 +882,15 @@ export function CommandPalette({
           onAction={(id) => run(results.find((r) => r.id === id))}
           className="flex min-h-0 w-full flex-1 flex-col rounded-none bg-transparent"
         >
-          <div className="flex shrink-0 items-center gap-2 border-b px-3">
+          {/* The field's focus is marked by a 2px line in the focus color
+              under it (the field has no ring of its own), and the chosen
+              option by a bar at its start, not only its tint. */}
+          <div className="flex shrink-0 items-center gap-2 border-b px-3 focus-within:shadow-[inset_0_-2px_0_0_var(--ring)]">
             <CommandInput
               ref={inputRef}
               placeholder="Search items, pages or commands…"
               aria-label="Search"
-              className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 touch:text-base"
+              className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-placeholder touch:text-base"
               onKeyDown={(event) => {
                 // Escape closes the palette at once; left to the list, the
                 // first press would only clear what was typed.
@@ -866,13 +900,30 @@ export function CommandPalette({
                 onClose();
               }}
             />
-            <Kbd>esc</Kbd>
+            {/* A keyboard names its way out; a touch screen has no
+                Escape key, so it gets a Close button instead. */}
+            <span className="max-sm:hidden [@media(pointer:coarse)]:hidden">
+              <Kbd>esc</Kbd>
+            </span>
+            <DialogClose
+              aria-label="Close"
+              className="hidden shrink-0 place-items-center rounded-md p-1 text-muted-foreground focus-ring outline-none hover:bg-muted max-sm:grid [@media(pointer:coarse)]:grid"
+            >
+              <X className="size-4" aria-hidden />
+            </DialogClose>
           </div>
-          {results.length === 0 && content.status !== "loading" && (
-            <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-              No results.
-            </p>
-          )}
+          {/* Said in words even when the way out (search everything, ask
+              Litto) is still offered below. */}
+          {content.status !== "loading" &&
+            results.every(
+              (r) => r.id === "see-all-results" || r.id === "ask-intelligence",
+            ) && (
+              <p className="px-3 pt-5 pb-3 text-center text-xs text-muted-foreground">
+                {query.trim()
+                  ? `Nothing matches “${query.trim()}”.`
+                  : "No results."}
+              </p>
+            )}
           <CommandList className="max-h-none min-h-0 overflow-y-auto p-1.5">
             {groups.map((group) => (
               <CommandGroup key={group}>
@@ -887,7 +938,7 @@ export function CommandPalette({
                       value={r.id}
                       label={r.label}
                       className={cn(
-                        "group flex w-full cursor-default gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] select-none data-highlighted:bg-muted",
+                        "group flex w-full cursor-default gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] select-none data-highlighted:bg-muted data-highlighted:shadow-[inset_2px_0_0_0_var(--ring)]",
                         r.excerpt ? "items-start" : "items-center",
                       )}
                     >
@@ -913,7 +964,9 @@ export function CommandPalette({
                         </span>
                       ) : (
                         <>
-                          <span className="min-w-0 flex-1 truncate">
+                          {/* Phones give a title two lines, so results that
+                              start alike stay tell-apart-able. */}
+                          <span className="min-w-0 flex-1 max-sm:line-clamp-2 max-sm:break-words sm:truncate">
                             {r.title ?? r.label}
                           </span>
                           <Detail item={r} />
@@ -986,6 +1039,9 @@ function Detail({ item, excerpt = false }: { item: Item; excerpt?: boolean }) {
         excerpt && "max-w-[45%]",
       )}
     >
+      {/* The option's name is its text: without a pause the title and the
+          key are read as one word ("Refund reasonsPAY-11"). */}
+      <span className="sr-only">, </span>
       {item.identifier && (
         <span className="shrink-0 font-mono text-[11px]">
           {item.identifier}

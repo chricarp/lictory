@@ -31,11 +31,16 @@
   --input: #11121424;
   --ring: #3b5bdb;
   --hairline: #11121412;
-  --positive: #15803d;
-  --caution: #b45309;
+  /* Status text in mockups sits on tinted pills: darker than the app's
+     tokens so it keeps 4.5:1 on them. */
+  --positive: #166534;
+  --caution: #92400e;
   --negative: #dc2626;
   --lane-main: #111214;
   --lane-eng: #4f6ef7;
+  --lane-eng-text: #3651c9;
+  /* The brand orange as text (section markers): 4.5:1 on the paper. */
+  --brand-text: #b3491a;
   --lane-ai: #2f9e8f;
   --lane-mcp: #c0507a;
   --window-shadow:
@@ -76,6 +81,8 @@
   --negative: #f87171;
   --lane-main: #eceef1;
   --lane-eng: #7c93ff;
+  --lane-eng-text: #7c93ff;
+  --brand-text: var(--brand);
   --lane-ai: #4fc2ad;
   --lane-mcp: #e07aa0;
   --window-shadow: 0 0 0 1px #ffffff12, 0 28px 56px -28px #000000b3;
@@ -218,14 +225,13 @@ html {
 /* The current section is marked with the graph's commit dot. */
 .nav-indicator {
   position: absolute;
-  bottom: 2px;
+  /* The current page: a short bar under its link, as in the app's tabs. */
+  bottom: 3px;
   left: 0;
-  width: 6px;
-  height: 6px;
-  margin-left: 5px;
-  border-radius: 50%;
-  border: 1.5px solid var(--primary);
-  background: var(--background);
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--foreground);
   transition:
     transform 320ms var(--ease),
     opacity 150ms var(--ease);
@@ -374,7 +380,7 @@ html {
 .marker {
   display: flex;
   align-items: center;
-  color: var(--brand);
+  color: var(--brand-text);
   font-family: var(--font-geist-mono), monospace;
   font-size: 12px;
   font-weight: 500;
@@ -698,8 +704,8 @@ html {
   height: 20px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--lane-eng) 18%, var(--card));
-  color: var(--lane-eng);
-  font-size: 9px;
+  color: var(--lane-eng-text);
+  font-size: 10px;
   font-weight: 600;
 }
 .mv-agent {

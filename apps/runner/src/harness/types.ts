@@ -57,9 +57,12 @@ export type HarnessContext = {
 export type HarnessRun = {
   // Stops the current turn; the harness then waits for the next message.
   interrupt(): void;
+  // A person's answer: approve or deny a permission, or (for a request that
+  // named no action, a question) "answer" with their words in `note`.
+  // "answer" never grants anything.
   answer(
     requestId: string,
-    decision: "approve" | "deny",
+    decision: "approve" | "deny" | "answer",
     note: string | null,
   ): void;
   // Ends the run now (cancel, lost lease, shutdown).
@@ -67,10 +70,20 @@ export type HarnessRun = {
   done: Promise<HarnessResult>;
 };
 
+// Whether an installed harness can start a session (signed in, or holding
+// an API key it reads), from the harness's own status command. "unknown"
+// when that command gave no answer this runner understands.
+export type Readiness =
+  | { state: "ready"; detail: string }
+  | { state: "not-ready" | "unknown"; detail: string; fix: string };
+
 export type AgentHarness = {
   id: HarnessId;
   // The installed version, or null when it is not available.
   detect(config: RunnerConfig): Promise<string | null>;
+  // A harmless probe for `lictory-runner doctor`; absent when the harness
+  // offers none.
+  ready?(config: RunnerConfig): Promise<Readiness>;
   start(context: HarnessContext): HarnessRun;
 };
 

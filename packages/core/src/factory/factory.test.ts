@@ -19,7 +19,7 @@ import { postMessage } from "@lictory/core/channels/writer";
 import { PROTOCOL } from "@lictory/core/contracts/protocol";
 import { executeMutation } from "@lictory/core/domain/service";
 import { decodeWire } from "@lictory/core/factory/model-wire";
-import { sessionTitle } from "@lictory/core/factory/entities";
+import { sessionTitle, waitsForRunner } from "@lictory/core/factory/entities";
 import { describeNotification } from "@lictory/core/notifications/format";
 import { proxyModelStream } from "@lictory/core/factory/model-proxy";
 import {
@@ -282,6 +282,83 @@ const event = (seq: number, text = `step ${seq}`) => ({
 
 // ---------------------------------------------------------------- tests
 
+void test("an agent's owner sees what it called, refusals included; nobody else does", async () => {
+  const ownerId = await user("Ada");
+  const memberId = await user("Grace");
+  const organizationId = await organization(ownerId, [memberId]);
+  const scout = await createAgent(ownerId, organizationId, {
+    kind: "external",
+    name: "Scout",
+    harness: undefined,
+  });
+  const agent = context(
+    await agentPrincipal(ownerId, organizationId, scout.id),
+  );
+  await invoke(agent, "listOrganizations", {});
+  await invoke(agent, "getWorkspace", { organizationId });
+  await refused(
+    invoke(agent, "getWorkItem", { organizationId, key: "NOPE-1" }),
+    "not_found",
+  );
+  // A person's decision is refused to the agent, whatever it names.
+  await refused(
+    invoke(agent, "answerAgentApproval", {
+      organizationId,
+      sessionId: "session-1",
+      approvalId: "approval-1",
+      decision: "approve",
+    }),
+    "forbidden",
+    "human_only",
+  );
+  const { calls } = (await invoke(web(ownerId), "listAgentActivity", {
+    organizationId,
+    agentId: scout.id,
+  })) as {
+    calls: {
+      capability: string;
+      outcome: string;
+      detail: {
+        target?: { field: string; id: string };
+        message?: string;
+        kind?: string;
+      } | null;
+    }[];
+  };
+  assert.deepEqual(
+    calls.map((c) => [c.capability, c.outcome]),
+    [
+      ["answerAgentApproval", "forbidden"],
+      ["getWorkItem", "not_found"],
+      ["getWorkspace", "ok"],
+      ["listOrganizations", "ok"],
+    ],
+  );
+  // Its owner reads what each call named and, when refused, why.
+  const [decision, lookup, workspace] = calls;
+  assert.deepEqual(decision!.detail?.target, {
+    field: "sessionId",
+    id: "session-1",
+  });
+  assert.equal(decision!.detail?.kind, "human_only");
+  assert.match(decision!.detail?.message ?? "", /person/);
+  assert.deepEqual(lookup!.detail?.target, { field: "key", id: "NOPE-1" });
+  assert.ok(lookup!.detail?.message);
+  assert.equal(workspace!.detail, null);
+  await refused(
+    invoke(web(memberId), "listAgentActivity", {
+      organizationId,
+      agentId: scout.id,
+    }),
+    "forbidden",
+  );
+  // Agents do not read activity records, their own included.
+  await refused(
+    invoke(agent, "listAgentActivity", { organizationId, agentId: scout.id }),
+    "forbidden",
+  );
+});
+
 void test("an agent acts with its owner's permissions narrowed by its scope", async () => {
   const ownerId = await user("Ada");
   const memberId = await user("Grace");
@@ -470,9 +547,14 @@ void test("registration tokens are single use, expire and respect who may add ru
   });
   assert.equal(first.personal, false);
   assert.ok(first.credential.startsWith("lcr_"));
-  await refused(
+  // Each refusal says whether to retype the token or create a new one.
+  await assert.rejects(
     registerRunner(db, { ...machine, token, name: "again" }),
-    "forbidden",
+    /already used/,
+  );
+  await assert.rejects(
+    registerRunner(db, { ...machine, token: `${token}x`, name: "typo" }),
+    /issued no such registration token/,
   );
   // Expired after an hour.
   const { token: late } = (await invoke(
@@ -490,6 +572,14 @@ void test("registration tokens are single use, expire and respect who may add ru
       new Date(Date.now() + 61 * 60_000),
     ),
     "forbidden",
+  );
+  await assert.rejects(
+    registerRunner(
+      db,
+      { ...machine, token: late, name: "late" },
+      new Date(Date.now() + 61 * 60_000),
+    ),
+    /expired/,
   );
   // Credentials are stored hashed and stop working once revoked.
   const [row] = await db
@@ -546,6 +636,46 @@ void test("a personal runner only runs its owner's agents", async () => {
   await refused(start(memberId, organizationId, privateAgent.id), "forbidden");
 });
 
+void test("a runner's last problem reaches its page through the heartbeat; an older runner's silence keeps it", async () => {
+  const ownerId = await user("Ada");
+  const organizationId = await organization(ownerId);
+  const registered = await runner(ownerId, organizationId, false);
+  const projected = async () => {
+    const [entity] = await db
+      .select({ data: s.factoryEntity.data })
+      .from(s.factoryEntity)
+      .where(eq(s.factoryEntity.key, `runner:${registered.id}`));
+    return (entity?.data as { lastError?: unknown } | undefined)?.lastError;
+  };
+  const row = async () =>
+    (
+      await db.select().from(s.runner).where(eq(s.runner.id, registered.id))
+    )[0]!;
+  assert.equal(await projected(), null);
+  // The runner met a problem and reports it, with when, once it reaches the
+  // server again.
+  const problem = {
+    message: "Asking for work failed: Could not connect to the server.",
+    at: "2026-11-27T10:00:00.000Z",
+  };
+  await heartbeat(db, registered, {
+    ...machine,
+    sessions: [],
+    lastError: problem,
+  });
+  assert.deepEqual(await projected(), problem);
+  // A runner older than the field sends none: what it reported stays.
+  await heartbeat(db, await row(), { ...machine, sessions: [] });
+  assert.deepEqual(await projected(), problem);
+  // A restarted runner that met no problem clears it.
+  await heartbeat(db, await row(), {
+    ...machine,
+    sessions: [],
+    lastError: null,
+  });
+  assert.equal(await projected(), null);
+});
+
 void test("leases fence every runner write and expired sessions return to the queue", async () => {
   const ownerId = await user("Ada");
   const organizationId = await organization(ownerId);
@@ -558,6 +688,12 @@ void test("leases fence every runner write and expired sessions return to the qu
   const lease = (await claimSession(db, first))!;
   assert.equal(lease.attempt, 1);
   assert.equal(lease.repository?.branch.startsWith("lictory/"), true);
+  // The runner's log links to the session's page.
+  assert.ok(
+    lease.sessionUrl?.endsWith(
+      `/${organizationId}/factory/sessions/${session.id}`,
+    ),
+  );
   // Nobody else can claim it or write with another lease.
   assert.equal(await claimSession(db, second), null);
   await refused(
@@ -690,6 +826,89 @@ void test("event batches are idempotent by sequence, bounded and gap-checked", a
   assert.equal(done.resultSummary, "Added the refund endpoint.");
 });
 
+void test("a session with no repository that changed files ends with its work recorded as not kept", async () => {
+  const ownerId = await user("Ada");
+  const organizationId = await organization(ownerId);
+  const agent = await createAgent(ownerId, organizationId);
+  const machineRow = await runner(ownerId, organizationId, false);
+  const fileChange = (seq: number, ...paths: string[]) => ({
+    seq,
+    type: "file_change",
+    data: {
+      changes: paths.map((path) => ({ path, kind: "modify", additions: 1 })),
+    },
+  });
+  const run = async (
+    fields: Record<string, unknown>,
+    events: ReturnType<typeof fileChange>[],
+  ) => {
+    const session = await start(ownerId, organizationId, agent.id, fields);
+    const lease = (await claimSession(db, machineRow))!;
+    assert.equal(lease.sessionId, session.id);
+    await startRun(db, machineRow, session.id, lease.leaseToken);
+    if (events.length)
+      await appendRunnerEvents(
+        db,
+        machineRow,
+        session.id,
+        lease.leaseToken,
+        events,
+      );
+    return completeRun(db, machineRow, session.id, {
+      leaseToken: lease.leaseToken,
+      outcome: "completed",
+      summary: "Added CHANGES.md.",
+      lastSeq: events.length,
+    });
+  };
+  // Two files, one changed twice: two files were discarded with the
+  // scratch workspace, and the session says so wherever it is read.
+  const scratch = await run({}, [
+    fileChange(1, "CHANGES.md"),
+    fileChange(2, "CHANGES.md", "docs/refunds.md"),
+  ]);
+  assert.equal(scratch.status, "completed");
+  assert.equal(scratch.discardedFiles, 2);
+  const [projected] = await db
+    .select({ data: s.factoryEntity.data })
+    .from(s.factoryEntity)
+    .where(eq(s.factoryEntity.key, `session:${scratch.id}`));
+  assert.equal(
+    (projected!.data as { discardedFiles: number | null }).discardedFiles,
+    2,
+  );
+  // The person who started it hears that the work was not kept, not the
+  // agent's own summary.
+  const finished = (
+    await db
+      .select({ notices: s.notificationEvent.notices })
+      .from(s.notificationEvent)
+      .where(eq(s.notificationEvent.organizationId, organizationId))
+  )
+    .flatMap((row) => row.notices)
+    .find(
+      (n) =>
+        n.kind === "agent_session_finished" &&
+        n.detail?.sessionId === scratch.id,
+    );
+  const told = describeNotification(
+    { kind: "agent_session_finished", detail: finished!.detail ?? {} },
+    "Ada",
+  );
+  assert.match(told.headline, /finished, work not kept/);
+  assert.match(told.body ?? "", /The 2 files it changed were discarded/);
+  // Nothing changed, or a repository kept it: no discarded work.
+  assert.equal((await run({}, [])).discardedFiles, null);
+  assert.equal(
+    (
+      await run({ repositoryUrl: "https://git.example.test/acme/pay.git" }, [
+        fileChange(1, "CHANGES.md"),
+      ])
+    ).discardedFiles,
+    null,
+  );
+});
+
 void test("the session state machine refuses steps from the wrong state", async () => {
   const ownerId = await user("Ada");
   const organizationId = await organization(ownerId);
@@ -786,6 +1005,120 @@ void test("the session state machine refuses steps from the wrong state", async 
   assert.equal(inputs.inputs.length, 0);
 });
 
+void test("an agent waiting for a person's next message waits on them, and a retry sends the earlier messages again", async () => {
+  const ownerId = await user("Ada");
+  const organizationId = await organization(ownerId);
+  const agent = await createAgent(ownerId, organizationId);
+  const machineRow = await runner(ownerId, organizationId, false);
+  const published: SessionThreadEvent[] = [];
+  setSessionThreadPublisher({
+    publish: async (e) => {
+      published.push(e);
+    },
+  });
+  const session = await start(ownerId, organizationId, agent.id);
+  const ctx = web(ownerId);
+  const ids = { organizationId, sessionId: session.id };
+  const lease = (await claimSession(db, machineRow))!;
+  await startRun(db, machineRow, session.id, lease.leaseToken);
+  // The agent asks in its own words and its harness waits for an answer:
+  // the session waits on the person, like an approval request.
+  await appendRunnerEvents(db, machineRow, session.id, lease.leaseToken, [
+    event(1, "Should I quarantine the test or fix the timeout?"),
+    {
+      seq: 2,
+      type: "status",
+      data: {
+        phase: "awaiting_message",
+        message: "Waiting for the next message.",
+      },
+    },
+  ]);
+  assert.equal((await sessionRow(session.id)).status, "waiting");
+  assert.ok(
+    published.some((e) => e.kind === "status" && e.sessionId === session.id),
+    "the card and the claim hear that it waits",
+  );
+  // The person answers; the harness works again.
+  await invoke(ctx, "sendAgentSessionMessage", {
+    ...ids,
+    text: "Fix the timeout.",
+  });
+  await appendRunnerEvents(db, machineRow, session.id, lease.leaseToken, [
+    { seq: 3, type: "status", data: { phase: "working" } },
+    event(4, "Got it: Fix the timeout."),
+  ]);
+  assert.equal((await sessionRow(session.id)).status, "running");
+  // Interrupt says what it does: the turn stops and the agent waits.
+  await invoke(ctx, "interruptAgentSession", ids);
+  assert.ok(
+    (await eventsOf(session.id)).some((e) =>
+      String((e.data as { message?: string }).message).includes(
+        "stops its current turn and waits for the next message",
+      ),
+    ),
+  );
+  // An approval request still pending keeps it waiting, whatever the
+  // harness reports about messages.
+  await appendRunnerEvents(db, machineRow, session.id, lease.leaseToken, [
+    {
+      seq: 5,
+      type: "approval_request",
+      data: {
+        requestId: "tool-1",
+        title: "Run the migration",
+        tool: "Bash",
+        input: { command: "bun run db:migrate" },
+      },
+    },
+    { seq: 6, type: "status", data: { phase: "working" } },
+  ]);
+  assert.equal((await sessionRow(session.id)).status, "waiting");
+  // Waiting on a person, it is not working: there is no turn to interrupt.
+  await refused(
+    invoke(ctx, "interruptAgentSession", ids),
+    "conflict",
+    "invalid_state",
+  );
+  await invoke(ctx, "cancelAgentSession", ids);
+  // A retry starts over from the task with the person's messages, in
+  // order, and without the old run's interrupt, cancel or answers.
+  await invoke(ctx, "retryAgentSession", ids);
+  const retried = await eventsOf(session.id);
+  assert.match(
+    String((retried.at(-1)?.data as { message?: string }).message),
+    /starts over from the task with the message sent to it before\. Sent again: “Fix the timeout\.”$/,
+  );
+  const again = (await claimSession(db, machineRow))!;
+  const inbox = await readInputs(
+    db,
+    machineRow,
+    session.id,
+    again.leaseToken,
+    again.inputCursor,
+  );
+  assert.deepEqual(
+    inbox.inputs.map((i) => [i.kind, i.data.text]),
+    [["message", "Fix the timeout."]],
+  );
+  // A second retry sends each message once.
+  await invoke(ctx, "cancelAgentSession", ids);
+  await invoke(ctx, "retryAgentSession", ids);
+  const third = (await claimSession(db, machineRow))!;
+  const thirdInbox = await readInputs(
+    db,
+    machineRow,
+    session.id,
+    third.leaseToken,
+    third.inputCursor,
+  );
+  assert.deepEqual(
+    thirdInbox.inputs.map((i) => i.data.text),
+    ["Fix the timeout."],
+  );
+  setSessionThreadPublisher(null);
+});
+
 void test("approval requests are answered only by the requester or the agent's owner", async () => {
   const ownerId = await user("Ada");
   const memberId = await user("Grace");
@@ -877,12 +1210,13 @@ void test("approval requests are answered only by the requester or the agent's o
       approvalId: approval!.id,
       decision,
     });
-  // Another member cannot decide, and neither can the agent itself.
+  // Another member cannot decide, and neither can the agent itself: the
+  // server refuses a person's decision to every agent (human_only).
   await refused(answer(web(otherId)), "forbidden");
   await refused(
     answer(context(await agentPrincipal(ownerId, organizationId, agent.id))),
     "forbidden",
-    "agent_scope",
+    "human_only",
   );
   // The session's own token is the agent too.
   const sessionToken = (await authenticateAccessToken(
@@ -901,7 +1235,7 @@ void test("approval requests are answered only by the requester or the agent's o
       "approve",
     ),
     "forbidden",
-    "agent_scope",
+    "human_only",
   );
   // The requester decides; the session resumes and the runner hears it.
   await answer(web(memberId), "deny");
@@ -925,6 +1259,81 @@ void test("approval requests are answered only by the requester or the agent's o
     lastSeq: 1,
   });
   assert.equal(await authenticateAccessToken(db, lease.lictory.token), null);
+});
+
+// Text is never permission: a request that names no action (no tool and
+// input) is a question, which a person answers in words or denies.
+void test("a request naming no action is a question: answered in words, never approved", async () => {
+  const ownerId = await user("Ada");
+  const organizationId = await organization(ownerId);
+  const agent = await createAgent(ownerId, organizationId);
+  const machineRow = await runner(ownerId, organizationId, false);
+  const session = await start(ownerId, organizationId, agent.id);
+  const lease = (await claimSession(db, machineRow))!;
+  await startRun(db, machineRow, session.id, lease.leaseToken);
+  await appendRunnerEvents(db, machineRow, session.id, lease.leaseToken, [
+    {
+      seq: 1,
+      type: "approval_request",
+      data: { requestId: "ask-1", title: "Run the migration on staging" },
+    },
+    {
+      seq: 2,
+      type: "approval_request",
+      data: {
+        requestId: "tool-2",
+        title: "Run the migration",
+        tool: "Bash",
+        input: { command: "bun run db:migrate" },
+      },
+    },
+  ]);
+  assert.equal((await sessionRow(session.id)).status, "waiting");
+  const approvals = await db
+    .select()
+    .from(s.agentApproval)
+    .where(eq(s.agentApproval.sessionId, session.id));
+  const question = approvals.find((a) => a.requestKey === "ask-1")!;
+  const permission = approvals.find((a) => a.requestKey === "tool-2")!;
+  const answer = (approvalId: string, decision: string, note?: string) =>
+    invoke(web(ownerId), "answerAgentApproval", {
+      organizationId,
+      sessionId: session.id,
+      approvalId,
+      decision,
+      ...(note === undefined ? {} : { note }),
+    });
+  // A title alone cannot be approved, and an answer needs words.
+  await refused(answer(question.id, "approve"), "validation");
+  await refused(answer(question.id, "answer", "  "), "validation");
+  // A permission is approved or denied, not answered around.
+  await refused(answer(permission.id, "answer", "Sure"), "validation");
+  await answer(
+    question.id,
+    "answer",
+    "Run it after 18:00 with --dry-run first.",
+  );
+  const [answered] = await db
+    .select()
+    .from(s.agentApproval)
+    .where(eq(s.agentApproval.id, question.id));
+  assert.equal(answered!.status, "answered");
+  assert.equal(answered!.note, "Run it after 18:00 with --dry-run first.");
+  // The permission still waits: the session waits until it is decided.
+  assert.equal((await sessionRow(session.id)).status, "waiting");
+  const inbox = await readInputs(
+    db,
+    machineRow,
+    session.id,
+    lease.leaseToken,
+    0,
+  );
+  const heard = inbox.inputs.find((i) => i.kind === "approval_answer")!;
+  assert.equal(heard.data.requestId, "ask-1");
+  assert.equal(heard.data.decision, "answer");
+  assert.equal(heard.data.note, "Run it after 18:00 with --dry-run first.");
+  await answer(permission.id, "approve");
+  assert.equal((await sessionRow(session.id)).status, "running");
 });
 
 void test("the model proxy serves only running built-in sessions with Lictory Intelligence on", async () => {
@@ -1109,5 +1518,53 @@ void test("session titles stored with a doubled mention read with one @, whereve
       "Ada",
     ).headline,
     "Forge finished: @forge draft docs",
+  );
+});
+
+void test("a queued session waits for a runner when no online runner may take it", () => {
+  const now = Date.parse("2026-11-25T12:00:00Z");
+  const seen = new Date(now - 30_000).toISOString();
+  const agent = {
+    kind: "runner" as const,
+    harness: "claude-code" as const,
+    ownerId: "ada",
+    archivedAt: null,
+  };
+  const session = { status: "queued" as const, requestedRunnerId: null };
+  const runner = (extra: Record<string, unknown> = {}) => ({
+    id: "r1",
+    lastSeenAt: seen,
+    revokedAt: null,
+    harnesses: [{ id: "claude-code", version: "2" }],
+    ownerId: null,
+    ...extra,
+  });
+  assert.equal(waitsForRunner(session, agent, [runner()], now), false);
+  // Offline, without the harness, someone else's laptop, or not the
+  // runner the session asked for: nobody takes it.
+  for (const other of [
+    runner({ lastSeenAt: new Date(now - 10 * 60_000).toISOString() }),
+    runner({ harnesses: [{ id: "codex", version: "1" }] }),
+    runner({ ownerId: "ben" }),
+    runner({ revokedAt: seen }),
+  ])
+    assert.equal(waitsForRunner(session, agent, [other], now), true);
+  assert.equal(
+    waitsForRunner(
+      { status: "queued", requestedRunnerId: "r2" },
+      agent,
+      [runner()],
+      now,
+    ),
+    true,
+  );
+  // Its owner's own laptop runs it; a running session waits for nothing.
+  assert.equal(
+    waitsForRunner(session, agent, [runner({ ownerId: "ada" })], now),
+    false,
+  );
+  assert.equal(
+    waitsForRunner({ ...session, status: "running" }, agent, [], now),
+    false,
   );
 });

@@ -927,14 +927,15 @@ export async function updateThreadParticipation(
 /**
  * Appends a message written by Lictory: a system line ("Ada archived the
  * channel") or a card (a promotion). The caller has authorized the action
- * that produced it; the person it reports is `actorId`.
+ * that produced it; the person it reports is `actorId`, or none for a note
+ * that is nobody's act (the Factory's "PAY-4 is Done…"), shown as Lictory.
  */
 export async function appendSystemMessage(
   tx: Tx,
   input: {
     organizationId: string;
     channelId: string;
-    actorId: string;
+    actorId: string | null;
     kind: "system" | "card";
     body: string;
     payload?: Record<string, unknown>;
@@ -1021,7 +1022,7 @@ export async function appendSystemMessage(
         }),
       })
       .where(eq(s.channelMessage.id, root.id));
-  } else
+  } else if (input.actorId)
     // The person who caused it has seen it.
     await tx
       .update(s.channelMember)

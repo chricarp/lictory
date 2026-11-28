@@ -28,6 +28,7 @@ import {
   chooseSessionRepository,
   createCodeEvidence,
   createCodeMergeExecutor,
+  onlyProjectRepository,
   repositoryNamedIn,
   resolveSessionWorkspace,
 } from "@lictory/core/code/ports";
@@ -387,7 +388,11 @@ export function installCodeLoop(
   });
   setSessionWorkspaceResolver(workspaceResolver(db, options));
   setSessionRepositoryNamer({
-    named: (tx, input) => repositoryNamedIn(tx, input),
+    named: async (tx, input) =>
+      (await repositoryNamedIn(tx, input)) ??
+      (input.homeProjectId
+        ? onlyProjectRepository(tx, input.organizationId, input.homeProjectId)
+        : null),
   });
   setSessionCompletionListener({
     pushed: (completion) => openSessionPullRequest(db, options, completion),

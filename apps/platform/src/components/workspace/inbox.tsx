@@ -3,12 +3,17 @@ import { useRouter, useSearchParams } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import { Tabs, TabsPanel } from "@ui-sdk/react/tabs";
 import { Button } from "@lictory/ui/button";
+import { toast } from "@lictory/ui/toast";
+import { callCapability } from "@lictory/core/capabilities/client";
+import { agentSession } from "@lictory/core/contracts/state-machines";
 import {
   CircleAlert,
   CircleCheckBig,
+  CircleX,
   FileText,
   Inbox as InboxIcon,
   MessageSquareWarning,
+  RotateCcw,
   Settings2,
   ShieldAlert,
 } from "lucide-react";
@@ -32,14 +37,26 @@ import {
 import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { AgentAvatar } from "@lictory/platform/components/identity/actor";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
-import {
-  sessionTitle,
-  type AgentEntity,
-  type RunnerEntity,
-  type SessionEntity,
+import type {
+  AgentEntity,
+  RunnerEntity,
+  SessionEntity,
 } from "@lictory/core/factory/entities";
+import {
+  asSentence,
+  sessionOutcome,
+  titleBeside,
+  useItemKey,
+} from "@lictory/platform/components/factory/parts";
+import { failedForMe } from "@lictory/platform/components/factory/overview-blocks";
 import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
-import { waitingOnYou } from "@lictory/platform/components/shell/home/derive";
+import {
+  waitingGroup,
+  waitingGroupLabels,
+  waitingOnYou,
+  type WaitingGroup,
+} from "@lictory/platform/components/shell/home/derive";
+import { SectionCaption } from "@lictory/platform/components/shell/panel";
 import {
   useFactory,
   waitingOnMe,
@@ -65,8 +82,16 @@ const blockingCount = (n: number) =>
 // on my items, items of mine that became ready. An entry disappears when the
 // underlying state resolves, unlike notifications, which record events.
 export function useAttention() {
-  const { items, userId, disciplineIds, delivery, projects, directory, view } =
-    useWorkspace();
+  const {
+    items,
+    userId,
+    disciplineIds,
+    delivery,
+    projects,
+    directory,
+    view,
+    memberName,
+  } = useWorkspace();
   return useMemo<Entry[]>(() => {
     const mine = (i: WorkItem) =>
       i.assigneeId === userId || i.createdById === userId;
@@ -91,18 +116,25 @@ export function useAttention() {
             ),
         );
         const suggestion = item.suggestionReviewerIds.includes(userId);
+        // Who waits on me: the people who asked (a review requested by
+        // policy has nobody to name).
+        const requesters = [
+          ...new Set(
+            pending
+              .map((r) => r.requestedById)
+              .filter((id): id is string => !!id && id !== userId),
+          ),
+        ].map((id) => memberName(id));
         // Blocking discussions on what I review wait on my answer too.
         const blocking = item.blockingThreads
           ? ` · ${blockingCount(item.blockingThreads)}`
           : "";
         list.push({
           item,
-          reason: pending.length
-            ? "Review requested"
-            : "Pull request to review",
+          reason: pending.length ? "Review requested" : "Suggestion to accept",
           detail: pending.length
-            ? `${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a pull request awaits your approval" : ""}${blocking}`
-            : `A pull request awaits your approval to be merged${blocking}`,
+            ? `${requesters.length ? `By ${requesters.join(", ")} · ` : ""}${pending.map((r) => r.responsibility).join(", ")} · revision ${item.revisionNumber}${suggestion ? " · a suggested change waits for you to accept or reject it" : ""}${blocking}`
+            : `A suggested change waits for you to accept or reject it${blocking}`,
           icon: <ShieldAlert className="size-4 text-primary" />,
           weight: 0,
         });
@@ -120,6 +152,16 @@ export function useAttention() {
             .map((r) => r.responsibility)
             .join(", "),
           icon: <MessageSquareWarning className="size-4 text-warning" />,
+          weight: 1,
+        });
+      else if (mine(item) && link?.status === "failed")
+        // The delivery tool refused it: nothing reaches it until someone
+        // fixes the cause and retries from the item.
+        list.push({
+          item,
+          reason: "Publish failed",
+          detail: `${link.lastError ?? "The delivery tool refused it."} Retry from the item.`,
+          icon: <CircleAlert className="size-4 text-destructive" />,
           weight: 1,
         });
       else if (mine(item) && item.blockingThreads > 0)
@@ -186,6 +228,7 @@ export function useAttention() {
     projects,
     directory.delivery.targets,
     view.entities,
+    memberName,
   ]);
 }
 
@@ -222,6 +265,8 @@ type AgentRequest = {
   approval?: SessionEntity["approvals"][number];
   agent?: AgentEntity;
   runner?: RunnerEntity;
+  // A session I started that failed: mine to retry or leave.
+  failed?: boolean;
 };
 
 // Everything waiting on me, as one queue (see `waitingOnYou`): Home's
@@ -247,7 +292,14 @@ export function useWaitingOnYou() {
           : [{ ...context, approval: undefined }];
       },
     );
-    return waitingOnYou({ items, pages, requests });
+    const failures = failedForMe(sessions, userId).map(
+      (session): AgentRequest => ({
+        session,
+        agent: agentById.get(session.agentId),
+        failed: true,
+      }),
+    );
+    return waitingOnYou({ items, pages, requests: [...requests, ...failures] });
   }, [items, pages, sessions, agentById, runnerById, userId]);
 }
 
@@ -258,14 +310,50 @@ export type WaitingRow = ReturnType<typeof useWaitingOnYou>[number];
 // be approved). The link names why the row is here, then what it is.
 export function WaitingRowView({ row }: { row: WaitingRow }) {
   const { projects, organization } = useWorkspace();
+  const itemKey = useItemKey();
   if (row.kind === "agent") {
-    const { session, approval, agent, runner } = row.request;
+    const { session, approval, agent, runner, failed } = row.request;
+    const key = itemKey(session.workItemId);
+    if (failed)
+      return (
+        <ListRow
+          href={factoryPaths.session(organization.slug, session.id)}
+          leading={<CircleX className="size-4 text-destructive" />}
+          identifier={key}
+          title={
+            <>
+              <span className="sr-only">Failed · </span>
+              {titleBeside(session.title, key)}
+            </>
+          }
+          meta={
+            <>
+              <span className="shrink-0 font-medium text-foreground/80">
+                {agent?.name ?? "The agent"} failed
+              </span>
+              <span className="truncate">
+                {asSentence(sessionOutcome(session))} Retry it or start over.
+              </span>
+            </>
+          }
+          time={session.completedAt ?? session.updatedAt}
+          // It waits on me to retry it: the row does that in place, always
+          // shown like the Review and Answer of the rows beside it (row
+          // actions appear only on hover, and a phone has none).
+          chips={
+            agentSession.allows(session.status, "retry") && (
+              <RetrySession sessionId={session.id} />
+            )
+          }
+        />
+      );
     if (!approval)
       return (
         <ListRow
           href={factoryPaths.session(organization.slug, session.id)}
           leading={agent ? <AgentAvatar agent={agent} size={20} /> : undefined}
-          title={sessionTitle(session.title)}
+          identifier={key}
+          title={titleBeside(session.title, key)}
           meta={`${agent?.name ?? "An agent"} is waiting for your next message`}
           time={session.updatedAt}
         />
@@ -299,10 +387,11 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
             <span className="shrink-0 font-medium text-foreground/80">
               {reason}
             </span>
-            <span aria-hidden>·</span>
-            <FileText aria-hidden className="size-3 shrink-0" />
-            <span className="truncate">
-              {pr.title} · {entry.space.name}
+            <span className="flex min-w-0 items-center gap-1">
+              <FileText aria-hidden className="size-3 shrink-0" />
+              <span className="truncate">
+                {pr.title} · {entry.space.name}
+              </span>
             </span>
           </>
         }
@@ -313,9 +402,26 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
   const { item, reason, detail, icon } = row.entry;
   const project = projects.find((p) => p.id === item.projectId);
   const key = identifier(project, item.number);
+  const href = paths.item(organization.slug, project?.key ?? "", key);
   return (
     <ListRow
-      href={paths.item(organization.slug, project?.key ?? "", key)}
+      href={href}
+      // A blocked item of mine has a next step like the rows beside it:
+      // its blocking discussions, answered or resolved on the item.
+      chips={
+        reason === "Blocked" && (
+          <Button
+            size="sm"
+            variant="secondary"
+            render={<Link href={href} />}
+            // The name starts with the visible label (WCAG 2.5.3), then
+            // says which item's blocking discussions it opens.
+            aria-label={`${item.blockingThreads > 1 ? "Open discussions" : "Open discussion"}: blocking ${key}`}
+          >
+            {item.blockingThreads > 1 ? "Open discussions" : "Open discussion"}
+          </Button>
+        )
+      }
       leading={icon}
       identifier={key}
       title={
@@ -329,13 +435,24 @@ export function WaitingRowView({ row }: { row: WaitingRow }) {
           <span className="shrink-0 font-medium text-foreground/80">
             {reason}
           </span>
-          <span aria-hidden>·</span>
           <span className="truncate">{detail}</span>
         </>
       }
       time={item.updatedAt}
     />
   );
+}
+
+// Consecutive rows of one group (the queue is already in group order).
+function groupRows(rows: readonly WaitingRow[]) {
+  const groups: { group: WaitingGroup; rows: WaitingRow[] }[] = [];
+  for (const row of rows) {
+    const group = waitingGroup(row);
+    const last = groups.at(-1);
+    if (last?.group === group) last.rows.push(row);
+    else groups.push({ group, rows: [row] });
+  }
+  return groups;
 }
 
 export function AttentionList({ rows }: { rows: readonly WaitingRow[] }) {
@@ -351,9 +468,27 @@ export function AttentionList({ rows }: { rows: readonly WaitingRow[] }) {
           discussions on your items and requested changes appear here.
         </EmptyState>
       ) : (
-        <ul aria-label="Waiting on you" className="divide-y divide-border/70">
-          {rows.slice(0, shown).map((row) => (
-            <WaitingRowView key={row.key} row={row} />
+        // One list, in groups by what I do about it (the queue's order):
+        // agents stopped on my answer, reviews others wait on, my own work.
+        <ul aria-label="Waiting on you" className="mx-auto w-full max-w-5xl">
+          {groupRows(rows.slice(0, shown)).map(({ group, rows: inGroup }) => (
+            <li key={group} className="pt-4 first:pt-2">
+              <SectionCaption
+                as="h2"
+                count={inGroup.length}
+                className="mb-1 px-3.5"
+              >
+                {waitingGroupLabels[group]}
+              </SectionCaption>
+              <ul
+                aria-label={waitingGroupLabels[group]}
+                className="divide-y divide-border/70"
+              >
+                {inGroup.map((row) => (
+                  <WaitingRowView key={row.key} row={row} />
+                ))}
+              </ul>
+            </li>
           ))}
         </ul>
       )}
@@ -437,5 +572,37 @@ export function Inbox() {
         <NotificationFeed />
       </TabsPanel>
     </Tabs>
+  );
+}
+
+// Runs a failed session again from its task, as the session page's Retry.
+function RetrySession({ sessionId }: { sessionId: string }) {
+  const { organization } = useWorkspace();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      disabled={busy}
+      title="Runs the session again from the task; your earlier messages are sent again."
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await callCapability("retryAgentSession", {
+            organizationId: organization.id,
+            sessionId,
+          });
+        } catch (error) {
+          setBusy(false);
+          toast({
+            type: "error",
+            title: "The session was not retried",
+            description: (error as Error).message,
+          });
+        }
+      }}
+    >
+      <RotateCcw className="size-3.5" aria-hidden /> Retry
+    </Button>
   );
 }

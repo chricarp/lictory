@@ -212,7 +212,7 @@ export function QuickCreate({
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
                 {options.intent === "proposal"
-                  ? "Capture the idea. Refine and review it with your team next."
+                  ? `A proposal is a ${name.toLowerCase()} in Draft. Capture the idea; the same item is refined and reviewed with your team next.`
                   : "Start with a title. Add the details as you go."}
               </p>
             </div>
@@ -319,7 +319,7 @@ export function QuickCreate({
               onChange={(e) => setTitle(e.target.value)}
               placeholder={`${name} title`}
               aria-label="Title"
-              className="w-full bg-transparent text-base font-medium outline-none placeholder:text-muted-foreground/60"
+              className="w-full bg-transparent text-base font-medium outline-none placeholder:text-placeholder"
             />
             {type && hasParentTypes && projectId && (
               <div className="space-y-1.5 pt-1">
@@ -348,7 +348,7 @@ export function QuickCreate({
                   }
                   onChange={setParentId}
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Link this {name.toLowerCase()} to the larger piece of work it
                   contributes to.
                 </p>

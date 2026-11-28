@@ -9,7 +9,11 @@ export type Server = {
   // removing and adding a server again starts signed out.
   id: string;
   origin: string;
+  // The host, or the organization's name once its page reports one.
   name: string;
+  // The organization the person uses on this server, as its page last
+  // reported it (only when they belong to exactly one there).
+  organization: string | null;
   addedAt: string;
   // The last in-app path, reopened on the next launch.
   lastPath: string | null;
@@ -36,6 +40,18 @@ export function defaultServerName(origin: string) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// A name to show: one line, no control characters, shortened.
+function cleanName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const name = value
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_NAME)
+    .trim();
+  return name || null;
 }
 
 const clampZoom = (value: unknown) =>
@@ -65,6 +81,7 @@ export function normalizeServers(raw: unknown): ServersState {
         typeof entry.name === "string" && entry.name.trim()
           ? entry.name.trim().slice(0, MAX_NAME)
           : defaultServerName(origin),
+      organization: cleanName(entry.organization),
       addedAt:
         typeof entry.addedAt === "string"
           ? entry.addedAt
@@ -110,6 +127,7 @@ export function addServer(
       name === undefined || name === ""
         ? defaultServerName(input.origin)
         : name,
+    organization: null,
     addedAt: input.now.toISOString(),
     lastPath: null,
     zoomLevel: 0,
@@ -186,6 +204,29 @@ export function updateServer(
   };
 }
 
+// A server is named after the organization its page reports, so two
+// servers read as "Harborline Freight" and "Acme" rather than as hosts. A
+// name the person chose is kept; without an organization (signed out of all,
+// or a member of several there) the name goes back to the host.
+export function nameFromOrganization(
+  state: ServersState,
+  id: string,
+  organization: unknown,
+): ServersState {
+  const next = cleanName(organization);
+  let changed = false;
+  const servers = state.servers.map((s) => {
+    if (s.id !== id) return s;
+    const derived =
+      s.name === defaultServerName(s.origin) || s.name === s.organization;
+    const name = derived ? (next ?? defaultServerName(s.origin)) : s.name;
+    if (name === s.name && next === s.organization) return s;
+    changed = true;
+    return { ...s, name, organization: next };
+  });
+  return changed ? { ...state, servers } : state;
+}
+
 // ⌘1…⌘9 (Ctrl on Windows and Linux) open the server at that position in the
 // switcher, as in Slack.
 export function serverForShortcut(
@@ -197,8 +238,13 @@ export function serverForShortcut(
 }
 
 // Two letters for the switcher: the first letters of the name's first two
-// words, or its first two letters.
+// words, or its first two letters. A name that is an address with nothing to
+// abbreviate (127.0.0.1:3000, [::1], localhost) has none: "12" would read as
+// a count beside the unread badge, so the switcher draws a server glyph.
 export function initials(name: string): string {
+  const host = name.replace(/^https?:\/\//, "").replace(/:\d+$/, "");
+  if (/^(\d{1,3}(\.\d{1,3}){3}|\[[\da-f:.]+\]|localhost)$/i.test(host))
+    return "";
   const words = name
     .replace(/^https?:\/\//, "")
     .split(/[\s.\-_:]+/)

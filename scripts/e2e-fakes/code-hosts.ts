@@ -201,17 +201,23 @@ function createModel() {
       payload: unknown,
     ) {
       const body = JSON.stringify(payload);
-      for (const hook of hooks)
-        await fetch(hook.url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...headers(body, hook.secret),
-          },
-          body,
-        }).catch((error: unknown) =>
-          console.error("[fake code host] webhook failed", error),
-        );
+      // Every registered webhook receives every delivery, independently, as
+      // on the host: specs running in parallel each register their own
+      // organization's webhook and ignore repositories they did not link.
+      await Promise.all(
+        hooks.map((hook) =>
+          fetch(hook.url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...headers(body, hook.secret),
+            },
+            body,
+          }).catch((error: unknown) =>
+            console.error("[fake code host] webhook failed", error),
+          ),
+        ),
+      );
     },
   };
 }
@@ -241,10 +247,12 @@ async function control(
     return [200, { ...repo, branches: Object.fromEntries(repo.branches) }];
   }
   if (method === "POST" && path === "/__fake/hooks") {
-    model.hooks.splice(0, model.hooks.length, {
-      url: String(body.url),
-      secret: String(body.secret),
-    });
+    // Registering adds a webhook (the host keeps many); registering the
+    // same address again replaces its secret.
+    const url = String(body.url);
+    const existing = model.hooks.findIndex((hook) => hook.url === url);
+    if (existing !== -1) model.hooks.splice(existing, 1);
+    model.hooks.push({ url, secret: String(body.secret) });
     return [204];
   }
   if (

@@ -2,11 +2,15 @@ import { useMemo, useSyncExternalStore } from "react";
 import {
   CircleCheckBig,
   CircleDot,
+  Compass,
+  CircleX,
   FileText,
+  FolderKanban,
+  History,
   House,
   Inbox,
-  SquarePen,
 } from "lucide-react";
+import { sessionTitle } from "@lictory/core/factory/entities";
 import { paths } from "@lictory/core/lib/paths";
 import {
   identifier,
@@ -19,16 +23,17 @@ import {
   externalLinksByItem,
 } from "@lictory/core/lib/lifecycle";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
-import { Button } from "@lictory/ui/button";
-import { Kbd } from "@lictory/ui/primitives";
 import { useSessionUser } from "@lictory/platform/lib/session";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
+import { placeInProject } from "@lictory/platform/components/workspace/orientation";
+import { useUnread } from "@lictory/platform/components/shell/unread";
 import {
   WaitingRowView,
   useWaitingOnYou,
 } from "@lictory/platform/components/workspace/inbox";
 import { useSpaces } from "@lictory/platform/components/spaces/store";
+import { useClaimability } from "@lictory/platform/components/claims/claims";
 import { StatusIcon } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { Onboarding } from "@lictory/platform/components/workspace/onboarding";
@@ -40,19 +45,34 @@ import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/la
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { homeCards } from "@lictory/platform/components/shell/nav-registry";
 import { HomeCardBoundary } from "@lictory/platform/components/shell/home/panel";
+import { AdminHealthCard } from "@lictory/platform/components/shell/home/admin-health";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { Link } from "@lictory/platform/lib/navigation";
 import {
   SetupChecklist,
   useSetup,
 } from "@lictory/platform/components/shell/home/setup-checklist";
 import {
   inFlight,
+  OUTCOME_DAYS,
   readyToStart,
+  recentOutcomes,
   recentPages,
+  waitingKinds,
 } from "@lictory/platform/components/shell/home/derive";
+import { useFactory } from "@lictory/platform/components/factory/store";
+import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import { AgentAvatar } from "@lictory/platform/components/identity/actor";
+import {
+  asSentence,
+  sessionOutcome,
+} from "@lictory/platform/components/factory/parts";
 
 const SHOWN = 6;
+// Home summarizes the queue; the Inbox's To do is the whole list. What it
+// does not show is named by kind in a last row, so the count reconciles.
+const WAITING_SHOWN = 5;
 
 // The organization's index. A brand-new organization without projects first
 // creates its first project; afterwards Home is the person's factory floor.
@@ -78,10 +98,14 @@ function Home() {
     directory,
     view,
     userId,
-    capabilitiesIn,
+    isAdmin,
+    canManage,
   } = useWorkspace();
-  const { openCreate, project } = useShell();
+  const { project } = useShell();
   const waiting = useWaitingOnYou();
+  const unread = useUnread()[organization.id] ?? 0;
+  const claimability = useClaimability();
+  const { sessions, agentById } = useFactory();
   const { index } = useSpaces();
   const links = useMemo(
     () =>
@@ -99,9 +123,45 @@ function Home() {
     [items, projects, delivery, links, userId],
   );
   const ready = useMemo(
-    () => readyToStart(context, SHOWN),
+    () =>
+      readyToStart(
+        { ...context, startable: (item) => claimability(item).claimable },
+        SHOWN,
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, projects, delivery, links, userId],
+    [items, projects, delivery, links, userId, claimability],
+  );
+  // The window is days, so the current hour is precise enough: a stable
+  // snapshot of the clock, recomputed with synchronized changes.
+  const hour = useSyncExternalStore(noSubscribe, currentHour, () => 0);
+  const outcomes = useMemo(
+    () =>
+      recentOutcomes(
+        {
+          ...context,
+          sessions,
+          agentOwner: (id) => agentById.get(id)?.ownerId,
+          now: hour * HOUR,
+          listed: new Set(
+            waiting.flatMap((row) =>
+              row.kind === "agent" ? [row.request.session.id] : [],
+            ),
+          ),
+        },
+        SHOWN,
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      items,
+      projects,
+      delivery,
+      links,
+      userId,
+      sessions,
+      agentById,
+      hour,
+      waiting,
+    ],
   );
   const recent = useMemo(() => {
     const active = new Set(
@@ -115,34 +175,52 @@ function Home() {
   );
   const org = organization.slug;
   const setup = useSetup();
-  const showSetup = setup.ready && !setup.complete;
-  const capabilities = capabilitiesIn(project?.id);
-  const canCreate =
-    !!project &&
-    (capabilities.editSpecifications || capabilities.changeProperties);
+  // Setting the factory up is an administrator's job; a member's Home is
+  // their work.
+  const showSetup = isAdmin && setup.ready && !setup.complete;
+  const outsideProjects =
+    !isAdmin && !directory.projectMembers.some((m) => m.userId === userId);
+  // Projects I am a member of without any discipline: I can read and
+  // discuss there, but nobody can ask me for a review until I have one.
+  const withoutDiscipline = projects.filter(
+    (p) =>
+      !p.archivedAt &&
+      directory.projectMembers.some(
+        (m) => m.userId === userId && m.projectId === p.id,
+      ) &&
+      !directory.disciplines.some(
+        (d) =>
+          d.projectId === p.id && !d.archivedAt && d.userIds.includes(userId),
+      ),
+  );
+  // A teammate who just joined has nothing waiting, in flight or ready:
+  // Home says where they are and what they do there (from the disciplines
+  // they hold), instead of an empty card.
+  const quiet =
+    !showSetup &&
+    waiting.length === 0 &&
+    flight.total === 0 &&
+    ready.total === 0 &&
+    outcomes.total === 0;
+  const places = quiet
+    ? projects
+        .filter((p) => !p.archivedAt)
+        .map((p) => ({
+          project: p,
+          place: placeInProject(directory.disciplines, userId, p.id),
+        }))
+        .filter(({ place }) => place.disciplines.length > 0)
+        .slice(0, 3)
+    : [];
   const firstName = (user.name || "").split(" ")[0];
   return (
     <div className="flex h-full flex-col">
       <PageHeader
         title="Home"
         icon={<House />}
-        actions={
-          <>
-            {canCreate && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => openCreate()}
-                className="max-sm:hidden"
-              >
-                <SquarePen className="size-3.5" aria-hidden />
-                New item
-                <Kbd>C</Kbd>
-              </Button>
-            )}
-            <LittoLauncher />
-          </>
-        }
+        // Creating work is the sidebar's (and C, anywhere); Home repeats
+        // no second entry point.
+        actions={<LittoLauncher />}
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[1120px] px-4 pt-6 pb-12 sm:px-6 lg:px-8 lg:pt-8">
@@ -152,16 +230,94 @@ function Home() {
               {firstName ? `, ${firstName}` : ""}
             </p>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              {summary(waiting.length, flight.total, ready.total)}
+              {summary(waiting.length, flight.total, ready.total, unread)}
             </p>
           </div>
-          {showSetup && (
+          {/* Setup leads a quiet Home; once people wait on me, they do. */}
+          {showSetup && waiting.length === 0 && (
             <div className="mb-4">
               <SetupChecklist setup={setup} />
             </div>
           )}
+          {outsideProjects && (
+            <div className="mb-4">
+              <Panel
+                title="You’re not in a project yet"
+                icon={<FolderKanban />}
+                empty={`An administrator of ${organization.name} adds you to a project and gives you a discipline there (Product, Engineering, QA) so you can write and review its specifications. Until then you can read and talk in channels and spaces.`}
+              />
+            </div>
+          )}
+          {withoutDiscipline.length > 0 && (
+            <div className="mb-4">
+              <Panel
+                title={
+                  withoutDiscipline.length === 1
+                    ? `You have no discipline in ${withoutDiscipline[0]!.name} yet`
+                    : `You have no discipline in ${withoutDiscipline.length} projects yet`
+                }
+                icon={<FolderKanban />}
+                empty={
+                  canManage(withoutDiscipline[0]!.id) ? (
+                    <>
+                      You can read and discuss its work, but reviews can’t be
+                      asked of you until you hold a discipline (Product,
+                      Engineering, QA).{" "}
+                      <Link
+                        href={paths.projectSettings(
+                          org,
+                          withoutDiscipline[0]!.key,
+                          "members",
+                        )}
+                        className="font-medium text-foreground underline underline-offset-2"
+                      >
+                        Choose yours in Members
+                      </Link>
+                    </>
+                  ) : (
+                    `You can read and discuss its work, but reviews can’t be asked of you until a project administrator gives you a discipline (Product, Engineering, QA) in the project’s settings → Members.`
+                  )
+                }
+              />
+            </div>
+          )}
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
             <div className="flex min-w-0 flex-col gap-4">
+              {places.length > 0 && (
+                <Panel
+                  title={`Your place in ${organization.name}`}
+                  icon={<Compass />}
+                >
+                  {places.map(({ project: p, place }) => (
+                    <li
+                      key={p.id}
+                      className="px-3.5 py-3 text-[13px] leading-5"
+                    >
+                      <Link
+                        href={paths.project(org, p.key)}
+                        className="font-medium text-foreground hover:underline"
+                      >
+                        {p.name}
+                      </Link>
+                      <p className="mt-0.5 text-muted-foreground">
+                        {place.sentence} {place.whyNoProposal}
+                      </p>
+                    </li>
+                  ))}
+                  <li className="px-3.5 py-3 text-[13px] leading-5 text-muted-foreground">
+                    Review requests, questions from agents and pull requests to
+                    merge will wait here and in your Inbox. Meanwhile, read what
+                    the team is refining or join a conversation in{" "}
+                    <Link
+                      href={paths.channels(org)}
+                      className="font-medium text-foreground underline underline-offset-2"
+                    >
+                      Channels
+                    </Link>
+                    .
+                  </li>
+                </Panel>
+              )}
               <Panel
                 title="Waiting on you"
                 icon={<Inbox />}
@@ -170,17 +326,31 @@ function Home() {
                   label: "Open Inbox",
                   href: paths.inbox(org, "todo"),
                 }}
-                // A new organization's Home is its setup, not empty boxes.
+                // A new organization's Home is its setup, not empty boxes; a
+                // new teammate's says where they are instead.
                 empty={
-                  showSetup
+                  showSetup || places.length > 0
                     ? undefined
                     : "Nothing waits on you. Review requests, questions from agents and pull requests to merge appear here."
                 }
               >
-                {waiting.slice(0, SHOWN).map((row) => (
+                {waiting.slice(0, WAITING_SHOWN).map((row) => (
                   <WaitingRowView key={row.key} row={row} />
                 ))}
+                {waiting.length > WAITING_SHOWN && (
+                  <ListRow
+                    href={paths.inbox(org, "todo")}
+                    leading={
+                      <Inbox aria-hidden className="text-muted-foreground" />
+                    }
+                    title={`${waiting.length - WAITING_SHOWN} more in your Inbox`}
+                    meta={waitingKinds(waiting.slice(WAITING_SHOWN))}
+                  />
+                )}
               </Panel>
+              {showSetup && waiting.length > 0 && (
+                <SetupChecklist setup={setup} />
+              )}
               <Panel
                 title="In flight"
                 icon={<CircleDot />}
@@ -199,11 +369,12 @@ function Home() {
                 title="Ready to start"
                 icon={<CircleCheckBig />}
                 count={ready.total}
+                // The same rule as the project's Factory queue.
                 more={
-                  project
+                  project?.deliveryMode === "native"
                     ? {
-                        label: "All ready work",
-                        href: paths.view(org, project.key, "ready"),
+                        label: "Factory queue",
+                        href: paths.factoryQueue(org, project.key),
                       }
                     : undefined
                 }
@@ -221,8 +392,80 @@ function Home() {
                   />
                 ))}
               </Panel>
+              <Panel
+                title="Recent outcomes"
+                icon={<History />}
+                count={outcomes.total}
+                actions={
+                  <span className="text-xs text-muted-foreground">
+                    Last {OUTCOME_DAYS} days
+                  </span>
+                }
+              >
+                {outcomes.rows.map((outcome) => {
+                  if (outcome.kind === "item")
+                    return (
+                      <ItemRow
+                        key={outcome.key}
+                        item={outcome.item}
+                        project={projectById.get(outcome.item.projectId)}
+                        links={links}
+                      />
+                    );
+                  const { session, failed } = outcome;
+                  const agent = agentById.get(session.agentId);
+                  return (
+                    <ListRow
+                      key={outcome.key}
+                      href={factoryPaths.session(org, session.id)}
+                      leading={
+                        failed ? (
+                          <CircleX
+                            aria-hidden
+                            className="size-4 text-destructive"
+                          />
+                        ) : agent ? (
+                          <AgentAvatar agent={agent} size={20} />
+                        ) : undefined
+                      }
+                      title={
+                        <>
+                          <span className="sr-only">
+                            {failed ? "Failed" : "Finished"} ·{" "}
+                          </span>
+                          {sessionTitle(session.title)}
+                        </>
+                      }
+                      meta={
+                        <>
+                          <span
+                            className={
+                              failed
+                                ? "shrink-0 font-medium text-destructive"
+                                : "shrink-0 font-medium text-foreground/80"
+                            }
+                          >
+                            {failed ? "Failed" : "Finished"}
+                          </span>
+                          <span className="truncate">
+                            {failed
+                              ? `${agent?.name ?? "The agent"} stopped${session.error ? `: ${asSentence(sessionOutcome(session))}` : "."} Open it to retry.`
+                              : session.pullRequestId
+                                ? `${agent?.name ?? "The agent"} opened a pull request`
+                                : `${agent?.name ?? "The agent"} reported its result`}
+                          </span>
+                        </>
+                      }
+                      time={outcome.at}
+                    />
+                  );
+                })}
+              </Panel>
             </div>
             <div className="flex min-w-0 flex-col gap-4">
+              <HomeCardBoundary name="Needs an administrator">
+                <AdminHealthCard />
+              </HomeCardBoundary>
               {homeCards.map(({ id, label, Card }) => (
                 <HomeCardBoundary key={id} name={label}>
                   <Card />
@@ -259,13 +502,21 @@ function Home() {
   );
 }
 
-function summary(waiting: number, flight: number, ready: number) {
+// One line under the greeting. "Nothing waits on you", never "caught up"
+// while the Inbox holds unread updates: those are news, said as such.
+function summary(
+  waiting: number,
+  flight: number,
+  ready: number,
+  unread: number,
+) {
   const parts = [
-    waiting && `${waiting} waiting on you`,
+    waiting ? `${waiting} waiting on you` : "Nothing waits on you",
     flight && `${flight} in flight`,
     ready && `${ready} ready to start`,
+    unread && `${unread} unread ${unread === 1 ? "update" : "updates"}`,
   ].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "You are all caught up.";
+  return parts.join(" · ");
 }
 
 function ItemRow({
@@ -294,21 +545,24 @@ function ItemRow({
         reason ??
         (project && (
           <>
-            <StatusIcon
-              category={deliveryCategory(
-                item,
-                project,
-                delivery,
-                links?.get(item.id),
-              )}
-              color={
-                project.deliveryMode === "external" ? undefined : status?.color
-              }
-            />
-            {project.deliveryMode === "external"
-              ? (links?.get(item.id)?.externalStatus ?? "In progress")
-              : (status?.name ?? "Started")}
-            <span aria-hidden>·</span>
+            <span className="flex shrink-0 items-center gap-1.5">
+              <StatusIcon
+                category={deliveryCategory(
+                  item,
+                  project,
+                  delivery,
+                  links?.get(item.id),
+                )}
+                color={
+                  project.deliveryMode === "external"
+                    ? undefined
+                    : status?.color
+                }
+              />
+              {project.deliveryMode === "external"
+                ? (links?.get(item.id)?.externalStatus ?? "In progress")
+                : (status?.name ?? "Started")}
+            </span>
             <span className="truncate">{project.name}</span>
           </>
         ))
@@ -319,6 +573,8 @@ function ItemRow({
 }
 
 const noSubscribe = () => () => undefined;
+const HOUR = 3_600_000;
+const currentHour = () => Math.floor(Date.now() / HOUR);
 
 // Good morning / afternoon / evening, in the person's own time.
 function Greeting() {

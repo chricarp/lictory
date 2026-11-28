@@ -21,6 +21,8 @@ export type StateGlyph =
   | "running"
   | "waiting"
   | "completed"
+  // Completed, but what it changed was discarded (no repository).
+  | "unkept"
   | "failed"
   | "canceled";
 
@@ -106,11 +108,25 @@ const claimMeanings: Record<ClaimEntity["state"], string> = {
     "The agent asked questions on the item's discussions that people have not resolved yet.",
 };
 
+// Why a queued session does not start, and what starts it.
+export const noRunnerMeaning =
+  "Queued, but no online runner can run this agent. Start a runner that has its harness, or add one.";
+
 export const firstName = (name: string) => {
   return name.trim().split(/\s+/)[0] ?? name;
 };
 
-type SessionLike = Pick<SessionEntity, "status">;
+type SessionLike = Pick<SessionEntity, "status"> &
+  Partial<Pick<SessionEntity, "discardedFiles">>;
+
+// A completed session with no repository whose changes were discarded as
+// it ended: the outcome is that its work was not kept, never success.
+export function workNotKept(session: SessionLike | null | undefined) {
+  return session?.status === "completed" && (session.discardedFiles ?? 0) > 0;
+}
+
+export const notKeptMeaning = (files: number) =>
+  `It finished, but no repository is linked to it: the ${files === 1 ? "file" : `${files} files`} it changed ${files === 1 ? "was" : "were"} discarded with its scratch workspace. Link a repository and start it again to keep the work.`;
 type ClaimLike = Pick<ClaimEntity, "state" | "waitingThreadIds">;
 
 // Where a session (and the claim it works for, when there is one) stands.
@@ -121,10 +137,30 @@ export function sessionState(
   options: {
     claim?: ClaimLike | null;
     decider?: string | null;
+    // Queued, and no online runner may take it (`waitsForRunner`).
+    noRunner?: boolean;
   } = {},
 ): SessionState {
-  const { claim, decider } = options;
+  const { claim, decider, noRunner } = options;
   const waitingOn = decider ? `Waiting on ${firstName(decider)}` : null;
+  if (session?.status === "queued" && noRunner)
+    return {
+      label: "No runner",
+      tone: "attention",
+      glyph: "queued",
+      meaning: noRunnerMeaning,
+      active: true,
+      needsPerson: false,
+    };
+  if (session && workNotKept(session))
+    return {
+      label: "Work not kept",
+      tone: "attention",
+      glyph: "unkept",
+      meaning: notKeptMeaning(session.discardedFiles!),
+      active: false,
+      needsPerson: false,
+    };
   if (session) {
     const status = session.status;
     const waiting = status === "waiting";

@@ -21,6 +21,7 @@ import { Button } from "@lictory/ui/button";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
+import { scrimClass } from "@lictory/ui/dialog";
 import {
   ChatList,
   chatLabel,
@@ -105,7 +106,7 @@ function IntelligenceShell() {
         side="left"
         container={popupContainer()}
       >
-        <DrawerBackdrop className="fixed inset-0 z-50 bg-black/30" />
+        <DrawerBackdrop className={cn("fixed inset-0 z-50", scrimClass)} />
         <DrawerContent
           aria-label="Conversations"
           className="h-full max-h-none w-[280px] max-w-[85vw] gap-0 border-0 border-r bg-background p-0 text-foreground shadow-xl"

@@ -15,6 +15,7 @@ import {
   desktopSystems,
   otherSystems,
   primaryDownload,
+  releaseName,
   type DesktopDownload,
 } from "@lictory/marketing/content/downloads";
 import {
@@ -104,7 +105,17 @@ export function DownloadHero() {
       data-system={primary?.id ?? system?.kind ?? "pending"}
       className="mt-10 rounded-xl border border-border bg-card p-6 sm:p-8"
     >
-      {primary ? (
+      {!desktopDownloads.some((download) => download.available) ? (
+        <Note>
+          The desktop app is not in {releaseName}: it ships with a later
+          release. Until then, use your team’s Lictory in the browser.
+        </Note>
+      ) : primary && !primary.available ? (
+        <Note>
+          {releaseName} has no {primary.label}. The files it does have are
+          listed below.
+        </Note>
+      ) : primary ? (
         <Promoted download={primary} />
       ) : system?.kind === "mobile" ? (
         <Note>
@@ -135,6 +146,7 @@ function Promoted({ download }: { download: DesktopDownload }) {
               : "lictory_amd64.deb"),
         )
       : undefined;
+  const others = otherSystems(download);
   return (
     <>
       <CtaLink
@@ -153,7 +165,7 @@ function Promoted({ download }: { download: DesktopDownload }) {
         </code>
       </p>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        {deb ? (
+        {deb?.available ? (
           <>
             Prefer a package?{" "}
             <TrackedLink
@@ -166,21 +178,29 @@ function Promoted({ download }: { download: DesktopDownload }) {
             .{" "}
           </>
         ) : null}
-        Not on {desktopSystems.find(({ os }) => os === download.os)!.name}?
-        Download for{" "}
-        {otherSystems(download).map(({ name, download: other }, index) => (
-          <span key={other.id}>
-            {index > 0 ? " or " : null}
-            <TrackedLink
-              href={other.href}
-              tracking={tracking}
-              className={textLink}
-            >
-              {name}
-            </TrackedLink>
-          </span>
-        ))}
-        , or <AllDownloads />.
+        {others.length ? (
+          <>
+            Not on {desktopSystems.find(({ os }) => os === download.os)!.name}?
+            Download for{" "}
+            {others.map(({ name, download: other }, index) => (
+              <span key={other.id}>
+                {index > 0 ? " or " : null}
+                <TrackedLink
+                  href={other.href}
+                  tracking={tracking}
+                  className={textLink}
+                >
+                  {name}
+                </TrackedLink>
+              </span>
+            ))}
+            , or <AllDownloads />.
+          </>
+        ) : (
+          <>
+            Other systems: <AllDownloads />.
+          </>
+        )}
       </p>
     </>
   );
@@ -194,6 +214,7 @@ function Choice() {
       <div className="mt-4 flex flex-col gap-3 sm:flex-row">
         {desktopSystems.map(({ os, name }) => {
           const download = desktopDownloads.find((item) => item.os === os)!;
+          if (!download.available) return null;
           return (
             <CtaLink
               key={os}

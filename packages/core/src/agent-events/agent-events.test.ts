@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
@@ -15,6 +19,7 @@ import { invoke } from "@lictory/core/capabilities/registry";
 import { handleMcp, handleMcpHttp } from "@lictory/core/mcp/server";
 import { postMessage } from "@lictory/core/channels/writer";
 import { drainNotifications } from "@lictory/core/notifications/drain.test-helper";
+import { verificationSnippet } from "@lictory/core/agent-events/reference";
 import type { AgentScope } from "@lictory/core/factory/authority";
 import {
   lockFeed,
@@ -617,10 +622,13 @@ void test("waitForEvents over MCP wakes on a channel mention", async () => {
       method: "tools/call",
       params: { name, arguments: args },
     })) as {
-      result: { structuredContent: Record<string, unknown>; isError: boolean };
+      result: { content: { text: string }[]; isError: boolean };
     };
     assert.equal(response.result.isError, false, JSON.stringify(response));
-    return response.result.structuredContent;
+    return JSON.parse(response.result.content[0]!.text) as Record<
+      string,
+      unknown
+    >;
   };
   const { cursor } = (await call("listEvents", { after: "latest" })) as {
     cursor: string;
@@ -1098,6 +1106,24 @@ void test("MCP deliveries are signed occurrences, in order, and the server adver
   }
 });
 
+// The snippet the agent events reference prints, loaded as a receiver
+// would run it.
+async function documentedVerifier() {
+  const dir = mkdtempSync(join(tmpdir(), "lictory-verify-"));
+  const file = join(dir, "verify.mjs");
+  writeFileSync(file, verificationSnippet);
+  const module = (await import(file)) as {
+    verifyLictoryWebhook: (
+      secret: string,
+      headers: Record<string, string>,
+      body: string,
+      now?: number,
+    ) => boolean;
+  };
+  rmSync(dir, { recursive: true, force: true });
+  return module.verifyLictoryWebhook;
+}
+
 // ------------------------------------------------------------ webhooks
 
 void test("a failing webhook retries with backoff, is suspended, and resumes in order", async () => {
@@ -1117,10 +1143,32 @@ void test("a failing webhook retries with backoff, is suspended, and resumes in 
       // The test button reports what the receiver answered.
       const tested = await testWebhook(db, f.bo, webhook.id);
       assert.equal(tested.ok, false);
+      const test = hook.received.at(-1)!;
+      assert.equal(test.headers.get("authorization"), "Bearer grok-secret");
+      assert.equal(test.headers.get("x-lictory-event-type"), "lictory.test");
+      // Signed with the secret, as the events reference shows receivers.
+      const expected = createHmac("sha256", "grok-secret")
+        .update(
+          `${test.headers.get("webhook-id")}.${test.headers.get("webhook-timestamp")}.${test.body}`,
+        )
+        .digest("base64");
+      assert.equal(test.headers.get("webhook-signature"), `v1,${expected}`);
+      // The reference's verification snippet accepts it, and only it.
+      const verifyDelivery = await documentedVerifier();
+      const headers = Object.fromEntries(test.headers.entries());
+      assert.equal(verifyDelivery("grok-secret", headers, test.body), true);
+      assert.equal(verifyDelivery("other-secret", headers, test.body), false);
       assert.equal(
-        hook.received.at(-1)!.headers.get("authorization"),
-        "Bearer grok-secret",
+        verifyDelivery("grok-secret", headers, `${test.body} `),
+        false,
       );
+      assert.equal(
+        verifyDelivery("grok-secret", headers, test.body, Date.now() + 600_000),
+        false,
+      );
+      const key = `whsec_${Buffer.alloc(32, 7).toString("base64")}`;
+      const signed = webhookHeaders([key], "msg_1", 1_800_000_000, "{}");
+      assert.equal(verifyDelivery(key, signed, "{}", 1_800_000_000_000), true);
       await f.post(f.ada, general, `${f.mention(f.bo)} first`);
       await f.post(f.ada, general, `${f.mention(f.bo)} second`);
       await drainNotifications(db);
@@ -1139,6 +1187,13 @@ void test("a failing webhook retries with backoff, is suspended, and resumes in 
       assert.equal(current.attempts, 1);
       assert.equal(current.lastError, "http_5xx");
       assert.equal(current.nextAttemptAt.getTime() - clock, 30_000);
+      // The person sees that it is failing and when it tries again.
+      const listed = async () =>
+        (await listSubscriptions(db, f.bo)).find((v) => v.id === webhook.id)!;
+      assert.deepEqual((await listed()).retry, {
+        failedAttempts: 1,
+        nextAttemptAt: current.nextAttemptAt.toISOString(),
+      });
       // Not due yet: nothing is sent.
       const sent = hook.received.length;
       await tick();
@@ -1150,6 +1205,8 @@ void test("a failing webhook retries with backoff, is suspended, and resumes in 
       current = await row();
       assert.equal(current.status, "suspended");
       assert.match(current.statusReason!, /failed attempts/);
+      // Suspended, it no longer tries again: the reason says what to do.
+      assert.equal((await listed()).retry, null);
       // Suspended: no more attempts until resumed.
       clock += 60 * 60_000;
       const before = hook.received.length;

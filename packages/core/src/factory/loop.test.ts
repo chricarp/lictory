@@ -479,7 +479,12 @@ void test("replies steer only for the requester and the owner; approvals only th
     {
       seq: 3,
       type: "approval_request",
-      data: { requestId: "r1", title: "Run the migration" },
+      data: {
+        requestId: "r1",
+        title: "Run the migration",
+        tool: "Bash",
+        input: { command: "bun run db:migrate" },
+      },
     },
   ]);
   const messages = await f.thread(root);
@@ -493,6 +498,12 @@ void test("replies steer only for the requester and the owner; approvals only th
   const approvalCard = messages.find(
     (m) => (m.payload as { type?: string } | null)?.type === "agentApproval",
   )!;
+  // The thread hears them in the order the agent said them: its answer to
+  // the steer, then the request that followed.
+  assert.ok(
+    messages.indexOf(agentPosts[0]!) < messages.indexOf(approvalCard),
+    messages.map((m) => m.body || (m.payload as { type?: string })?.type),
+  );
   const payload = approvalCard.payload as {
     approvalId: string;
     deciderIds: string[];
@@ -795,6 +806,153 @@ void test("dispatched work: one session per claim, reported, asks, resumes and h
   assert.ok(
     held.leaseExpiresAt.getTime() > Date.now() + DELIVERY_HOLD_MS - 60 * 60_000,
   );
+
+  // The work lands: the Definition of Done completes the claim with the
+  // delivered revision, and the reporting channel hears it beside the card,
+  // once, however often the end is replayed.
+  const [revision] = await db
+    .select()
+    .from(s.specificationRevision)
+    .where(eq(s.specificationRevision.workItemId, story))
+    .orderBy(desc(s.specificationRevision.number))
+    .limit(1);
+  await db
+    .update(s.workItemClaim)
+    .set({ deliveredRevisionId: revision!.id })
+    .where(eq(s.workItemClaim.id, claim.id));
+  const landed = {
+    kind: "claim_ended" as const,
+    organizationId: f.organizationId,
+    claimId: claim.id,
+    agentSessionId: session!.id,
+    workItemId: story,
+    state: "completed" as const,
+    reason: "definition_of_done",
+  };
+  for (let i = 0; i < 2; i++)
+    await db.transaction((tx) => claimPorts().resumer.resume(tx, landed));
+  const delivered = (
+    await db
+      .select()
+      .from(s.channelMessage)
+      .where(eq(s.channelMessage.channelId, f.channelId))
+  ).filter((m) => m.body.includes("is Done"));
+  assert.equal(delivered.length, 1);
+  assert.equal(delivered[0]!.threadRootId, null);
+  assert.equal(
+    delivered[0]!.body,
+    `PAY-1 is Done: its Definition of Done passed. Delivered revision ${revision!.number}.`,
+  );
+  // Lictory's own note, not the act of the person who asked for the work.
+  assert.equal(delivered[0]!.authorUserId, null);
+
+  // Who merged the pull request: the person or Autopilot that merged in
+  // Lictory, else the host's login (as the member who linked it).
+  const connectionId = crypto.randomUUID();
+  const repositoryId = crypto.randomUUID();
+  const pullRequestId = crypto.randomUUID();
+  await db.insert(s.codeConnection).values({
+    id: connectionId,
+    organizationId: f.organizationId,
+    provider: "github",
+    name: "GitHub",
+    baseUrl: "https://api.github.com",
+    authKind: "token",
+    accountLabel: "lictory-bot",
+    encryptedCredential: "x",
+    encryptedWebhookSecret: "x",
+    lastVerifiedAt: new Date(),
+    createdById: f.ada,
+  });
+  await db.insert(s.codeRepository).values({
+    id: repositoryId,
+    organizationId: f.organizationId,
+    connectionId,
+    externalId: "1",
+    fullName: "fjord/payments",
+    defaultBranch: "main",
+    webUrl: "https://github.test/fjord/payments",
+    cloneUrl: "https://github.test/fjord/payments.git",
+    visibility: "private",
+  });
+  await db.insert(s.codePullRequest).values({
+    id: pullRequestId,
+    organizationId: f.organizationId,
+    repositoryId,
+    externalId: "7",
+    number: 7,
+    title: "Refund retries",
+    state: "merged",
+    headBranch: "forge/pay-1",
+    headSha: "a".repeat(40),
+    baseBranch: "main",
+    webUrl: "https://github.test/fjord/payments/pull/7",
+    mergedAt: new Date(),
+    mergedByLogin: "lictory-bot",
+    hostCreatedAt: new Date(),
+    hostUpdatedAt: new Date(),
+  });
+  await db
+    .update(s.agentSession)
+    .set({ pullRequestId })
+    .where(eq(s.agentSession.id, session!.id));
+  const noteFor = async (claimId: string) => {
+    await db.transaction((tx) =>
+      claimPorts().resumer.resume(tx, { ...landed, claimId }),
+    );
+    const [note] = await db
+      .select({ body: s.channelMessage.body })
+      .from(s.channelMessage)
+      .where(eq(s.channelMessage.channelId, f.channelId))
+      .orderBy(desc(s.channelMessage.sequence))
+      .limit(1);
+    return note!.body.replace(
+      /^PAY-1 is Done: its Definition of Done passed\. /,
+      "",
+    );
+  };
+  assert.equal(
+    await noteFor(crypto.randomUUID()),
+    "Pull request #7 was merged by lictory-bot on GitHub.",
+  );
+  await db.insert(s.codeHostIdentity).values({
+    organizationId: f.organizationId,
+    connectionId,
+    userId: f.bo,
+    login: "Lictory-Bot",
+  });
+  assert.equal(
+    await noteFor(crypto.randomUUID()),
+    "Pull request #7 was merged by Bo on GitHub.",
+  );
+  // The host reported the merge before Lictory recorded its own answer.
+  await db.insert(s.codeWrite).values({
+    organizationId: f.organizationId,
+    connectionId,
+    repositoryId,
+    kind: "merge",
+    payload: {},
+    pullRequestId,
+    requestedById: f.cy,
+    idempotencyKey: crypto.randomUUID(),
+    fingerprint: "merge",
+    status: "sending",
+  });
+  assert.equal(
+    await noteFor(crypto.randomUUID()),
+    "Pull request #7 was merged by Cy.",
+  );
+  await db
+    .update(s.codePullRequest)
+    .set({
+      mergeRequestedById: f.ada,
+      mergedVia: "Autopilot · policy set by Ada",
+    })
+    .where(eq(s.codePullRequest.id, pullRequestId));
+  assert.equal(
+    await noteFor(crypto.randomUUID()),
+    "Pull request #7 was merged by Autopilot · policy set by Ada.",
+  );
 });
 
 void test("a claim waits on people while its session waits on a person's approval, and works again after the answer", async () => {
@@ -830,7 +988,12 @@ void test("a claim waits on people while its session waits on a person's approva
     {
       seq: 1,
       type: "approval_request",
-      data: { requestId: "r1", title: "Run the migration on staging" },
+      data: {
+        requestId: "r1",
+        title: "Run the migration on staging",
+        tool: "Bash",
+        input: { command: "bun run db:migrate --env staging" },
+      },
     },
   ]);
   const [waiting] = await f.sessions();

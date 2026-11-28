@@ -108,7 +108,14 @@ export type CodePullRequestEvidence = {
   headSha: string | null;
   // Required checks on the head commit. `passed` only when every required
   // check succeeded; `pending` lists checks that have not finished.
-  checks: { required: number; failing: string[]; pending: string[] };
+  // `required` is 0 when the host reported none for the commit (or marked
+  // none of the `reported` ones required): no evidence that CI passed.
+  checks: {
+    required: number;
+    failing: string[];
+    pending: string[];
+    reported?: number;
+  };
   // Approving reviews of the head commit: an agent (by agent id) or a
   // person (by user id), recorded in Lictory; or an approval on the host
   // (its `login`, with the person who set it as their login, if any).

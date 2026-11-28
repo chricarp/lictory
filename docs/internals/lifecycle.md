@@ -85,7 +85,7 @@ when only one fits ("Review & details" then opens the rail as a drawer),
 a sheet on phones. The panel lists threads whose passage is in the current
 revision in document order, then those whose text changed or was removed,
 then discussions of the whole specification; resolved threads are folded
-away until asked for. Open passages are tinted in the text (blocking ones
+away until asked for. Open passages are tinted and underlined in the text (blocking ones
 red); pointing at a passage or a thread, or selecting one, tints both more.
 Whether the panel is open is remembered in this browser; until someone
 chooses, it opens by default beside a specification with open discussions
@@ -164,9 +164,12 @@ particular revision was implemented; it does not create delivered knowledge.
 
 ## Agent participation
 
-New proposed amendments use the same branches and PRs for people, Litto and MCP.
-Legacy suggestions remain readable and operable for compatibility, but Litto
-does not initiate that separate workflow. Durable activity identifies delegated
+People and MCP agents amend specifications the same two ways: new wording
+for a passage of a specification that is not ready yet is a suggestion one
+person accepts or rejects; a ready (protected) specification, larger changes
+and child work go through branches and pull requests that the required
+reviews approve. Litto proposes through branches and pull requests only; it
+does not start suggestions. Durable activity identifies delegated
 MCP and Litto execution while retaining the person's authority and authorship.
 
 Agents are named delegations, not principals. Each personal access token is one

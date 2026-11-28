@@ -1,4 +1,5 @@
 import { DropdownItem } from "@lictory/ui/dropdown";
+import { replaceQuote } from "@lictory/core/editor/markdown-text";
 import { ItemCode } from "@lictory/platform/components/code/item-code";
 import { Link } from "@lictory/platform/lib/navigation";
 import {
@@ -43,6 +44,7 @@ import {
 } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
+import { scrimClass } from "@lictory/ui/dialog";
 import { track } from "@lictory/core/lib/analytics/client";
 import {
   identifier,
@@ -96,6 +98,7 @@ import {
 } from "@lictory/platform/components/items/labels";
 import {
   ItemContext,
+  useItem,
   useItemContextValue,
 } from "@lictory/platform/components/items/item-context";
 import { Specification } from "@lictory/platform/components/items/specification";
@@ -107,6 +110,8 @@ import {
 } from "@lictory/platform/components/knowledge/item-knowledge";
 import { EpicStories } from "@lictory/platform/components/items/epic-stories";
 import { InlineTitle } from "@lictory/platform/components/items/inline-title";
+import { ItemScreenTitle } from "@lictory/platform/components/items/screen-title";
+import { ReviewAnnouncer } from "@lictory/platform/components/review/announce";
 import {
   useListPanel,
   WorkItemListToggle,
@@ -119,7 +124,10 @@ import {
   useSuggestChange,
   type BranchScreen,
 } from "@lictory/platform/components/review/branch-workspace";
-import { ReviewPanel } from "@lictory/platform/components/review/review-panel";
+import {
+  ReviewPanel,
+  useMyReview,
+} from "@lictory/platform/components/review/review-panel";
 import { Readiness } from "@lictory/platform/components/review/readiness";
 import {
   ClaimPanel,
@@ -152,6 +160,7 @@ import {
 } from "@lictory/platform/components/review/revisions";
 import {
   SpecDiscussionsContext,
+  useSpecDiscussions,
   useSpecDiscussionsState,
 } from "@lictory/platform/components/review/spec-discussions";
 import {
@@ -264,8 +273,19 @@ export function ItemDetail({
   const [mode, setModeState] = useState<DetailMode>(() =>
     modeFrom(new URLSearchParams(searchParams.toString())),
   );
+  // The document pane's scroller: a new screen opens at its top, not at
+  // the scroll position of the one it replaced (sending a breakdown for
+  // review from the bottom of the editor landed at the review's activity).
   const setMode = useCallback(
     (next: DetailMode) => {
+      if (
+        next.kind === "pr" ||
+        next.kind === "branch" ||
+        next.kind === "branches"
+      )
+        requestAnimationFrame(() =>
+          document.querySelector("[data-pane-document]")?.scrollTo({ top: 0 }),
+        );
       track("specification_mode_selected", {
         organization_id: workspace.organization.id,
         project_id: item.projectId,
@@ -333,9 +353,10 @@ export function ItemDetail({
     [setMode],
   );
   // Discussions of the specification, beside its text: a column next to
-  // the review rail while the text keeps a readable measure (the item list
-  // steps aside for it first, like a page tree beside comments), in the
-  // rail's place when only one of them fits, a sheet when neither does.
+  // the review rail while the text keeps a comfortable measure (the item
+  // list steps aside for it first, like a page tree beside comments), in
+  // the rail's place when only one of them fits, a sheet when the text
+  // would not keep its readable minimum.
   const [row, setRow] = useState<HTMLElement | null>(null);
   const list = useListPanel();
   const frameWidth = useElementWidth(
@@ -346,7 +367,10 @@ export function ItemDetail({
   // its last width while discussions hold its place).
   const [railElement, setRailElement] = useState<HTMLElement | null>(null);
   const railWidth = useElementWidth(railElement);
-  const wide = frameWidth >= DISCUSSIONS_WIDTH + READABLE;
+  // Docked down to a narrower text than the list and rail make room for: a
+  // sheet over the specification hides the passage being discussed, which
+  // costs more than a shorter line (200% zoom on a laptop is ~720px).
+  const wide = frameWidth >= DISCUSSIONS_WIDTH + DOCKED_READABLE;
   const room = (list: number, rail: number) =>
     frameWidth - list - rail - DISCUSSIONS_WIDTH;
   const roomy = room(listWidth, railWidth) >= ROOMY;
@@ -355,6 +379,7 @@ export function ItemDetail({
     threads: ctx.threads,
     reviewable: ctx.reviewable,
     roomy,
+    docked: wide,
     onShowRevision: useCallback(
       (revision: string, thread?: string) =>
         setMode({ kind: "history", revision, compare: "none", thread }),
@@ -366,9 +391,14 @@ export function ItemDetail({
     !pendingCreate &&
     (mode.kind === "read" || mode.kind === "edit");
   const discussionsColumn = discussionsShown && discussions.panelOpen && wide;
-  const listAside = discussionsColumn && room(listWidth, railWidth) < READABLE;
+  // The specification is the primary surface: the list, then the rail,
+  // step aside before the text drops below a comfortable measure (the
+  // rail's state is summarized in the status card and the header's
+  // "Review & details" brings it back).
+  const listAside =
+    discussionsColumn && room(listWidth, railWidth) < COMFORTABLE;
   const railHidden =
-    listAside && railWidth > 0 && room(0, railWidth) < READABLE;
+    listAside && railWidth > 0 && room(0, railWidth) < COMFORTABLE;
   // The column takes room the text does not need: wider (easier to
   // write in) when the text keeps a comfortable measure beside it.
   const discussionsWidth =
@@ -763,6 +793,7 @@ export function ItemDetail({
   return (
     <ItemContext.Provider value={ctx}>
       <SpecDiscussionsContext.Provider value={discussions}>
+        {!pendingCreate && ctx.reviewable && <ReviewAnnouncer />}
         {!pendingCreate && (
           <DockItemSource
             viewing={mode.kind === "ai" ? mode.id : null}
@@ -867,12 +898,12 @@ export function ItemDetail({
                   disabled={item.refinementState !== "ready"}
                   title={
                     item.refinementState === "ready"
-                      ? `Export to ${exportAvailability.connection?.name ?? exportAvailability.tool.name}`
-                      : "Only ready items can be exported."
+                      ? `Hand off to ${exportAvailability.connection?.name ?? exportAvailability.tool.name}`
+                      : "Only ready specifications can be handed off."
                   }
                   onClick={() => setExporting(true)}
                 >
-                  <Upload className="size-3.5" /> Export to{" "}
+                  <Upload className="size-3.5" /> Hand off to{" "}
                   {exportAvailability.tool.name}
                 </Button>
               )}
@@ -980,7 +1011,7 @@ export function ItemDetail({
                         title={
                           item.refinementState === "ready"
                             ? undefined
-                            : "Only ready items can be exported."
+                            : "Only ready specifications can be handed off."
                         }
                         onClick={() => {
                           close();
@@ -988,7 +1019,7 @@ export function ItemDetail({
                         }}
                       >
                         <Upload className="size-3.5 text-muted-foreground" />
-                        Export to {exportAvailability.tool.name}…
+                        Hand off to {exportAvailability.tool.name}…
                       </DropdownItem>
                     )}
                     <DropdownItem
@@ -1041,8 +1072,12 @@ export function ItemDetail({
                   <LittoLauncher />
                 </>
               )}
+              {/* On phones the shell's "+" stays in the navigation drawer
+                  (as in a channel), so the bar fits at 320px. */}
               {phone && (
-                <div className="contents lg:hidden">{phone.trailing}</div>
+                <div className="contents max-sm:hidden lg:hidden">
+                  {phone.trailing}
+                </div>
               )}
             </div>
           </header>
@@ -1052,39 +1087,23 @@ export function ItemDetail({
                 className={
                   branchScreen
                     ? "mx-auto max-w-6xl px-4 py-6 lg:px-8"
-                    : "mx-auto max-w-3xl px-5 py-7 lg:px-8 @min-[81rem]/frame:px-10"
+                    : discussionsColumn
+                      ? // Beside discussions the text keeps its measure:
+                        // the gutters give way first.
+                        "mx-auto max-w-3xl px-5 py-7"
+                      : "mx-auto max-w-3xl px-5 py-7 lg:px-8 @min-[81rem]/frame:px-10"
                 }
               >
                 {changedSinceSeen && !focusScreen && (
-                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[13px]">
-                    <GitCompareArrows className="size-4 text-primary" />
-                    <span>
-                      Changed since you last looked: revision{" "}
-                      {changedSinceSeen.from.number} →{" "}
-                      {changedSinceSeen.to.number}
-                      {" · "}
-                      <span className="text-success">
-                        +{changedSinceSeen.added}
-                      </span>{" "}
-                      <span className="text-destructive">
-                        −{changedSinceSeen.removed}
-                      </span>{" "}
-                      lines
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="ml-auto"
-                      onClick={() =>
-                        showHistory({
-                          revision: changedSinceSeen.to.id,
-                          compare: changedSinceSeen.from.id,
-                        })
-                      }
-                    >
-                      View changes
-                    </Button>
-                  </div>
+                  <ChangedSince
+                    changed={changedSinceSeen}
+                    onShow={() =>
+                      showHistory({
+                        revision: changedSinceSeen.to.id,
+                        compare: changedSinceSeen.from.id,
+                      })
+                    }
+                  />
                 )}
                 {!focusScreen && <InlineTitle />}
                 {!focusScreen && (
@@ -1095,6 +1114,15 @@ export function ItemDetail({
                         : undefined
                     }
                     onReview={() => openRailAt("[data-review-panel]")}
+                    onOpen={(place) =>
+                      place === "discussions"
+                        ? discussions.setPanelOpen(true)
+                        : openRailAt(`[data-rail-section="${place}"]`)
+                    }
+                    onChanges={() => setMode({ kind: "branches" })}
+                    onCompare={(from, to) =>
+                      showHistory({ revision: to, compare: from })
+                    }
                     onBreakdown={() =>
                       document
                         .querySelector("[data-item-breakdown]")
@@ -1167,6 +1195,11 @@ export function ItemDetail({
                 <div className="mt-6">
                   {mode.kind === "history" ? (
                     <div className="space-y-6">
+                      {/* Named like the item's other screens (branches, a
+                          pull request); the tabs below say it visibly. */}
+                      <ItemScreenTitle className="sr-only">
+                        Version history of {identifier(project, item.number)}
+                      </ItemScreenTitle>
                       <HistoryNav
                         current="versions"
                         onVersions={() =>
@@ -1283,7 +1316,9 @@ export function ItemDetail({
                     </>
                   </DecisionComposerScope>
                 )}
-                {!pendingCreate && (
+                {/* The item's files belong beside its specification, not
+                    under a proposed change or its review. */}
+                {!pendingCreate && !focusScreen && (
                   <Attachments
                     context={{
                       organizationId: item.organizationId,
@@ -1333,6 +1368,7 @@ export function ItemDetail({
                 <aside
                   id={rail.pane.id}
                   ref={attachMeasuredRail}
+                  aria-label="Details"
                   style={rail.pane.style}
                   data-desktop-item-panel
                   className={cn(
@@ -1358,7 +1394,8 @@ export function ItemDetail({
             >
               <DrawerBackdrop
                 className={cn(
-                  "fixed inset-0 z-40 bg-black/30",
+                  "fixed inset-0 z-40",
+                  scrimClass,
                   !railHidden && "@min-[53rem]/frame:hidden",
                 )}
               />
@@ -1404,10 +1441,14 @@ export function ItemDetail({
 // The discussions column, the document's readable minimum beside it and
 // the room from which discussions open by default.
 const DISCUSSIONS_WIDTH = 304;
-// Up to this much wider when the text keeps COMFORTABLE beside it.
+// Up to this much wider when the text keeps COMFORTABLE beside it (a
+// comfortable reading measure plus its gutters: the specification is the
+// primary surface, so the column widens only from room the text spares).
 const DISCUSSIONS_EXTRA = 88;
-const COMFORTABLE = 560;
+const COMFORTABLE = 680;
 const READABLE = 420;
+// The narrowest text discussions still sit beside; below it they are a sheet.
+const DOCKED_READABLE = 360;
 const ROOMY = 640;
 
 // Discussions beside the specification: 304px to 392px by the room the
@@ -1449,17 +1490,79 @@ function Breakdown({
   return <EpicStories onPropose={() => void propose()} />;
 }
 
-// The specification, with "Suggest a change" on selected text (it needs the
-// item context the branch commands run in).
+// "Changed since you last looked", unless the status card already tells a
+// requested reviewer what changed since their outdated approval.
+function ChangedSince({
+  changed,
+  onShow,
+}: {
+  changed: {
+    from: { number: number };
+    to: { number: number };
+    added: number;
+    removed: number;
+  };
+  onShow: () => void;
+}) {
+  const mine = useMyReview();
+  if (mine.review && mine.staleRevision) return null;
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[13px]">
+      <GitCompareArrows className="size-4 text-primary" />
+      <span>
+        Changed since you last looked: revision {changed.from.number} →{" "}
+        {changed.to.number}
+        {" · "}
+        <span className="text-success">+{changed.added}</span>{" "}
+        <span className="text-destructive">−{changed.removed}</span> lines
+      </span>
+      <Button
+        size="sm"
+        variant="secondary"
+        className="ml-auto"
+        onClick={onShow}
+      >
+        View changes
+      </Button>
+    </div>
+  );
+}
+
+// The specification, with "Suggest a change" on selected text: a plain
+// passage is rewritten beside the text, accepted there or, once the
+// specification is ready, sent for review; a passage with formatting opens
+// the editor on a branch (it needs the item context the branch commands
+// run in).
 function SuggestingSpecification({
   onNavigate,
   ...props
 }: Omit<Parameters<typeof Specification>[0], "onSuggest"> & {
   onNavigate: (screen: BranchScreen) => void;
 }) {
+  const { current } = useItem();
+  const discussions = useSpecDiscussions();
   const suggest = useSuggestChange(onNavigate);
+  const inEditor = (quote: string) => void suggest(quote);
+  useEffect(() => {
+    if (!discussions) return;
+    const ref = discussions.editSuggestion;
+    ref.current = inEditor;
+    return () => {
+      ref.current = null;
+    };
+  });
   return (
-    <Specification {...props} onSuggest={(quote) => void suggest(quote)} />
+    <Specification
+      {...props}
+      onSuggest={(draft) => {
+        const inline =
+          discussions &&
+          current &&
+          replaceQuote(current.content, draft, draft.quote) !== null;
+        if (inline) discussions.startSuggestion(draft);
+        else inEditor(draft.quote);
+      }}
+    />
   );
 }
 

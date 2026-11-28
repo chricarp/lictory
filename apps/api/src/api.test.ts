@@ -6,6 +6,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as s from "@lictory/core/db/schema";
 import { attachmentsAvailable } from "@lictory/core/storage";
+import { emailConfigured } from "@lictory/core/lib/mailer";
 import { PROTOCOL, type Command } from "@lictory/core/contracts/protocol";
 import type * as Db from "@lictory/core/db";
 import type * as Service from "@lictory/core/domain/service";
@@ -285,6 +286,7 @@ void test("the API boundary: sessions, internal Zero endpoints, origins and the 
     signIn: { password: true, ssoName: null, signUpMode: "invite" },
     // Follows this environment's S3_*/R2_* settings (a developer .env may set them).
     attachments: attachmentsAvailable(),
+    email: emailConfigured(),
     organizationDeletionGraceDays: 30,
   });
   assert.equal((await m.app.request("/api/account")).status, 401);
@@ -551,4 +553,39 @@ void test("the admin API serves instance administrators only, and deactivation e
     );
   // Instance history is append-only.
   await assert.rejects(db.delete(s.instanceAuditEvent));
+});
+
+void test("single-key shortcuts are a personal preference: on by default, turned off only by the person", async () => {
+  const user = await person("Speech");
+  const other = await person("Keyboard");
+  const preference = async (cookie: string) =>
+    (
+      (await (
+        await m.app.request("/api/session", { headers: { cookie } })
+      ).json()) as { user: { singleKeyShortcuts: boolean } }
+    ).user.singleKeyShortcuts;
+  assert.equal(await preference(user.cookie), true);
+
+  assert.equal(
+    (await post("/api/preferences", { singleKeyShortcuts: false })).status,
+    401,
+  );
+  assert.equal(
+    (await post("/api/preferences", { singleKeyShortcuts: "off" }, user.cookie))
+      .status,
+    400,
+  );
+  const off = await post(
+    "/api/preferences",
+    { singleKeyShortcuts: false },
+    user.cookie,
+  );
+  assert.equal(off.status, 200);
+  assert.deepEqual(await off.json(), { singleKeyShortcuts: false });
+  assert.equal(await preference(user.cookie), false);
+  // Nobody else's shortcuts change.
+  assert.equal(await preference(other.cookie), true);
+
+  await post("/api/preferences", { singleKeyShortcuts: true }, user.cookie);
+  assert.equal(await preference(user.cookie), true);
 });

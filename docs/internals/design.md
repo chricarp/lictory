@@ -45,16 +45,28 @@ panel for agreeing on what to build.
   vocabulary (`sessionState`), so no two panels name the same state
   differently.
 - **Identity.** A person is a circle in a color derived from their id (the
-  same on every page and device), with their photo when they have one;
-  below 20px the initials give way to a dot named by a tooltip. An agent is
-  a rounded square with its emoji (and a small robot badge from 24px), and always reads
+  same on every page and device, whichever component draws it: settings,
+  pickers and discussions included, never a grey disc), with their photo
+  when they have one; at 16px one initial, with the name on hover. An agent
+  is a rounded square tinted with its own color (never the neutral slate a
+  policy's tile uses) with its emoji (and a small robot badge from 24px), and always reads
   "Forge via Ada": an agent acts for its owner. What a policy did by itself
   reads "Build policy (set by Ada)". People seen through Slack carry the
   Slack mark.
 - **Structure.** The specification is the primary surface. Workflow state is
   one statement, its evidence as pills, and one next action. Lists name
-  their columns and keep them aligned. A faint diagonal hatch (`--hatch`) only
+  their columns and keep them aligned. Every row of a list has one 20px
+  leading slot (a 16px icon or a 20px avatar), so titles share one edge; on
+  phones a row's key and title read as one wrapped line rather than a key
+  beside a hanging column. Placeholders keep 4.5:1 like any text
+  (`text-placeholder`) and read as examples ("e.g. …"), never as a value
+  that looks filled in. A faint diagonal hatch (`--hatch`) only
   fills the trays that frame website illustrations and the sign-in backdrop.
+
+- **Dates.** One system, from `@lictory/core/lib/work-items`: a moment
+  reads relative (`relativeTime`, "9m ago") with the exact time on hover
+  (`absoluteTime`, "Nov 27, 2026, 4:50 AM"); a day reads `formatDate`
+  ("Nov 27, 2026"). Never the runtime's numeric default.
 
 - **Layout.** On desktop the navigation sits on the gray shell and the work
   sits in one rounded white frame beside it, so pane dividers end at the
@@ -104,7 +116,10 @@ Lictory is a calm, document-first workspace for collaborative requirements revie
 Its visual language is the shared one above: cool neutral surfaces, ink text,
 black pill controls, Geist typography and hairline rings. Dark mode uses
 neutral charcoal with the same structure. Compact controls and readable
-specification content take priority over decoration.
+specification content take priority over decoration. Buttons and filter
+triggers are pills; text fields and the selects of a form are rounded
+rectangles with one radius at every height, so a short settings field and a
+tall sign-in field read as the same control.
 
 Illustrations extend that language as isometric line drawings: hairline
 outlines, light faces and quiet dashed guides on a rounded plate, drawn in the

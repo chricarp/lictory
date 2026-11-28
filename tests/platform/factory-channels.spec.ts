@@ -100,20 +100,26 @@ const thread = (page: Page) =>
 
 test("a person asks an agent in a channel, steers it and approves in the thread @smoke", async ({
   page,
+  browser,
   baseURL,
 }) => {
   test.slow();
   const seeded = await seedWorkspace({
     name: "Loop",
     key: "LOP",
-    users: ["Ada"],
+    users: ["Ada", "Bo"],
   });
   const agent = await seedAgent(seeded);
   const channelId = await seedChannel(seeded, "builds");
   await startRunner(seeded, baseURL!, [
     { say: "Reading the task." },
     { waitForMessage: true },
-    { ask: "Write CHANGES.md" },
+    {
+      ask: "Write CHANGES.md",
+      action: { tool: "Write", input: { file_path: "CHANGES.md" } },
+    },
+    // A request naming no action is a question: answered in words.
+    { ask: "Which release should the entry name?" },
     {
       writeFile: {
         path: "CHANGES.md",
@@ -141,10 +147,20 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
     .first();
   await message.getByRole("button", { name: /1 reply|replies/ }).click();
   const panel = thread(page);
-  const card = panel.getByRole("region", { name: "Forge session" });
+  const card = panel.getByRole("article", { name: /^Forge session/ });
   await expect(card).toBeVisible();
-  await expect(card.getByText("Running")).toBeVisible();
   await expect(card.getByRole("link", { name: /Open session/ })).toBeVisible();
+  // It reads the task and waits for Ada's answer: the card says it waits on
+  // her, not that it is running, and the Factory counts it as hers.
+  await expect(card.getByText("Waiting on you")).toBeVisible();
+  await expect(
+    card.getByText("Forge waits for your next message: reply in this thread."),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Workspace", exact: true })
+      .getByRole("link", { name: "Factory", exact: true }),
+  ).toHaveAccessibleDescription(/1 waiting on you, from an agent/);
 
   // A reply by the person who asked steers the agent; its answer arrives.
   const reply = await fillMarkdown(
@@ -155,19 +171,64 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
   await reply.press("Enter");
   await expect(panel.getByText("Got it: Mention the v2 API.")).toBeVisible();
 
-  // It asks for approval in the thread; Ada approves on the session's card,
-  // where the request shows with its context. While the card shows it, the
-  // request is one block: its record line returns once answered.
-  const approval = panel.getByRole("region", {
+  // It asks for approval. The session's card holds the request, with its
+  // context, beside the state that says it waits: one place to decide. The
+  // thread keeps one line where it was asked, after the exchange above, so
+  // it still reads in order.
+  const approval = card.locator("[data-approval-request]");
+  const asked = panel.getByRole("article", {
     name: "Forge asks for approval",
   });
   await expect(card.getByText("Waiting on you")).toBeVisible();
   await expect(
-    card.getByText("Write CHANGES.md", { exact: true }),
+    approval.getByText("Write CHANGES.md", { exact: true }),
   ).toBeVisible();
-  await expect(approval).toHaveCount(0);
-  // Reply counts leave the set-aside record out: the thread's count and the
-  // channel's summary both state the replies the thread shows.
+  await expect(
+    asked.getByText("Waiting on you: answer it on Forge’s session card above."),
+  ).toBeVisible();
+  await expect(asked.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  // Anyone else in the channel is told who decides, and is not offered
+  // a decision they cannot take.
+  const bo = await newPerson(browser);
+  await signIn(bo.page, seeded.users[1]!.email);
+  await bo.page.goto(`/${seeded.slug}/channels/${channelId}`);
+  await bo.page
+    .locator("[data-message-id]")
+    .filter({ hasText: "add a changelog for refunds" })
+    .first()
+    .getByRole("button", { name: /replies/ })
+    .click();
+  const boThread = thread(bo.page);
+  await expect(
+    boThread
+      .getByRole("article", { name: /^Forge session/ })
+      .getByText(
+        "Ada decides: the agent’s owner or the person who started the session.",
+      ),
+  ).toBeVisible();
+  await expect(
+    boThread.getByText("Ada decides, on Forge’s session card above."),
+  ).toBeVisible();
+  await expect(boThread.getByRole("button", { name: "Approve" })).toHaveCount(
+    0,
+  );
+  await bo.context.close();
+  const order = await panel.locator("[data-message-id]").evaluateAll((nodes) =>
+    nodes.map((node) =>
+      // The live card may echo the agent's last words; it is not a turn.
+      node.querySelector("[data-session-card]")
+        ? null
+        : node.querySelector("[data-approval-record]")
+          ? "request"
+          : node.textContent?.includes("Got it: Mention the v2 API.")
+            ? "answer"
+            : null,
+    ),
+  );
+  expect(order.filter(Boolean)).toEqual(["answer", "request"]);
+  // The channel says where the session stands without opening the thread,
+  // and the thread's count is the replies it shows.
+  await expect(message.getByText("Waiting on you")).toBeVisible();
   const log = panel.getByRole("log", { name: "Thread replies" });
   await expect
     .poll(async () => {
@@ -180,9 +241,27 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
       return inThread + summary;
     })
     .toBe(2);
-  await card.getByRole("button", { name: "Approve" }).click();
-  await expect(approval.getByText("Write CHANGES.md")).toBeVisible();
-  await expect(approval.getByText(/Approved by Ada/)).toBeVisible();
+  // The exact action is what Ada approves, not the title alone.
+  await expect(approval.getByText("CHANGES.md", { exact: true })).toBeVisible();
+  await approval.getByRole("button", { name: "Approve" }).click();
+  // Answered, it stays where it was asked, as the record of who decided.
+  await expect(asked.getByText("Write CHANGES.md")).toBeVisible();
+  await expect(asked.getByText(/Approved by Ada/)).toBeVisible();
+
+  // A request that names no command or file is a question: nothing to
+  // approve, so Ada answers it in words on the card and the agent hears
+  // her words.
+  const question = panel.getByRole("article", {
+    name: "Forge asks: Which release should the entry name?",
+  });
+  await expect(question).toBeVisible();
+  await expect(card.getByLabel("Your answer to Forge")).toBeVisible();
+  await expect(card.getByRole("button", { name: "Approve" })).toHaveCount(0);
+  await card.getByLabel("Your answer to Forge").fill("Name 2.1.");
+  await card.getByRole("button", { name: "Send answer" }).click();
+  await expect(
+    question.getByText(/Answered by Ada: “Name 2.1.”/),
+  ).toBeVisible();
 
   // The summary arrives as Forge's message and the card completes.
   await expect(
@@ -191,7 +270,11 @@ test("a person asks an agent in a channel, steers it and approves in the thread 
       .filter({ hasText: "Added CHANGES.md describing refunds over the API." })
       .first(),
   ).toBeVisible();
-  await expect(card.getByText("Completed")).toBeVisible();
+  // No repository is linked: the file it wrote was discarded, and the card
+  // says the work was not kept instead of reading as a success.
+  await expect(card.getByText("Work not kept")).toBeVisible();
+  await expect(card.getByText(/Not kept: 1 file/)).toBeVisible();
+  await expect(card.getByText("Completed")).toHaveCount(0);
   expect(output).toContain("Session ");
 });
 
@@ -289,11 +372,11 @@ test("dispatched work reports to the project's channel, asks there and resumes w
   await signIn(page, ada.email);
   await page.goto(`/${seeded.slug}/channels/${channelId}`);
   // The session's card and Forge's question arrive in the channel.
-  const card = page.getByRole("region", { name: "Forge session" }).first();
+  const card = page.getByRole("article", { name: /^Forge session/ }).first();
   await expect(card).toBeVisible({ timeout: 90_000 });
   await expect(card.getByText("DSP-1").first()).toBeVisible();
   const question = page
-    .getByRole("region", { name: "Forge asks a question" })
+    .getByRole("article", { name: "Forge asks a question" })
     .first();
   await expect(
     question.getByText("Does a partial refund reuse the original ID too?"),
@@ -304,7 +387,7 @@ test("dispatched work reports to the project's channel, asks there and resumes w
   await signIn(second.page, bo.email);
   await second.page.goto(`/${seeded.slug}/channels/${channelId}`);
   await second.page
-    .getByRole("region", { name: "Forge asks a question" })
+    .getByRole("article", { name: "Forge asks a question" })
     .first()
     .getByRole("link", { name: "Answer in the discussion" })
     .click();

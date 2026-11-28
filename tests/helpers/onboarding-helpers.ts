@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { waitUntilSaved } from "./sync-helpers";
 
 export async function createWorkspace(
   page: Page,
@@ -26,15 +27,26 @@ export async function createWorkspace(
   await page.getByLabel("Project", { exact: true }).fill(project);
   await page.getByLabel("Key", { exact: true }).fill(key);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await configureFirstProject(page, mode, planning);
+  await configureFirstProject(page, mode);
   if (finish) {
     await page
       .getByRole("button", { name: "Skip and finish", exact: true })
       .click();
-    await expect(page).toHaveURL(
-      new RegExp(`/${key.toLowerCase()}/proposals$`),
-    );
-    // The URL changes before the onboarding-to-workspace render finishes.
+    // Setup ends on Home, whose checklist carries on where setup stops.
+    await expect(
+      page.getByRole("heading", { name: "Home", level: 1 }),
+    ).toBeVisible();
+    await expect(page.locator("[data-setup-checklist]")).toBeVisible();
+    const org = new URL(page.url()).pathname.split("/")[1]!;
+    // The first project starts continuous; sprints are a settings choice.
+    if (planning === "manual") {
+      await page.goto(`/${org}/${key.toLowerCase()}/settings/planning`);
+      await page.getByRole("radio", { name: /^Sprints/ }).click();
+      await expect(page.getByRole("radio", { name: /^Sprints/ })).toBeChecked();
+      await waitUntilSaved(page);
+    }
+    // Callers continue from the project's proposals.
+    await page.goto(`/${org}/${key.toLowerCase()}/proposals`);
     await expect(
       page.getByRole("heading", { name: "Proposals", exact: true }),
     ).toBeVisible();
@@ -48,54 +60,37 @@ export async function createWorkspace(
 export async function configureFirstProject(
   page: Page,
   mode: "native" | "external" = "native",
-  planning: "off" | "manual" = "off",
-  aiEnabled = true,
+  aiEnabled?: boolean,
 ) {
   await expect(
     page.getByRole("heading", { name: "Where does delivery happen?" }),
   ).toBeVisible();
   await page
-    .getByRole("radio", { name: mode === "native" ? "In Lictory" : "In Jira" })
+    .getByRole("radio", {
+      name: mode === "native" ? "Deliver in Lictory" : "Hand off to Jira",
+    })
     .click();
-  if (mode === "native")
-    await expect(
-      page.getByRole("radio", { name: "Warn", exact: true }),
-    ).toBeChecked();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  if (mode === "native") {
-    await page
-      .getByRole("radio", {
-        name: planning === "manual" ? "Sprints" : "Continuous",
-        exact: true,
-      })
-      .click();
-    await page.getByRole("radio", { name: "Fibonacci", exact: true }).click();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-  }
   await expect(
     page.getByRole("heading", { name: "Lictory Intelligence", exact: true }),
   ).toBeVisible();
+  // The browser suite's default servers have no AI provider, so the choice
+  // starts off.
   await expect(
     page.getByRole("radio", {
-      name: "Enable Lictory Intelligence",
+      name: "Keep Lictory Intelligence off",
       exact: true,
     }),
   ).toBeChecked();
-  if (!aiEnabled)
-    await page
-      .getByRole("radio", {
-        name: "Keep Lictory Intelligence off",
-        exact: true,
-      })
-      .click();
-  await expect(
-    page.getByRole("radio", {
-      name: aiEnabled
-        ? "Enable Lictory Intelligence"
-        : "Keep Lictory Intelligence off",
-      exact: true,
-    }),
-  ).toBeChecked();
+  if (aiEnabled !== undefined) {
+    const choice = aiEnabled
+      ? "Enable Lictory Intelligence"
+      : "Keep Lictory Intelligence off";
+    await page.getByRole("radio", { name: choice, exact: true }).click();
+    await expect(
+      page.getByRole("radio", { name: choice, exact: true }),
+    ).toBeChecked();
+  }
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: /^Invite people to / }),

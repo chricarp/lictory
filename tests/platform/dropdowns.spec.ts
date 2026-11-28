@@ -53,10 +53,11 @@ test("page branch dropdowns preserve empty choices and keyboard selection", asyn
   await expect(
     page.getByRole("heading", { name: "clarify-recovery", exact: true }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Select clarify-recovery", exact: true })
-    .click();
+  // A new branch is the one shown; main can be opened again from its row.
   await expect(page).toHaveURL(/[?&]branch=/);
+  await expect(
+    page.getByRole("button", { name: "Open main", exact: true }),
+  ).toBeVisible();
   const branch = new URL(page.url()).searchParams.get("branch")!;
   await page.goto(`${url}?branch=${branch}`);
   const editor = page.locator('.page-document[contenteditable="true"]');
@@ -68,7 +69,7 @@ test("page branch dropdowns preserve empty choices and keyboard selection", asyn
   await page.getByRole("button", { name: "Commit", exact: true }).click();
   await page
     .getByRole("dialog", { name: "Commit to this branch" })
-    .getByRole("button", { name: "Commit now" })
+    .getByRole("button", { name: "Commit only" })
     .click();
   await expect(page.getByText("Committed version 2")).toBeVisible();
   await page.goto(`${url}/history?view=pulls`);

@@ -1,4 +1,14 @@
-import { and, desc, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  ne,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { canonicalJson } from "@lictory/core/domain/projections";
 import { lock, type Database, type Tx } from "@lictory/core/domain/service";
@@ -11,6 +21,7 @@ import {
   type CodeReviewRef,
 } from "@lictory/core/code/entities";
 import { writeSummary } from "@lictory/core/code/write-summary";
+import { reviewState } from "@lictory/core/code/merge-rules";
 
 // Code read projections (`code_entity`), replicated to browsers by Zero and
 // kept apart from `sync_entity` and `space_entity`. Writers call
@@ -244,6 +255,12 @@ async function computeCodeRows(
             longLivedCredential: c.authKind === "token",
             webhookPath: webhookPath(c.id),
             lastWebhookAt: isoOrNull(c.lastWebhookAt),
+            lastWebhookRefusedAt: isoOrNull(c.lastWebhookRefusedAt),
+            lastWebhookRefusal:
+              c.lastWebhookRefusal === "signature" ||
+              c.lastWebhookRefusal === "payload"
+                ? c.lastWebhookRefusal
+                : null,
             createdAt: iso(c.createdAt),
           },
           {},
@@ -258,6 +275,25 @@ async function computeCodeRows(
       .select()
       .from(s.codeRepositoryProject)
       .where(eq(s.codeRepositoryProject.organizationId, organizationId));
+    // Repositories whose host has reported at least one check: Autopilot
+    // and the Definition of Done wait for CI, so the Autonomy settings warn
+    // about a repository that never reported one.
+    const reporting = new Set(
+      (
+        await db
+          .selectDistinct({ repositoryId: s.codeCommitChecks.repositoryId })
+          .from(s.codeCommitChecks)
+          .where(
+            and(
+              eq(s.codeCommitChecks.organizationId, organizationId),
+              ne(s.codeCommitChecks.state, "none"),
+              repositoryIds
+                ? inArray(s.codeCommitChecks.repositoryId, repositoryIds)
+                : undefined,
+            ),
+          )
+      ).map((r) => r.repositoryId),
+    );
     for (const repository of repositories.values()) {
       if (repositoryIds && !repositoryIds.includes(repository.id)) continue;
       rows.push(
@@ -283,6 +319,7 @@ async function computeCodeRows(
               .sort(),
             lastSyncedAt: isoOrNull(repository.lastSyncedAt),
             lastSyncError: repository.lastSyncError,
+            reportsChecks: reporting.has(repository.id),
           },
           { repositoryId: repository.id },
         ),
@@ -555,11 +592,30 @@ async function linkRows(
           )
       : [],
   ]);
-  const checks = await checksOf(
-    db,
-    organizationId,
-    prs.map((p) => ({ repositoryId: p.repositoryId, sha: p.headSha })),
-  );
+  const [checks, reviews] = await Promise.all([
+    checksOf(
+      db,
+      organizationId,
+      prs.map((p) => ({ repositoryId: p.repositoryId, sha: p.headSha })),
+    ),
+    prs.length
+      ? reviewsOf(
+          db,
+          organizationId,
+          prs.map((p) => p.id),
+        )
+      : new Map<string, Omit<CodeReviewRef, "current">[]>(),
+  ]);
+  const reviewedHere = (p: (typeof prs)[number]) => {
+    const current = (reviews.get(p.id) ?? []).filter(
+      (r) => r.headSha === p.headSha,
+    );
+    return current.some((r) => r.decision === "request_changes")
+      ? ("request_changes" as const)
+      : current.some((r) => r.decision === "approve")
+        ? ("approve" as const)
+        : null;
+  };
   const branchById = new Map(branches.map((b) => [b.id, b]));
   const prById = new Map(prs.map((p) => [p.id, p]));
   const issueById = new Map(issues.map((i) => [i.id, i]));
@@ -589,7 +645,12 @@ async function linkRows(
           draft: p.draft,
           headBranch: p.headBranch,
           checks: checks.get(`${p.repositoryId}:${p.headSha}`)?.state ?? "none",
-          reviewDecision: p.reviewDecision,
+          // The host's decision with the reviews recorded in Lictory.
+          reviewDecision: reviewState({
+            ...p,
+            reviews: reviews.get(p.id),
+          }),
+          reviewedHere: reviewedHere(p),
           webUrl: p.webUrl,
         };
     } else if (l.target === "issue") {

@@ -174,8 +174,13 @@ scrolls up), one thread at a time, and its own memberships. Writes go through
 Zero's `channels.*` mutators: the client run predicts the message (same id,
 predicted next sequence), the reaction or the cursor; the API runs the
 conversation writer inside Zero's transaction, and the stored rows replace the
-predictions. A refused write removes its prediction and says why. Channel
-structure commands go through `workspace.apply` and predict nothing.
+predictions. A refused write removes its prediction and says why. A message
+the server has not answered yet says so in words under its text (sending, or
+not sent yet while the connection is down), and the composer names the
+connection state: during a reconnect sends are queued by Zero and delivered
+once it is back; while writes are refused (offline) sending waits, keeping the
+text in the composer. Channel structure commands go through `workspace.apply`
+and predict nothing.
 
 Rendering is virtualized by the browser: rows are rendered in blocks of fifty
 sequences with `content-visibility: auto`, so off-screen blocks cost no
@@ -263,7 +268,11 @@ and the bot token from the OAuth v2 install, are encrypted with the delivery
 credentials key bound to the organization and never returned; saving and
 installing are web-only capabilities (`humanOnly: credentials`). The install
 `state` is a random value whose hash, person and ten-minute expiry are
-stored; the callback needs the same signed-in administrator.
+stored; the callback needs the same signed-in administrator. Saving first
+asks Slack about the Client ID and Secret, outside any transaction: no token
+exists yet, so the check is `oauth.v2.access` with a made-up code, which Slack
+answers `invalid_code` only when the client credentials are right. The signing
+secret has no such check; Slack's events URL verification proves it.
 
 `slack_installation.status` moves as a consequence: `pending` (credentials
 saved), `connected` (installed), `invalid` (Slack refused the token, the app

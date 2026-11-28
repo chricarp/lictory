@@ -55,7 +55,6 @@ function mcp(request: APIRequestContext, token: string) {
           tools?: { name: string }[];
           isError?: boolean;
           content?: { text: string }[];
-          structuredContent?: Record<string, unknown>;
         };
       } | null,
     };
@@ -73,7 +72,7 @@ test("a person connects an MCP agent that works with their permissions", async (
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(inApp);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Agent Co",
@@ -112,7 +111,10 @@ test("a person connects an MCP agent that works with their permissions", async (
   const tool = async (name: string, args: Record<string, unknown>) => {
     const { body } = await call("tools/call", { name, arguments: args });
     expect(body?.result?.isError, JSON.stringify(body)).toBe(false);
-    return body!.result!.structuredContent!;
+    return JSON.parse(body!.result!.content![0]!.text) as Record<
+      string,
+      unknown
+    >;
   };
   const { organizations } = (await tool("listOrganizations", {})) as {
     organizations: { id: string; name: string; slug: string }[];
@@ -174,7 +176,7 @@ test("an external agent is connected and woken from its own page", async ({
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(inApp);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Scout Co",
@@ -203,6 +205,11 @@ test("an external agent is connected and woken from its own page", async ({
   await expect(connection.getByLabel("Setup", { exact: true })).toContainText(
     "claude mcp add",
   );
+  // Single quotes keep the variable's name in the client's configuration;
+  // the shell would otherwise write the token itself there.
+  await expect(connection.getByLabel("Setup", { exact: true })).toContainText(
+    "'Authorization: Bearer ${LICTORY_TOKEN}'",
+  );
   await expect(connection.getByTestId("agent-token")).toHaveCount(1);
 
   // The token authenticates as the agent: one organization, its own.
@@ -213,7 +220,7 @@ test("an external agent is connected and woken from its own page", async ({
     arguments: {},
   });
   expect(body?.result?.isError, JSON.stringify(body)).toBe(false);
-  const { organizations } = body!.result!.structuredContent! as {
+  const { organizations } = JSON.parse(body!.result!.content![0]!.text) as {
     organizations: { slug: string }[];
   };
   expect(organizations.map((o) => o.slug)).toEqual([slug]);
@@ -222,6 +229,9 @@ test("an external agent is connected and woken from its own page", async ({
   await page.reload();
   await expect(connection.getByTestId("agent-token")).toHaveCount(1);
   await expect(connection.getByTestId("agent-token-secret")).toHaveCount(0);
+  // Its owner sees what it called.
+  const activity = page.getByRole("region", { name: /Recent activity/ });
+  await expect(activity.getByText("listOrganizations")).toBeVisible();
 
   // A wake-up added on the agent's page is listed there.
   const wakeUps = page.locator("#wake-ups");

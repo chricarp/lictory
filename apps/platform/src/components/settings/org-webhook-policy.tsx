@@ -71,8 +71,8 @@ export function OrganizationWebhookPolicy() {
       id="webhooks"
       icon={<Webhook />}
       title="Agent event webhooks"
-      description="Members can wake their agents with webhooks when something waits on them. Events carry identifiers and short titles (an item's key and title, a channel's name), never specification text or messages. Decide whether they may leave Lictory, and to which hosts."
-      footer="Changes are recorded in the organization's configuration history. Destinations that no longer qualify stop receiving this organization's events at once; agents can still read events over MCP."
+      description="Whether members' webhooks may wake their agents outside Lictory, and on which hosts."
+      footer="Events carry identifiers and short titles (an item's key and title, a channel's name), never specification text or messages. Changes are recorded in the organization's configuration history. Destinations that no longer qualify stop receiving this organization's events at once; agents can still read events over MCP."
     >
       <SettingsBody>
         <form
@@ -104,7 +104,7 @@ export function OrganizationWebhookPolicy() {
                   <Input
                     value={hosts}
                     onChange={(e) => setHosts(e.target.value)}
-                    placeholder="hooks.example.com, *.agents.example.com"
+                    placeholder="e.g. hooks.example.com, *.agents.example.com"
                     className="mt-1.5 h-8 rounded-md font-mono text-xs"
                   />
                   <span className="mt-1 block text-xs font-normal text-muted-foreground">

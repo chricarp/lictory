@@ -10,6 +10,7 @@ import { ArrowLeft, ChevronRight, Info } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { Tooltip } from "@lictory/ui/tooltip";
 import { Link, usePathname } from "@lictory/platform/lib/navigation";
+import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
 
 type Crumb = { label: string; href: string };
 
@@ -151,9 +152,11 @@ export function PageHeader({
         )}
       </div>
       {tabs && (
-        <div className="flex min-w-0 [scrollbar-width:none] items-center overflow-x-auto">
-          {tabs}
-        </div>
+        <ScrollStrip className="flex">
+          <div className="flex min-w-0 [scrollbar-width:none] items-center overflow-x-auto">
+            {tabs}
+          </div>
+        </ScrollStrip>
       )}
       {(actions ?? phone) && (
         <div className="ml-auto flex shrink-0 items-center gap-1.5">

@@ -57,6 +57,8 @@ export const humanOnlyReasons = {
     "How much agents may do by themselves, and the evidence that their work is done, are people's decisions: an agent never changes its own autonomy, its Definition of Done, or signs off its own work.",
   egress:
     "Where an organization's events may be sent outside Lictory is its administrators' own decision; agents never widen it.",
+  decision:
+    "Approving, merging, accepting scope, resolving discussions, recording decisions and exporting work are a person's act. An agent proposes and asks; its person decides, and text an agent reads never authorizes it.",
 } as const;
 export type HumanOnlyReason = keyof typeof humanOnlyReasons;
 
@@ -199,9 +201,11 @@ export type Capability<I extends z.ZodType = z.ZodType, O = unknown> = {
   idempotent?: boolean;
   // Talks to systems outside Lictory (Jira, object storage).
   external?: boolean;
-  // Records a human decision (approve, merge, resolve, export). Agents may
-  // only invoke it when the person explicitly asked; the embedded agent asks
-  // for confirmation first.
+  // Records a human decision (approve, merge, resolve, export). The server
+  // refuses it to Factory agents (`Principal.agent`), whatever their token
+  // allows, and says where the person decides (`personDecisions` in
+  // human-only.ts). A person's own access token may call it when the person
+  // asked; the embedded agent asks for confirmation first.
   decision?: boolean;
   // Required when an agent surface (mcp, agent) is excluded: why the operation
   // stays with the person and where they do it.

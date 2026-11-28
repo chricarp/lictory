@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { GitMerge } from "lucide-react";
+import { Clock, GitMerge } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import {
   CheckIcon,
@@ -7,7 +7,8 @@ import {
 } from "@lictory/platform/components/review/flow-ui";
 
 // Whether a pull request can merge, and the merge itself, the same for code
-// and specification pull requests: a heading that says ready or blocked,
+// and specification pull requests: a heading that says ready, waiting (only
+// pending requirements) or blocked,
 // one row per requirement (each unmet one says why, in words), then what
 // merging will do, or why this person cannot merge, beside the merge
 // button. Nothing is mergeable from a summary alone: the requirements are
@@ -33,10 +34,12 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function MergeBox({
   target,
+  verb = "merge",
   requirements,
   blocked,
   readySummary,
   note,
+  noteId,
   action,
   before,
   children,
@@ -45,6 +48,10 @@ export function MergeBox({
 }: {
   // The branch it merges into, for "2 requirements into main not met yet".
   target: string;
+  // The act in the subject's words: code and pages merge into a branch; a
+  // specification's proposed change applies to the specification; a
+  // breakdown creates its items.
+  verb?: "merge" | "apply" | "create";
   requirements: readonly MergeRequirement[];
   // Override when something outside the rows blocks the merge (a draft).
   // Defaults to any requirement failing, pending or running.
@@ -54,6 +61,8 @@ export function MergeBox({
   // Beside the merge button: what merging does, or why this person cannot
   // merge ("Merging here needs …"). Always say one of them.
   note?: ReactNode;
+  // The note's id, so a disabled merge button can be described by it.
+  noteId?: string;
   // The merge button, with its method or confirmation.
   action?: ReactNode;
   // A row above the requirements (a summary of running checks).
@@ -67,11 +76,38 @@ export function MergeBox({
   const id = useId();
   const missing = requirements.filter(unmet).length;
   const isBlocked = blocked ?? missing > 0;
+  // Blocked only by what has not reported yet (checks running, a review
+  // asked for): a normal wait, said as one, not as a problem.
+  const waiting =
+    isBlocked &&
+    missing > 0 &&
+    !requirements.some((r) => r.state === "failure");
   const Heading = headingLevel === 2 ? "h2" : "h3";
+  const words =
+    verb === "apply"
+      ? {
+          blocked: "Applying is blocked",
+          waiting: "Waiting to apply",
+          ready: "Ready to apply",
+          to: "apply this change",
+        }
+      : verb === "create"
+        ? {
+            blocked: "Creating the items is blocked",
+            waiting: "Waiting to create the items",
+            ready: "Ready to create the items",
+            to: "create the items",
+          }
+        : {
+            blocked: "Merging is blocked",
+            waiting: "Waiting to merge",
+            ready: "Ready to merge",
+            to: `merge into ${target}`,
+          };
   return (
     <section
       aria-labelledby={id}
-      data-merge-box={isBlocked ? "blocked" : "ready"}
+      data-merge-box={waiting ? "waiting" : isBlocked ? "blocked" : "ready"}
       className={cn(
         "overflow-hidden rounded-xl bg-card shadow-(--shadow-border)",
         !isBlocked && "ring-1 ring-success/40",
@@ -83,31 +119,38 @@ export function MergeBox({
           aria-hidden
           className={cn(
             "grid size-8 shrink-0 place-items-center rounded-full",
-            isBlocked
+            waiting
               ? "bg-muted text-muted-foreground"
-              : "bg-success text-white",
+              : isBlocked
+                ? "bg-warning/12 text-warning"
+                : "bg-success text-white",
           )}
         >
-          <GitMerge className="size-4" />
+          {waiting ? (
+            <Clock className="size-4" />
+          ) : (
+            <GitMerge className="size-4" />
+          )}
         </span>
         <div className="min-w-0">
           <Heading id={id} className="text-sm leading-5 font-semibold">
-            {isBlocked ? "Merging is blocked" : "Ready to merge"}
+            {waiting ? words.waiting : isBlocked ? words.blocked : words.ready}
           </Heading>
           <p className="text-xs text-muted-foreground">
-            {isBlocked
-              ? missing > 0
-                ? `${plural(missing, "requirement")} to merge into ${target} not met yet.`
-                : `This cannot merge into ${target} yet.`
-              : (readySummary ??
-                `Every requirement to merge into ${target} is met.`)}
+            {waiting
+              ? `${plural(missing, "requirement")} still to come before you can ${words.to}.`
+              : isBlocked
+                ? missing > 0
+                  ? `${plural(missing, "requirement")} to ${words.to} not met yet.`
+                  : `Not every requirement to ${words.to} is met yet.`
+                : (readySummary ?? `Every requirement to ${words.to} is met.`)}
           </p>
         </div>
       </div>
       {before && <div className="border-b px-4 py-2.5">{before}</div>}
       {requirements.length > 0 && (
         <ul
-          aria-label="Merge requirements"
+          aria-label={verb === "merge" ? "Merge requirements" : "Requirements"}
           className="divide-y divide-border/70"
         >
           {requirements.map((r) => (
@@ -133,7 +176,10 @@ export function MergeBox({
       {children && <div className="border-t p-4">{children}</div>}
       {(note ?? action) && (
         <div className="flex flex-wrap items-center gap-3 border-t bg-muted/30 px-4 py-3">
-          <p className="min-w-0 flex-1 basis-56 text-xs text-muted-foreground">
+          <p
+            id={noteId}
+            className="min-w-0 flex-1 basis-56 text-xs text-muted-foreground"
+          >
             {note}
           </p>
           {action && (
@@ -146,13 +192,19 @@ export function MergeBox({
 }
 
 // A merged pull request: what happened to the change.
-export function MergedNotice({ children }: { children: ReactNode }) {
+export function MergedNotice({
+  children,
+  label = "Merged",
+}: {
+  children: ReactNode;
+  label?: string;
+}) {
   return (
     <section
-      aria-label="Merged"
+      aria-label={label}
       className="flex items-start gap-3 rounded-xl bg-card p-4 shadow-(--shadow-border)"
     >
-      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-violet-600 text-white">
+      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-merged text-white dark:text-background">
         <GitMerge aria-hidden className="size-4" />
       </span>
       <div className="min-w-0 text-[13px] leading-5">{children}</div>

@@ -48,8 +48,10 @@ export const configSchema = z.object({
   credential: z.string(),
   maxSessions: z.number().int().min(1).max(64).default(2),
   isolation: z.enum(isolationModes).default("host"),
-  // Image for container isolation; it must contain git and the harnesses.
-  containerImage: z.string().default("ghcr.io/lictory/runner-sandbox:latest"),
+  // Image for container isolation, chosen by the operator: it must contain
+  // git and the harnesses. Lictory publishes none, so there is no default;
+  // pin it by digest (image@sha256:…) so a moved tag cannot change it.
+  containerImage: z.string().min(1).optional(),
   // Docker network for containers ("none" cuts them off entirely).
   containerNetwork: z.string().default("bridge"),
   labels: z.array(z.string()).default([]),
@@ -101,12 +103,18 @@ export async function writeConfig(
   await chmod(path, 0o600).catch(() => undefined);
 }
 
-// What `status` reads: written by the running daemon.
+// What `status` reads: written by the running daemon at start, on every
+// heartbeat (whether or not the server answered) and when it stops.
 export type RunnerState = {
   pid: number;
   startedAt: string;
+  // When the daemon last wrote this file; null once it has stopped.
+  updatedAt?: string | null;
   lastHeartbeatAt: string | null;
   lastError: string | null;
+  // The server refused the credential and the runner stopped: a person
+  // must register it again (status says so instead of "start it").
+  revoked?: boolean;
   sessions: { id: string; title: string; harness: string; state: string }[];
 };
 
@@ -125,3 +133,39 @@ export async function readState(home = homeDirectory()) {
     return null;
   }
 }
+
+// Whether the runner that wrote `state` is still running: its process
+// exists and it wrote the file recently. The age check keeps a stale file
+// from claiming a running runner when the PID was reused after a crash or
+// a reboot.
+export function runnerLiveness(
+  state: RunnerState | null,
+  options: { now?: number; staleAfterMs: number },
+): "running" | "unresponsive" | "stopped" {
+  if (!state || state.updatedAt === null) return "stopped";
+  try {
+    process.kill(state.pid, 0);
+  } catch (error) {
+    // EPERM: the process exists but belongs to another account.
+    if ((error as NodeJS.ErrnoException).code !== "EPERM") return "stopped";
+  }
+  const updated = Date.parse(state.updatedAt ?? state.startedAt);
+  if (Number.isNaN(updated)) return "stopped";
+  const age = (options.now ?? Date.now()) - updated;
+  return age <= options.staleAfterMs ? "running" : "unresponsive";
+}
+
+// Why a configuration cannot isolate sessions in containers, or null.
+export function containerImageProblem(config: {
+  isolation: string;
+  containerImage?: string;
+}): string | null {
+  if (config.isolation !== "container") return null;
+  if (!config.containerImage)
+    return "Container isolation needs an image that contains git and the harnesses: set containerImage in config.json, or register with --container-image <image@sha256:digest>.";
+  return null;
+}
+
+// A container image reference that a moved tag cannot change.
+export const pinnedImage = (image: string) =>
+  /@sha256:[a-f0-9]{64}$/.test(image);

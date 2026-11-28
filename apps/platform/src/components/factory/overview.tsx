@@ -7,10 +7,12 @@ import {
   History,
   Play,
   Server,
+  Users,
   Zap,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
-import { runnerOnline } from "@lictory/core/factory/entities";
+import { paths } from "@lictory/core/lib/paths";
+import { runnerOnline, waitsForRunner } from "@lictory/core/factory/entities";
 import { Button } from "@lictory/ui/button";
 import { LoadingState } from "@lictory/ui/spinner";
 import { MissingState } from "@lictory/ui/status-page";
@@ -21,33 +23,35 @@ import {
 } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Panel } from "@lictory/platform/components/shell/panel";
-import { ListRow } from "@lictory/platform/components/shell/list-row";
-import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
-import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
-import { AgentAvatar } from "@lictory/platform/components/identity/actor";
+import { waitingGroup } from "@lictory/platform/components/shell/home/derive";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import {
   FactoryPage,
   SessionRow,
-  titleBeside,
-  useItemKey,
-  useSessionStateOf,
 } from "@lictory/platform/components/factory/parts";
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
+import { harnessLabel } from "@lictory/platform/components/factory/labels";
 import { useFactory } from "@lictory/platform/components/factory/store";
-import { overviewBlocks } from "@lictory/platform/components/factory/overview-blocks";
+import {
+  agentsWaitingLabel,
+  overviewBlocks,
+} from "@lictory/platform/components/factory/overview-blocks";
+import {
+  WaitingRowView,
+  useWaitingOnYou,
+} from "@lictory/platform/components/workspace/inbox";
 
-// What the factory is doing, in three blocks, each session in exactly one:
-// what needs me (an agent's request, reviewed with its context), what is
-// running, and what finished recently with what it changed. The counts sit
+// What the factory is doing, in blocks, each session in exactly one: what
+// needs me (an agent's request, reviewed with its context), what waits on a
+// teammate, what is running, and what finished recently with what it
+// changed. The counts sit
 // in the header; a new organization sees one setup path instead.
 
 const RECENT = 20;
 
 export function FactoryOverview() {
   const { organization, userId } = useWorkspace();
-  const { agents, agentById, runners, runnerById, sessions, complete } =
-    useFactory();
+  const { agents, agentById, runners, sessions, complete } = useFactory();
   // `?start=<work item id>` opens the dialog for that item (an item's page
   // links here); `?start=new` opens it empty.
   const search = useSearchParams();
@@ -58,12 +62,19 @@ export function FactoryOverview() {
     setStarting(false);
     if (startParam) router.replace(factoryPaths.overview(organization.slug));
   };
-  const stateOf = useSessionStateOf();
-  const itemKey = useItemKey();
   const org = organization.slug;
   const blocks = useMemo(
     () => overviewBlocks(sessions, agentById, userId),
     [sessions, agentById, userId],
+  );
+  // What agents ask me: one row per question, one for a session waiting for
+  // my next message, one for a session of mine that failed.
+  const waiting = useWaitingOnYou();
+  // The Inbox's "Agents waiting on you" group, counted the same way (a
+  // failed session of mine is under "Your work" there and in Recent here).
+  const asks = useMemo(
+    () => waiting.filter((row) => waitingGroup(row) === "agents"),
+    [waiting],
   );
   const online = runners.filter((r) => !r.revokedAt && runnerOnline(r)).length;
   const active = runners.filter((r) => !r.revokedAt).length;
@@ -92,56 +103,95 @@ export function FactoryOverview() {
     );
 
   const counts = [
-    blocks.needsYou.length > 0 &&
-      `${blocks.needsYou.length} ${blocks.needsYou.length === 1 ? "needs" : "need"} you`,
+    // Only the agents' part of the queue Home and the Inbox count, said as
+    // a part of that total so the numbers reconcile.
+    agentsWaitingLabel(asks.length, waiting.length),
+    blocks.waitingOnOthers.length > 0 &&
+      `${blocks.waitingOnOthers.length} waiting on teammates`,
     `${blocks.running.filter((s) => s.status !== "queued").length} running`,
     blocks.queued > 0 && `${blocks.queued} queued`,
     `${online} of ${active} ${active === 1 ? "runner" : "runners"} online`,
   ].filter(Boolean);
   const recent = blocks.recent.slice(0, RECENT);
+  // Queued work no online runner can take waits silently otherwise.
+  const stranded = blocks.running.filter((s) =>
+    waitsForRunner(s, agentById.get(s.agentId), runners),
+  );
+  const strandedAgents = [
+    ...new Set(
+      stranded.map((s) => {
+        const agent = agentById.get(s.agentId);
+        return agent
+          ? `${agent.name} (${harnessLabel(agent.harness)})`
+          : "its agent";
+      }),
+    ),
+  ];
   return (
     <FactoryPage
       description={description}
       meta={<span data-factory-counts>{counts.join(" · ")}</span>}
       actions={start}
     >
+      {stranded.length > 0 && (
+        <div
+          role="status"
+          data-no-runner
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl bg-warning/8 px-4 py-3 text-[13px] ring-1 ring-warning/25 ring-inset"
+        >
+          <Server
+            className="size-4 shrink-0 text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]"
+            aria-hidden
+          />
+          <span className="min-w-0 flex-1">
+            {stranded.length === 1
+              ? "1 queued session waits for a runner"
+              : `${stranded.length} queued sessions wait for a runner`}
+            : no online runner can run {strandedAgents.join(", ")}. Start one,
+            or add a runner that has the harness.
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            render={<Link href={factoryPaths.runners(org)} />}
+          >
+            Runners
+          </Button>
+        </div>
+      )}
+      {/* One queue: the agents' rows of the Inbox's To do (and Home's
+          "Waiting on you"), the same rows answered the same way here, so
+          the Factory, Home and the Inbox never disagree. */}
       <Panel
-        title="Needs you"
+        title="Agents need you"
         icon={<Hand />}
-        count={blocks.needsYou.length}
-        empty="Nothing waits on you. Agents ask here when they need a decision."
+        count={asks.length}
+        more={{
+          label:
+            waiting.length > asks.length
+              ? `All ${waiting.length} in Inbox`
+              : "Inbox",
+          href: paths.inbox(org, "todo"),
+        }}
+        empty="Nothing waits on you. When an agent needs a decision or your next message, it appears here and in your Inbox."
       >
-        {blocks.needsYou.flatMap((session) => {
-          const agent = agentById.get(session.agentId);
-          if (!session.approvals.length)
-            // Waiting for my next message, not for a decision.
-            return [
-              <ListRow
-                key={session.id}
-                href={factoryPaths.session(org, session.id)}
-                leading={
-                  agent ? <AgentAvatar agent={agent} size={20} /> : undefined
-                }
-                identifier={itemKey(session.workItemId)}
-                title={titleBeside(session.title, itemKey(session.workItemId))}
-                meta="Waiting for your next message"
-                chips={<SessionStateChip state={stateOf(session, agent)} />}
-                time={session.updatedAt}
-              />,
-            ];
-          return session.approvals.map((approval) => (
-            <ApprovalRequest
-              key={approval.id}
-              compact
-              session={session}
-              approval={approval}
-              agent={agent}
-              runner={
-                session.runnerId ? runnerById.get(session.runnerId) : undefined
-              }
-            />
-          ));
-        })}
+        {asks.map((row) => (
+          <WaitingRowView key={row.key} row={row} />
+        ))}
+      </Panel>
+      {/* The team's view: agents held up by someone else, and by whom. */}
+      <Panel
+        title="Waiting on teammates"
+        icon={<Users />}
+        count={blocks.waitingOnOthers.length}
+      >
+        {blocks.waitingOnOthers.map((session) => (
+          <SessionRow
+            key={session.id}
+            session={session}
+            agent={agentById.get(session.agentId)}
+          />
+        ))}
       </Panel>
       <Panel
         title="Running"

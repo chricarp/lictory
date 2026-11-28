@@ -155,7 +155,7 @@ export function LabelPicker({
               onValueChange={setName}
               placeholder="Label name"
               aria-label="Label name"
-              className="h-8 w-full rounded-md border bg-card px-2 text-sm outline-none focus:border-primary/60 touch:text-base"
+              className="h-8 w-full rounded-md border border-input bg-card px-2 text-sm outline-none focus:border-primary/60 touch:text-base"
             />
             <RadioGroup<LabelColor>
               className="flex flex-row flex-wrap gap-1"
@@ -293,14 +293,14 @@ export function MilestonePicker({
             onValueChange={setName}
             placeholder="Milestone name"
             aria-label="Milestone name"
-            className="h-8 w-full rounded-md border bg-card px-2 text-sm outline-none focus:border-primary/60 touch:text-base"
+            className="h-8 w-full rounded-md border border-input bg-card px-2 text-sm outline-none focus:border-primary/60 touch:text-base"
           />
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
             aria-label="Target date"
-            className="h-8 w-full rounded-md border bg-card px-2 text-sm outline-none focus:border-primary/60 touch:text-base"
+            className="h-8 w-full rounded-md border border-input bg-card px-2 text-sm outline-none focus:border-primary/60 touch:text-base"
           />
           <div className="flex justify-end gap-1">
             <Button

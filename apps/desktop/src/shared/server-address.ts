@@ -1,3 +1,4 @@
+import { describeNetworkError } from "./net-errors";
 import { isLoopbackHost } from "./urls";
 
 // Turning what a person types into a server origin, and checking that the
@@ -38,7 +39,9 @@ export function parseServerAddress(input: string): AddressResult {
   if (url.protocol !== "https:" && url.protocol !== "http:")
     return {
       ok: false,
-      error: "Use an https:// address for your Lictory server.",
+      // http:// is accepted too (on this computer, or with a warning on a
+      // network), so the message does not say https:// only.
+      error: `A Lictory server address starts with https:// (or http://), not ${url.protocol}//.`,
     };
   if (url.username || url.password)
     return {
@@ -68,7 +71,8 @@ type ProbeResponse = {
 
 export type ProbeResult =
   | { ok: true; origin: string; insecure: boolean }
-  | { ok: false; error: string };
+  // `detail`: the technical cause (a network error code), shown apart.
+  | { ok: false; error: string; detail?: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -159,9 +163,11 @@ export async function probeServer(
         error: `${host} did not answer within ${Math.round(timeoutMs / 1000)} seconds.`,
       };
     const reason = error instanceof Error ? error.message : String(error);
+    const problem = describeNetworkError(reason, host);
     return {
       ok: false,
-      error: `Lictory could not reach ${host} (${reason}). Check the address and your network connection.`,
+      error: `${problem.summary} ${problem.next}`,
+      detail: problem.code ?? reason,
     };
   } finally {
     clearTimeout(timer);

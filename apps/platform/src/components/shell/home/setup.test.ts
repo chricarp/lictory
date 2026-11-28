@@ -6,11 +6,14 @@ import {
 } from "@lictory/platform/components/shell/home/setup";
 
 const empty: SetupFacts = {
+  project: { key: "PAY" },
+  workItems: 0,
   codeConnections: [],
   runners: [],
   agents: [],
   channels: [],
   members: 1,
+  invited: 0,
 };
 
 const done = (facts: SetupFacts, admin = true) =>
@@ -22,7 +25,7 @@ void test("a new organization has every step to do, in order", () => {
   const result = setupSteps(empty, "acme", true);
   assert.deepEqual(
     result.steps.map((s) => s.id),
-    ["code", "runner", "agent", "channel", "team"],
+    ["proposal", "team", "code", "runner", "agent", "channel"],
   );
   assert.equal(result.done, 0);
   assert.equal(result.complete, false);
@@ -76,6 +79,7 @@ void test("each step is done by the data it sets up", () => {
     true,
   );
   assert.equal(done({ ...empty, members: 2 }).team, true);
+  assert.equal(done({ ...empty, workItems: 1 }).proposal, true);
 });
 
 void test("the checklist is complete when everything exists", () => {
@@ -86,12 +90,15 @@ void test("the checklist is complete when everything exists", () => {
       agents: [{ archivedAt: null }],
       channels: [{ kind: "private", archivedAt: null }],
       members: 4,
+      invited: 0,
+      project: { key: "PAY" },
+      workItems: 3,
     },
     "acme",
     false,
   );
   assert.equal(result.complete, true);
-  assert.equal(result.done, 5);
+  assert.equal(result.done, 6);
 });
 
 void test("steps only administrators can take offer no action to others", () => {
@@ -101,4 +108,18 @@ void test("steps only administrators can take offer no action to others", () => 
   assert.equal(action.team, null);
   assert.equal(action.agent?.href, "/acme/factory/agents");
   assert.equal(action.channel?.href, "/acme/channels");
+  // Anyone may write a proposal in the project.
+  assert.equal(action.proposal?.href, "/acme/pay/proposals");
+  // Without an active project there is nowhere to write it yet.
+  const none = setupSteps({ ...empty, project: null }, "acme", true).steps;
+  assert.equal(none.find((s) => s.id === "proposal")!.action, null);
+});
+
+void test("inviting someone completes the team step before they join", () => {
+  const result = setupSteps({ ...empty, invited: 2 }, "acme", true);
+  const team = result.steps.find((s) => s.id === "team")!;
+  assert.equal(team.done, true);
+  assert.equal(team.note, "2 invited, not joined yet");
+  const joined = setupSteps({ ...empty, members: 3, invited: 1 }, "acme", true);
+  assert.equal(joined.steps.find((s) => s.id === "team")!.note, undefined);
 });

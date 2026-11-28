@@ -45,8 +45,8 @@ workspace: nobody else installs it.
 
 ### Create the app from the manifest
 
-In **Organization settings → Integrations**, under **Slack**, copy the
-manifest. Open [api.slack.com/apps](https://api.slack.com/apps?new_app=1),
+In **Organization settings → Integrations**, under **Slack**, choose **Set
+up Slack** and copy the manifest (**Show the manifest** displays it). Open [api.slack.com/apps](https://api.slack.com/apps?new_app=1),
 choose **From a manifest**, pick your workspace, paste it and create the
 app. The manifest already contains the events, interactivity and redirect
 URLs of your Lictory installation and only the permissions Lictory uses.
@@ -58,11 +58,14 @@ URLs of your Lictory installation and only the permissions Lictory uses.
 
 On the app's **Basic Information** page, copy the **App ID**, **Client ID**,
 **Client Secret** and **Signing Secret** into Lictory and choose **Save
-app**. They are encrypted at rest and never shown again.
+app**. Lictory asks Slack to check the Client ID and Client Secret before it
+saves them, and names the one Slack refused. They are encrypted at rest and
+never shown again.
 
-If Slack says the events URL is not verified, open **Event Subscriptions**
-in the app and choose **Retry**: Slack can verify it once Lictory has the
-signing secret.
+Slack offers no check of the Signing Secret on its own: it is proven when
+Slack verifies the events URL. If Slack says the URL is not verified, open
+**Event Subscriptions** in the app and choose **Retry** once the app is saved
+in Lictory. If it still fails, copy the Signing Secret again and save.
 
 </Step>
 <Step>
@@ -114,7 +117,11 @@ was said; nothing more is sent either way.
 ## Self-hosted installations
 
 - Slack must reach your installation: `PLATFORM_URL` must be a public HTTPS
-  address (for testing locally, a tunnel).
+  address (for testing locally, a tunnel). The Slack settings warn above the
+  manifest when it is not (plain HTTP, localhost or a private address).
+- The events URL answers every request it cannot verify the same way, whether
+  or not the organization saved a Slack app, so it reveals nothing about the
+  configuration.
 - Set `DELIVERY_CREDENTIALS_KEY`, which also encrypts Slack credentials
   (see the [configuration reference](/self-hosting/configuration)).
 - The worker sends and receives messages; it needs outbound HTTPS to

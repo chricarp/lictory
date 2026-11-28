@@ -28,7 +28,11 @@ const getDecisions = defineCapability({
   surfaces: everywhere,
   input: z.object({
     organizationId,
-    decisionIds: z.array(id).min(1).max(100),
+    decisionIds: z
+      .array(id)
+      .min(1)
+      .max(100)
+      .describe("Decision ids, such as a page's decision references."),
   }),
   async run(ctx, q) {
     return ctx.db.transaction(

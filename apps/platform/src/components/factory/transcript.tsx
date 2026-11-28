@@ -4,11 +4,15 @@ import {
   Brain,
   Check,
   ChevronRight,
+  CircleSlash,
   Dot,
   FileMinus,
   FilePen,
   FilePlus,
   Info,
+  MessageSquareReply,
+  Pause,
+  Play,
   ShieldQuestion,
   Sparkles,
   SquareTerminal,
@@ -58,7 +62,13 @@ export function transcriptItems(events: readonly SessionEventRow[]) {
     }
   const paired = new Set<string>();
   const items: TranscriptItem[] = [];
+  // A failed run reports its error, then the status that ends it with the
+  // same words: the error is shown once.
+  const errors = new Set<string>();
   for (const event of events) {
+    const message = str((event.data as Data).message).trim();
+    if (event.type === "error" && message) errors.add(message);
+    if (event.type === "status" && message && errors.has(message)) continue;
     if (event.type === "tool_call") {
       const id = str((event.data as Data).callId);
       const result = results.get(id) ?? null;
@@ -173,7 +183,8 @@ export const TranscriptRow = memo(function TranscriptRow({
       return (
         <Line icon={<ShieldQuestion className="text-warning" />}>
           <span className="text-foreground">
-            {agent?.name ?? "The agent"} asked to approve{" "}
+            {agent?.name ?? "The agent"}{" "}
+            {str(data.tool) ? "asked to approve" : "asked"}{" "}
             <span className="font-medium">{str(data.title)}</span>
           </span>
           {str(data.reason) && (
@@ -195,6 +206,8 @@ export const TranscriptRow = memo(function TranscriptRow({
           icon={
             data.decision === "approve" ? (
               <Check className="text-success" />
+            ) : data.decision === "answer" ? (
+              <MessageSquareReply className="text-foreground" />
             ) : (
               <X className="text-destructive" />
             )
@@ -203,14 +216,39 @@ export const TranscriptRow = memo(function TranscriptRow({
           <span className="font-medium text-foreground">
             {str(data.byName)}
           </span>{" "}
-          {data.decision === "approve" ? "approved" : "denied"} “
-          {str(data.title)}”{str(data.note) && `: ${str(data.note)}`}
+          {data.decision === "approve"
+            ? "approved"
+            : data.decision === "answer"
+              ? "answered"
+              : "denied"}{" "}
+          “{str(data.title)}”{str(data.note) && `: ${str(data.note)}`}
         </Line>
       );
-    case "status":
-      return str(data.message) ? (
-        <Line icon={<Dot />}>{str(data.message)}</Line>
-      ) : null;
+    case "status": {
+      if (!str(data.message)) return null;
+      // A person's own act (started, interrupted, canceled, retried) is a
+      // decision in the conversation, not log noise: it reads at message
+      // weight with an icon that says what happened.
+      const steering = typeof data.byId === "string";
+      return (
+        <Line
+          emphasis={steering}
+          icon={
+            !steering ? (
+              <Dot />
+            ) : data.phase === "canceled" ? (
+              <CircleSlash className="text-foreground" />
+            ) : data.phase === "interrupt_requested" ? (
+              <Pause className="text-foreground" />
+            ) : (
+              <Play className="text-foreground" />
+            )
+          }
+        >
+          {str(data.message)}
+        </Line>
+      );
+    }
     case "error":
       return (
         <div className="flex gap-2 rounded-lg bg-destructive/8 px-2 py-2 text-[13px] ring-1 ring-destructive/20">
@@ -240,9 +278,25 @@ export const TranscriptRow = memo(function TranscriptRow({
 
 // A quiet line of the log in the same columns as every row: a 24px icon
 // column, then the text.
-function Line({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+function Line({
+  icon,
+  emphasis = false,
+  children,
+}: {
+  icon: ReactNode;
+  // A person's decision: full text color and size.
+  emphasis?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex min-h-8 items-start gap-2 py-1.5 text-xs leading-5 text-muted-foreground">
+    <div
+      className={cn(
+        "flex min-h-8 items-start gap-2 py-1.5 leading-5",
+        emphasis
+          ? "text-[13px] font-medium text-foreground"
+          : "text-xs text-muted-foreground",
+      )}
+    >
       <span
         aria-hidden
         className="grid h-5 w-6 shrink-0 place-items-center [&_svg]:size-3.5"

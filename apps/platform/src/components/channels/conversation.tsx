@@ -8,20 +8,21 @@ import {
   type Person,
 } from "@lictory/platform/components/identity/actor";
 import { paths } from "@lictory/core/lib/paths";
-import { EmptyState } from "@lictory/ui/primitives";
+import { MissingState } from "@lictory/ui/status-page";
 import { Button } from "@lictory/ui/button";
 import { Spinner } from "@lictory/ui/spinner";
 import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
+  Link,
   useParams,
   useRouter,
   useSearchParams,
 } from "@lictory/platform/lib/navigation";
 import {
   channelLabel,
-  hiddenReplies,
   lastOwnMessage,
+  threadSessions,
   type Channel,
   type MessageRow,
 } from "@lictory/platform/components/channels/data";
@@ -46,12 +47,15 @@ import { Composer } from "@lictory/platform/components/channels/composer";
 import type { Mentionable } from "@lictory/platform/components/editor/markdown-editor";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import { activeStatuses } from "@lictory/platform/components/factory/labels";
+import { useSessionStateOf } from "@lictory/platform/components/factory/parts";
+import type { SessionState } from "@lictory/platform/lib/session-state";
 import { ChannelHeader } from "@lictory/platform/components/channels/header";
 import {
   SearchPanel,
   ThreadPanel,
 } from "@lictory/platform/components/channels/side-panels";
 import { PromoteDialog } from "@lictory/platform/components/channels/promote-dialog";
+import { useAnnounceMessages } from "@lictory/platform/components/channels/announce";
 import {
   TypingIndicator,
   useAnnounceTyping,
@@ -62,6 +66,7 @@ import {
 // opens a thread beside it and `?message=` scrolls to one message.
 
 export function ChannelConversation() {
+  const { organization } = useWorkspace();
   const { channel: param } = useParams<{ channel: string }>();
   const { byId, list, loaded } = useChannels();
   const channel =
@@ -69,9 +74,22 @@ export function ChannelConversation() {
     list.find((c) => c.kind !== "direct" && c.name === param?.toLowerCase());
   if (!channel)
     return loaded ? (
-      <EmptyState illustration="search" title="This channel is unavailable">
+      // The whole page: its title is the page's h1.
+      // Like every dead end, it offers a way on.
+      <MissingState
+        illustration="search"
+        title="This channel is unavailable"
+        action={
+          <Button
+            variant="secondary"
+            render={<Link href={paths.channels(organization.slug)} />}
+          >
+            All channels
+          </Button>
+        }
+      >
         It may be private, or the link may be wrong. Ask a member to add you.
-      </EmptyState>
+      </MissingState>
     ) : (
       <div className="grid h-full place-items-center">
         <Spinner label="Loading" />
@@ -126,14 +144,22 @@ function Conversation({ channel }: { channel: Channel }) {
     ],
     [directory.members, factory.agents],
   );
-  // Replies set aside while a session card shows them, keyed so the map
-  // only changes when a count does (sessions update often).
-  const hiddenKey = JSON.stringify([
-    ...hiddenReplies(factory.sessions, channel.id),
-  ]);
-  const hidden = useMemo(
-    () => new Map<string, number>(JSON.parse(hiddenKey) as [string, number][]),
-    [hiddenKey],
+  // Where the agent session of each thread stands, for the channel's thread
+  // summaries, keyed so the map only changes when a state does (sessions
+  // update often).
+  const stateOf = useSessionStateOf();
+  const statesKey = JSON.stringify(
+    [...threadSessions(factory.sessions, channel.id)].map(([root, session]) => [
+      root,
+      stateOf(session, factory.agentById.get(session.agentId)),
+    ]),
+  );
+  const threadStates = useMemo(
+    () =>
+      new Map<string, SessionState>(
+        JSON.parse(statesKey) as [string, SessionState][],
+      ),
+    [statesKey],
   );
   const agentNameOf = useCallback(
     (id: string | null | undefined) =>
@@ -144,6 +170,23 @@ function Conversation({ channel }: { channel: Channel }) {
     (id: string | null | undefined) =>
       id ? factory.agentById.get(id) : undefined,
     [factory.agentById],
+  );
+  // Who said a message, for the screen reader announcement of new ones.
+  const speakerOf = useCallback(
+    (message: MessageRow) =>
+      message.authorKind === "agent"
+        ? agentNameOf(message.authorAgentId)
+        : message.authorKind === "external"
+          ? (message.externalAuthorName ?? "Someone")
+          : memberName(message.authorUserId),
+    [agentNameOf, memberName],
+  );
+  useAnnounceMessages(
+    channel.id,
+    history.messages,
+    history.complete,
+    userId,
+    speakerOf,
   );
   // A thread an agent session is working in: replies by its requester or
   // the agent's owner steer it, anyone else's stay conversation.
@@ -292,12 +335,12 @@ function Conversation({ channel }: { channel: Channel }) {
         mentions={mentions}
         actions={actions}
         inThread={inThread}
-        hiddenReplies={hidden.get(message.id)}
+        threadState={threadStates.get(message.id)}
         syncError={sendFailures.get(message.id)}
       />
     ),
     [
-      hidden,
+      threadStates,
       agentNameOf,
       agentOf,
       userId,
@@ -378,9 +421,9 @@ function Conversation({ channel }: { channel: Channel }) {
           channel={channel}
           label={title}
           rootMessageId={threadId}
-          hiddenReplies={hidden.get(threadId)}
           participant={participant}
           renderMessage={renderInThread}
+          speakerOf={speakerOf}
           onClose={closeThread}
           onRead={(rootId) =>
             void conversation.thread(channel.id, rootId, { read: true })
@@ -414,6 +457,8 @@ function Conversation({ channel }: { channel: Channel }) {
                 mentions={mentions}
                 onSend={(body) => send(body, threadId)}
                 onEscape={closeThread}
+                // The narrow panel keeps the keys that matter on one line.
+                hint="Enter to send · Shift+Enter for a new line"
                 autoFocus
               />
             ) : null

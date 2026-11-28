@@ -121,15 +121,17 @@ export function stateMachine<S extends string, A extends string>(definition: {
 
 // ------------------------------------------------------- specifications
 
-// A proposal to merge a specification branch into another line. Closing one
-// removes it from the item; the merged text stays in the specification.
+// A proposal to merge a specification branch into another line. Closing an
+// unapplied one removes it from the item; an applied one stays as the record
+// of who approved which result.
 export const specificationPullRequest = stateMachine({
   name: "pull request",
   states: {
     draft: "Being prepared; reviewers are not asked to decide yet.",
     open: "Ready for review and, once its requirements are met, for merging.",
     merged: "Its result is part of the target line.",
-    closed: "Removed from the item by its author or a specification editor.",
+    closed:
+      "Removed from the item, before it applied, by its author or a specification editor.",
   },
   derived: ["closed"],
   steps: {
@@ -138,54 +140,58 @@ export const specificationPullRequest = stateMachine({
       from: ["open"],
       to: "draft",
       idempotent: true,
-      refused: "Merged pull requests cannot become drafts.",
+      refused: "An applied change cannot become a draft review.",
     },
     markReady: {
       does: "Mark ready for review",
       from: ["draft"],
       to: "open",
       idempotent: true,
-      refused: "A merged pull request cannot be marked ready for review.",
+      refused: "An applied change cannot be marked ready for review.",
     },
     requestReview: {
       does: "Request a review",
       from: ["draft", "open"],
-      refused: "This pull request is merged.",
+      refused: "This change is already applied.",
     },
     requestAction: {
       does: "Ask Lictory Intelligence for a review",
       from: ["draft", "open"],
-      refused: "This pull request is not open for review.",
+      refused: "This change is not open for review.",
     },
     discuss: {
       does: "Start a discussion",
       from: ["draft", "open"],
-      refused: "This pull request is unavailable for discussion.",
+      refused: "This review is unavailable for discussion.",
     },
     review: {
       does: "Approve, request changes or revoke a decision",
       from: ["open"],
       refused: (state) =>
         state === "draft"
-          ? "This pull request is a draft. Mark it ready for review first."
-          : "This pull request is merged.",
+          ? "This review is a draft. Mark it ready for review first."
+          : "This change is already applied.",
     },
     merge: {
       does: "Merge",
       from: ["open"],
       to: "merged",
-      refused: "Only an open pull request can be merged.",
+      refused: "Only a change open for review can be applied.",
     },
     close: {
       does: "Close",
-      from: ["draft", "open", "merged"],
+      from: ["draft", "open"],
       to: "closed",
-      refused: "This branch or pull request is unavailable.",
+      refused: (state) =>
+        state === "merged"
+          ? "This review is applied: it records who approved which result, so it stays on the item."
+          : "This proposed change or its review is unavailable.",
     },
   },
 });
 
-// Legacy proposals of replacement text, reviewed like a small pull request.
+// Proposed replacement text for a small change to main: its assigned
+// reviewer accepts (approves, then merges) or someone rejects (closes) it.
 export const suggestion = stateMachine({
   name: "suggestion",
   states: {
@@ -526,7 +532,8 @@ export const agentSession = stateMachine({
     queued: "Waiting for a runner that may run its agent.",
     assigned: "Claimed by a runner, which is preparing the workspace.",
     running: "The agent is working.",
-    waiting: "The agent asked a person to decide something.",
+    waiting:
+      "The agent waits on a person: a decision it asked for, or the next message.",
     completed: "The agent finished; its result is a claim, not proof.",
     failed: "Stopped by an error or after its runner was lost too often.",
     canceled: "Stopped by a person.",
@@ -548,15 +555,15 @@ export const agentSession = stateMachine({
       refused: "This session is not assigned to a runner.",
     },
     wait: {
-      does: "Wait for a person's answer",
+      does: "Wait for a person's decision or next message",
       from: ["running"],
       to: "waiting",
       idempotent: true,
       automatic: true,
-      refused: "Only a running session can ask a person something.",
+      refused: "Only a running session can wait on a person.",
     },
     resume: {
-      does: "Resume after every question was answered",
+      does: "Work again once the person answered",
       from: ["waiting"],
       to: "running",
       idempotent: true,
@@ -584,12 +591,15 @@ export const agentSession = stateMachine({
         `This session is ${state}. Retry it or start a new session to continue.`,
     },
     interrupt: {
-      does: "Interrupt the agent's current turn",
-      from: ["running", "waiting"],
+      does: "Stop the agent's current turn; it waits for the next message",
+      // A waiting agent has no turn to stop: it already waits on a person.
+      from: ["running"],
       refused: (state) =>
         state === "queued" || state === "assigned"
           ? "The agent has not started yet. Cancel the session instead."
-          : `This session is ${state}.`,
+          : state === "waiting"
+            ? "The agent is not working: it already waits on a person's answer or next message. Reply, answer its request, or cancel the session."
+            : `This session is ${state}.`,
     },
     answerApproval: {
       does: "Approve or deny what the agent asked for",
@@ -605,7 +615,7 @@ export const agentSession = stateMachine({
       refused: (state) => `This session is already ${state}.`,
     },
     retry: {
-      does: "Retry from the start",
+      does: "Retry from the task, with the messages sent before",
       from: ["failed", "canceled"],
       to: "queued",
       refused: (state) =>
@@ -616,20 +626,24 @@ export const agentSession = stateMachine({
   },
 });
 
-// A question an agent session asked a person. Answering it is a decision.
+// Something an agent session asked a person. Answering it is a decision. A
+// request that names its action (a tool and its input) is a permission, which
+// a person approves or denies; one that names none is a question, which a
+// person answers in words or denies: a title is never approved.
 export const agentApproval = stateMachine({
   name: "approval request",
   states: {
     pending: "Waiting for the requester or the agent's owner.",
     approved: "Approved by a person.",
     denied: "Denied by a person.",
+    answered: "Answered in words by a person (a question, not a permission).",
     expired: "The session ended before anyone answered.",
   },
   steps: {
     answer: {
-      does: "Approve or deny",
+      does: "Approve, deny or answer in words",
       from: ["pending"],
-      to: ["approved", "denied"],
+      to: ["approved", "denied", "answered"],
       refused: (state) => `This request was already ${state}.`,
     },
     expire: {

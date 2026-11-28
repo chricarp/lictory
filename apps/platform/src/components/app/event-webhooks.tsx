@@ -5,6 +5,7 @@ import {
   CircleCheck,
   CirclePause,
   Clock,
+  RotateCcw,
 } from "lucide-react";
 import {
   useCallback,
@@ -21,6 +22,7 @@ import {
   type AgentEventType,
 } from "@lictory/core/agent-events/catalog";
 import { callCapability } from "@lictory/core/capabilities/client";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import {
@@ -55,15 +57,7 @@ type Action = "test" | "pause" | "resume" | "remove";
 
 const ALL = "all";
 
-const when = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : null;
+const when = (iso: string | null) => (iso ? absoluteTime(iso) : null);
 
 const statusTone: Record<SubscriptionView["status"], StatusTone> = {
   active: "success",
@@ -294,7 +288,7 @@ export function WebhookForm({
           maxLength={2048}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://hooks.example.com/agent"
+          placeholder="e.g. https://hooks.example.com/agent"
           className="mt-1.5 h-8 rounded-md font-mono text-xs"
         />
       </label>
@@ -379,12 +373,21 @@ export function SubscriptionDetails({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 text-[13px]">
           <span className="truncate font-medium">{subscription.name}</span>
-          <StatusChip
-            tone={statusTone[subscription.status]}
-            icon={statusIcon[subscription.status]}
-          >
-            {statusLabel[subscription.status]}
-          </StatusChip>
+          {/* Active but failing: the receiver refused the last attempts and
+              Lictory tries again. Not a green "Active" above a red problem
+              line: the chip says what the line below explains. */}
+          {subscription.status === "active" && subscription.retry ? (
+            <StatusChip tone="attention" icon={<RotateCcw />}>
+              Retrying
+            </StatusChip>
+          ) : (
+            <StatusChip
+              tone={statusTone[subscription.status]}
+              icon={statusIcon[subscription.status]}
+            >
+              {statusLabel[subscription.status]}
+            </StatusChip>
+          )}
           <span className="shrink-0 text-xs text-muted-foreground">
             {subscription.kind === "mcp" ? "MCP Events" : "Webhook"}
           </span>
@@ -401,21 +404,26 @@ export function SubscriptionDetails({
               Test
             </Button>
           )}
-          {subscription.steps.includes("pause") && (
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => onAct("pause")}
-              aria-label={`Pause ${subscription.name}`}
-            >
-              Pause
-            </Button>
-          )}
+          {/* A suspended one is already stopped: its next step is Resume,
+              once the receiver works again. */}
+          {subscription.steps.includes("pause") &&
+            subscription.status !== "suspended" && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => onAct("pause")}
+                aria-label={`Pause ${subscription.name}`}
+              >
+                Pause
+              </Button>
+            )}
           {subscription.steps.includes("resume") && (
             <Button
               size="sm"
-              variant="ghost"
+              variant={
+                subscription.status === "suspended" ? "secondary" : "ghost"
+              }
               disabled={busy}
               onClick={() => onAct("resume")}
               aria-label={`Resume ${subscription.name}`}
@@ -447,8 +455,10 @@ export function SubscriptionDetails({
         {subscription.deliveredCount === 0
           ? "No events delivered yet"
           : `${subscription.deliveredCount} ${subscription.deliveredCount === 1 ? "event" : "events"} delivered`}
+        {/* Past times read as everywhere else ("5m ago"); times to come
+            (the next try, the renewal) stay dates. */}
         {subscription.lastSuccessAt
-          ? ` · receiver last accepted ${when(subscription.lastSuccessAt)}`
+          ? ` · receiver last accepted ${relativeTime(subscription.lastSuccessAt)}`
           : ""}
         {subscription.pending
           ? ` · ${subscription.pending > 100 ? "100+" : subscription.pending} waiting`
@@ -457,20 +467,28 @@ export function SubscriptionDetails({
           ? ` · renew before ${when(subscription.refreshBefore)}`
           : ""}
       </p>
+      {/* Why the chip is not green: the sentence the person acts on. */}
       {subscription.statusReason && subscription.status !== "active" && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs font-medium text-foreground">
           {subscription.statusReason}
         </p>
       )}
-      {subscription.lastErrorDetail && (
-        <p className="text-xs text-destructive" role="status">
-          Last problem
-          {subscription.lastAttemptAt
-            ? ` (${when(subscription.lastAttemptAt)})`
-            : ""}
-          : {subscription.lastErrorDetail}
-        </p>
-      )}
+      {subscription.lastErrorDetail &&
+        !(
+          subscription.status !== "active" &&
+          subscription.statusReason?.includes(subscription.lastErrorDetail)
+        ) && (
+          <p className="text-xs text-destructive" role="status">
+            Last problem
+            {subscription.lastAttemptAt
+              ? ` (${relativeTime(subscription.lastAttemptAt)})`
+              : ""}
+            : {subscription.lastErrorDetail}
+            {subscription.retry
+              ? ` ${subscription.retry.failedAttempts} failed ${subscription.retry.failedAttempts === 1 ? "attempt" : "attempts"}; trying again ${when(subscription.retry.nextAttemptAt)}.`
+              : ""}
+          </p>
+        )}
       {notice && (
         <p
           role="status"
@@ -532,13 +550,9 @@ export function EventWebhooksSection() {
       title="Event webhooks"
       description={
         <>
-          Wake a script or tool that uses one of your personal access tokens
-          when something waits on you: a mention, a review request, a stale
-          approval, an answered question, a decided pull request. Lictory posts
-          the event (identifiers and a short title, never the content) to its
-          URL with its bearer secret. MCP clients that support MCP Events
-          subscribe on their own and appear here too. To wake a Factory agent,
-          add the webhook on the agent&apos;s page.
+          Wake a script or tool that uses one of your access tokens when
+          something waits on you. To wake a Factory agent, add the webhook on
+          the agent&apos;s page.
         </>
       }
       action={
@@ -555,7 +569,7 @@ export function EventWebhooksSection() {
           </Button>
         ) : undefined
       }
-      footer="An event says what happened, never what to do; the tool reads the details with your permissions. Delivery retries a failing receiver with backoff and stops after five failures until you resume it."
+      footer="Events are mentions, review requests, stale approvals, answered questions and decided pull requests. Lictory posts identifiers and a short title (never the content) to the URL with its bearer secret; the tool reads the details with your permissions. MCP clients that support MCP Events subscribe on their own and appear here too. A failing receiver is retried with backoff and stops after five failures until you resume it."
     >
       {creating && (
         <SettingsBody>

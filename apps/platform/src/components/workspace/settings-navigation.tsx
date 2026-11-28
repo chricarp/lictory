@@ -1,7 +1,10 @@
-import { useEffect, useRef } from "react";
-import { Link } from "@lictory/platform/lib/navigation";
+import { Link, useRouter } from "@lictory/platform/lib/navigation";
 import { usePathname } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
 import type { SettingsNavItem } from "@lictory/platform/components/workspace/settings-section";
 
 // The section the address names. The most specific link wins: /admin/people
@@ -19,8 +22,10 @@ export function useSelectedSetting(nav: SettingsNavItem[]) {
 }
 
 // The sections of a settings page: a list beside the content on wide
-// screens, one row of tabs above it on narrow ones, where the current
-// section is always scrolled into view.
+// screens and rows of whole tabs above it on narrower ones. A phone has no
+// room for a dozen tabs, and a strip that scrolls sideways cuts the words at
+// its edges ("abels & milestones"), so there one select names the current
+// section and lists every other one in full.
 export function SettingsNavigation({
   nav,
   selected,
@@ -28,32 +33,7 @@ export function SettingsNavigation({
   nav: SettingsNavItem[];
   selected: string | undefined;
 }) {
-  const row = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const container = row.current;
-    if (!container) return;
-    const reveal = () => {
-      const current = container.querySelector<HTMLElement>(
-        '[aria-current="page"]',
-      );
-      // Only the narrow layout scrolls sideways.
-      if (!current || container.scrollWidth <= container.clientWidth) return;
-      const left =
-        current.offsetLeft - (container.clientWidth - current.offsetWidth) / 2;
-      container.scrollTo({ left: Math.max(0, left) });
-    };
-    reveal();
-    // Also when the layout turns narrow (a rotated phone, a resized window).
-    if (typeof ResizeObserver === "undefined") return;
-    let width = container.clientWidth;
-    const observer = new ResizeObserver(() => {
-      if (container.clientWidth === width) return;
-      width = container.clientWidth;
-      reveal();
-    });
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [selected]);
+  const router = useRouter();
   const groups: { group?: string; items: SettingsNavItem[] }[] = [];
   for (const item of nav) {
     const last = groups.at(-1);
@@ -63,20 +43,35 @@ export function SettingsNavigation({
   return (
     <nav
       aria-label="Settings sections"
-      className="mb-6 max-lg:-mx-4 max-lg:border-b max-lg:pb-2 sm:max-lg:-mx-6 lg:sticky lg:top-0 lg:mb-0 lg:self-start"
+      className="mb-6 max-lg:-mx-4 max-lg:border-b max-lg:px-4 max-lg:pb-2 sm:max-lg:-mx-6 sm:max-lg:px-6 lg:sticky lg:top-0 lg:mb-0 lg:self-start"
     >
-      <div
-        ref={row}
-        className="flex [scrollbar-width:none] gap-1 overflow-x-auto max-lg:px-4 sm:max-lg:px-6 lg:block lg:space-y-4"
+      <DropdownSelect
+        aria-label="Settings section"
+        variant="field"
+        size="lg"
+        className="w-full sm:hidden"
+        value={selected ?? ""}
+        onValueChange={(id) => {
+          const item = nav.find((n) => n.id === id);
+          if (item && item.id !== selected)
+            router.push(item.href, { scroll: false });
+        }}
       >
+        {nav.map((n) => (
+          <DropdownSelectOption key={n.id} value={n.id}>
+            {n.label}
+          </DropdownSelectOption>
+        ))}
+      </DropdownSelect>
+      <div className="flex flex-wrap gap-1 max-sm:hidden lg:block lg:space-y-4">
         {groups.map((g, i) => (
-          <div key={g.group ?? i} className="flex gap-1 lg:block">
+          <div key={g.group ?? i} className="contents lg:block">
             {g.group && (
               <p className="hidden px-2.5 pb-1 text-xs font-semibold text-muted-foreground lg:block">
                 {g.group}
               </p>
             )}
-            <ul className="flex gap-1 lg:block lg:space-y-0.5">
+            <ul className="flex flex-wrap gap-1 lg:block lg:space-y-0.5">
               {g.items.map((n) => (
                 <li key={n.id}>
                   <Link

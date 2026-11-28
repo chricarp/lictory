@@ -1,3 +1,4 @@
+import { absoluteTime } from "@lictory/core/lib/work-items";
 import { memo, useState } from "react";
 import {
   ArrowUpRight,
@@ -12,7 +13,10 @@ import {
   Sparkles,
   Trash2,
   EyeOff,
+  CloudOff,
+  Loader2,
 } from "lucide-react";
+import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Toolbar, ToolbarButton } from "@ui-sdk/react/toolbar";
 import { Button } from "@lictory/ui/button";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -32,12 +36,15 @@ import {
   type AgentIdentity,
   type Person,
 } from "@lictory/platform/components/identity/actor";
-import { firstName } from "@lictory/platform/lib/session-state";
+import {
+  firstName,
+  type SessionState,
+} from "@lictory/platform/lib/session-state";
+import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import {
   formatTime,
   groupReactions,
   replyAuthors,
-  shownReplyCount,
   type MessageRow,
 } from "@lictory/platform/components/channels/data";
 import { MessageMarkdown } from "@lictory/platform/components/channels/message-markdown";
@@ -101,9 +108,9 @@ type Props = {
   inThread?: boolean;
   // Why a linked Slack channel never received this message.
   syncError?: string;
-  // Replies its thread holds but does not show (requests a session card
-  // shows): left out of the count.
-  hiddenReplies?: number;
+  // Where the agent session its thread holds stands (a mention started
+  // it): shown beside the reply count, so the channel says it.
+  threadState?: SessionState;
 };
 
 const iconButton =
@@ -127,12 +134,12 @@ export const ChannelMessage = memo(function ChannelMessage({
   actions,
   inThread = false,
   syncError,
-  hiddenReplies = 0,
+  threadState,
 }: Props) {
   const deleted = Boolean(message.deletedAt);
   const own = message.authorKind === "user" && message.authorUserId === userId;
   const external = Boolean(message.externalSource);
-  const replies = shownReplyCount(message, hiddenReplies);
+  const replies = message.replyCount;
   // The Factory's cards speak for their agent ("Forge via Ada").
   const factory =
     message.kind === "card" ? factoryCardOf(message.payload) : undefined;
@@ -164,7 +171,7 @@ export const ChannelMessage = memo(function ChannelMessage({
           name: message.externalAuthorName ?? "Someone",
           external: "slack",
         }
-      : message.authorKind === "system"
+      : message.authorKind === "system" && !promotedBy(message)
         ? { id: "lictory", name: "Lictory" }
         : member;
   const time = formatTime(message.createdAt);
@@ -185,8 +192,9 @@ export const ChannelMessage = memo(function ChannelMessage({
         className="flex items-baseline gap-2 py-1 pr-4 pl-[3.75rem] text-[13px] text-muted-foreground"
       >
         <span>
+          {/* Lictory's own notes ("PAY-4 is Done…") are nobody's act. */}
           <span className="font-medium text-foreground">
-            {nameOf(message.authorUserId)}
+            {message.authorUserId ? nameOf(message.authorUserId) : "Lictory ·"}
           </span>{" "}
           <MessageMarkdown
             source={message.body}
@@ -263,7 +271,7 @@ export const ChannelMessage = memo(function ChannelMessage({
             <time
               className="text-xs text-muted-foreground tabular-nums"
               dateTime={new Date(message.createdAt).toISOString()}
-              title={new Date(message.createdAt).toLocaleString()}
+              title={absoluteTime(message.createdAt)}
             >
               {time}
             </time>
@@ -311,6 +319,7 @@ export const ChannelMessage = memo(function ChannelMessage({
             {message.editedAt && (
               <span className="text-xs text-muted-foreground">(edited)</span>
             )}
+            {pending && <PendingDelivery />}
           </>
         )}
         {reactions.length > 0 && (
@@ -327,12 +336,17 @@ export const ChannelMessage = memo(function ChannelMessage({
                   onClick={() => actions.react(message, r.emoji, !r.mine)}
                   className={cn(
                     "inline-flex h-6 items-center gap-1 rounded-full border px-2 text-xs tabular-nums focus-ring outline-none touch:h-8",
+                    // Your own reaction: a full-strength outline in the
+                    // interactive colour (3:1 or more against the page, in
+                    // dark themes too) and a bolder count, not only a tint.
                     r.mine
-                      ? "border-primary/40 bg-primary/10 text-primary"
+                      ? "border-ring bg-ring/12 font-semibold text-foreground dark:bg-ring/20"
                       : "bg-card hover:bg-muted",
                   )}
                 >
-                  <span aria-hidden>{r.emoji}</span>
+                  {/* Named by what it shows ("👍 2"); who reacted is its
+                      description. */}
+                  <span>{r.emoji}</span>
                   {r.count}
                 </button>
               </Tooltip>
@@ -353,21 +367,25 @@ export const ChannelMessage = memo(function ChannelMessage({
             onClick={() => actions.openThread?.(message)}
             className="mt-1 -ml-1 flex min-h-7 items-center gap-2 rounded-md px-1 py-0.5 text-[13px] focus-ring outline-none hover:bg-card"
           >
-            <Facepile
-              people={replyAuthors(message).map((author) =>
-                author.kind === "agent"
-                  ? {
-                      id: author.id,
-                      name: agentNameOf(author.id),
-                      avatar: agentOf(author.id)?.avatar,
-                      agent: true as const,
-                    }
-                  : { id: author.id, name: nameOf(author.id) },
-              )}
-              max={4}
-              size={20}
-              label="Replied"
-            />
+            {/* Named by its words ("3 replies, last reply …"); the
+                faces repeat who is in the thread. */}
+            <span aria-hidden className="contents">
+              <Facepile
+                people={replyAuthors(message).map((author) =>
+                  author.kind === "agent"
+                    ? {
+                        id: author.id,
+                        name: agentNameOf(author.id),
+                        avatar: agentOf(author.id)?.avatar,
+                        agent: true as const,
+                      }
+                    : { id: author.id, name: nameOf(author.id) },
+                )}
+                max={4}
+                size={20}
+                label="Replied"
+              />
+            </span>
             <span className="font-medium text-primary">
               {replies} {replies === 1 ? "reply" : "replies"}
             </span>
@@ -375,6 +393,11 @@ export const ChannelMessage = memo(function ChannelMessage({
               <span className="text-muted-foreground">
                 Last reply {formatTime(message.lastReplyAt)}
               </span>
+            )}
+            {/* A dispatched session's card is its own root and shows its
+                state; a mention's thread says it here. */}
+            {threadState && !factory && (
+              <SessionStateChip state={threadState} className="ml-1" />
             )}
           </button>
         )}
@@ -390,13 +413,13 @@ export const ChannelMessage = memo(function ChannelMessage({
             QUICK_REACTIONS.slice(0, 3).map((emoji) => (
               <ToolbarButton
                 key={emoji}
-                aria-label={`React with ${emoji}`}
                 className={iconButton}
                 onClick={() => actions.react(message, emoji, true)}
               >
-                <span aria-hidden className="text-[15px]">
-                  {emoji}
-                </span>
+                {/* Named by what it shows, the emoji, after words that say
+                    what it does: voice control users say what they see. */}
+                <span className="sr-only">React with </span>
+                <span className="text-[15px]">{emoji}</span>
               </ToolbarButton>
             ))}
           {canReact && (
@@ -440,20 +463,29 @@ export const ChannelMessage = memo(function ChannelMessage({
                   <MenuItem
                     onSelect={() => actions.promote(message, "proposal")}
                   >
-                    <Lightbulb className="size-3.5 text-muted-foreground" />{" "}
-                    Promote to proposal
+                    <Lightbulb className="mt-0.5 size-3.5 self-start text-muted-foreground" />
+                    <PromotionChoiceLabel
+                      title="Promote to proposal"
+                      description="Something new the team should refine and build"
+                    />
                   </MenuItem>
                   <MenuItem
                     onSelect={() => actions.promote(message, "decision")}
                   >
-                    <CircleDot className="size-3.5 text-muted-foreground" />{" "}
-                    Record as decision
+                    <CircleDot className="mt-0.5 size-3.5 self-start text-muted-foreground" />
+                    <PromotionChoiceLabel
+                      title="Record as decision"
+                      description="A conclusion to keep on a specification"
+                    />
                   </MenuItem>
                   <MenuItem
                     onSelect={() => actions.promote(message, "discussion")}
                   >
-                    <MessageSquareQuote className="size-3.5 text-muted-foreground" />{" "}
-                    Discuss on a specification
+                    <MessageSquareQuote className="mt-0.5 size-3.5 self-start text-muted-foreground" />
+                    <PromotionChoiceLabel
+                      title="Discuss on a specification"
+                      description="An open question for an existing specification"
+                    />
                   </MenuItem>
                   <MenuSeparator />
                 </>
@@ -487,11 +519,19 @@ export const ChannelMessage = memo(function ChannelMessage({
   );
 });
 
+// A promotion card is the act of the person who promoted the message
+// ("Ada recorded a decision on PAY-11"); Lictory only posts it.
+const promotedBy = (message: MessageRow) =>
+  message.kind === "card" && message.payload?.promotion
+    ? message.authorUserId
+    : null;
+
 function authorName(
   message: MessageRow,
   nameOf: (id: string | null | undefined) => string,
 ) {
   if (message.authorKind === "agent") return "Agent";
+  if (promotedBy(message)) return nameOf(message.authorUserId);
   if (message.authorKind === "system") return "Lictory";
   // Someone in a linked Slack channel with no Lictory identity.
   if (message.authorKind === "external")
@@ -639,5 +679,51 @@ function EditMessage({
         </Button>
       </div>
     </div>
+  );
+}
+
+// A message the server has not confirmed yet says so in words, and says why
+// while the connection is down: nobody should think they posted when they
+// did not. It goes once the server answers.
+function PendingDelivery() {
+  const { connection } = useWorkspace();
+  const waiting = connection !== "connected";
+  return (
+    <p
+      data-delivery={waiting ? "waiting" : "sending"}
+      className={cn(
+        "mt-0.5 flex items-center gap-1.5 text-xs",
+        waiting ? "text-warning" : "text-muted-foreground",
+      )}
+    >
+      {waiting ? (
+        <CloudOff className="size-3.5 shrink-0" aria-hidden />
+      ) : (
+        <Loader2
+          className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none"
+          aria-hidden
+        />
+      )}
+      {waiting
+        ? "Not sent yet: it’s delivered when the connection is back"
+        : "Sending…"}
+    </p>
+  );
+}
+
+// The three promotions name when each fits, so the choice needs no prior
+// knowledge of proposals, decisions and discussions.
+function PromotionChoiceLabel({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span>{title}</span>
+      <span className="text-xs text-muted-foreground">{description}</span>
+    </span>
   );
 }

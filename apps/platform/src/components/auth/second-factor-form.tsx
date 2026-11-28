@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   FormField,
   FormMessage,
+  ValidatedForm,
 } from "@lictory/platform/components/auth/form-field";
 import { Button } from "@lictory/ui/button";
 import { authClient } from "@lictory/platform/lib/auth-client";
@@ -57,7 +58,7 @@ export function SecondFactorForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4" key={method}>
+    <ValidatedForm onSubmit={onSubmit} className="grid gap-4" key={method}>
       <p className="text-[13px] leading-5 text-muted-foreground">
         {method === "totp"
           ? "Your account uses two-factor authentication. Enter the code from your authenticator app."
@@ -110,6 +111,6 @@ export function SecondFactorForm({
           Start over
         </button>
       </div>
-    </form>
+    </ValidatedForm>
   );
 }

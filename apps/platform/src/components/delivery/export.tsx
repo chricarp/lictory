@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAnnounceChange } from "@lictory/platform/components/shell/announcer";
 import {
   Dialog,
   DialogBackdrop,
@@ -24,7 +25,13 @@ import type {
   ExternalStatusCategory,
   WorkItem,
 } from "@lictory/core/contracts/protocol";
-import type { Project } from "@lictory/core/lib/work-items";
+import {
+  absoluteTime,
+  identifier,
+  relativeTime,
+  type Project,
+  typeOf,
+} from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import { dialogBackdropClass, dialogPanelClass } from "@lictory/ui/dialog";
@@ -38,10 +45,10 @@ import {
   type DeliveryTool,
 } from "@lictory/platform/components/delivery/provider-name";
 
-// Export to the project's delivery tool: a preview that says exactly what each
-// item would do, an explicit per-item confirmation before overwriting changes
-// made there,
-// and per-item results. All authority is on the server (/api/delivery).
+// Hand off to the project's delivery tool: a preview that says exactly what
+// each item would do, an explicit per-item confirmation before overwriting
+// changes made there, and per-item results. All authority is on the server
+// (/api/delivery).
 
 export type ExternalLink = EntityOf<"externalLink">;
 type PlanEntry = {
@@ -183,10 +190,11 @@ const fieldLabel = {
   title: "summary",
   content: "description",
   labels: "labels",
-  linked: "linked, never exported",
+  linked: "linked, never handed off",
 } as const;
 
-// Exports one item with its subtree (`item`), or exactly the given items.
+// Hands off one item with its subtree (`item`), or the given items, each with
+// its subtree.
 export function ExportDialog({
   item,
   itemIds,
@@ -205,6 +213,9 @@ export function ExportDialog({
   const [error, setError] = useState<string>();
   const [overwrite, setOverwrite] = useState<Set<string>>(new Set());
   const [publication, setPublication] = useState<Publication>();
+  // Results of earlier runs in this dialog: a retry reports only what it
+  // retried, and every other item keeps the outcome it already had.
+  const [earlier, setEarlier] = useState<Publication["results"]>({});
   const [busy, setBusy] = useState(false);
   const scope = item ? { rootId: item.id } : { itemIds: itemIds ?? [] };
   const scopeKey = item ? item.id : (itemIds ?? []).join(",");
@@ -257,6 +268,8 @@ export function ExportDialog({
   const run = async (retry?: string[]) => {
     setBusy(true);
     setError(undefined);
+    if (publication)
+      setEarlier((current) => ({ ...current, ...publication.results }));
     try {
       setPublication(
         await deliveryRequest<Publication>({
@@ -272,12 +285,41 @@ export function ExportDialog({
       setBusy(false);
     }
   };
+  const results = publication
+    ? { ...earlier, ...publication.results }
+    : undefined;
+  // Retrying a failed item brings along what waited for it.
   const failed = publication
     ? publication.itemIds.filter((id) =>
         ["failed", "conflict"].includes(publication.results[id]?.outcome ?? ""),
       )
     : [];
+  const overwriting =
+    !!publication &&
+    failed.every((id) => overwrite.has(id)) &&
+    failed.some((id) => publication.results[id]?.outcome === "conflict");
   useReturnFocus();
+  // The button pressed to hand off is gone (or was disabled while the
+  // worker ran) once results arrive: focus goes to what comes next, Retry
+  // when something failed, otherwise Done, instead of the page behind.
+  const doneButton = useRef<HTMLButtonElement>(null);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  const finished = !!publication && publication.status !== "running" && !busy;
+  useEffect(() => {
+    if (!finished) return;
+    const dialog = doneButton.current?.closest("[role='dialog']");
+    if (!dialog || dialog.contains(document.activeElement)) return;
+    (retryButton.current ?? doneButton.current)?.focus();
+  }, [finished]);
+  // The results replace the progress in place: their summary ("3 created,
+  // 1 failed") is announced once the worker finishes.
+  useAnnounceChange(
+    "export",
+    publication && publication.status !== "running" && results && plan
+      ? summary(publication, results, plan.entries, tool.name)
+      : "",
+    (_, next) => (next ? `Hand-off results: ${next}` : null),
+  );
   return (
     <Dialog
       open
@@ -289,17 +331,21 @@ export function ExportDialog({
       <DialogBackdrop className={dialogBackdropClass} />
       <DialogContent
         // Named here, not by its heading, which changes once results arrive.
-        aria-label={`Export to ${tool.name}`}
+        aria-label={`Hand off to ${tool.name}`}
         className={cn(dialogPanelClass, "max-w-2xl gap-0 text-base")}
       >
         <div className="border-b px-4 py-3">
           <h2 className="text-sm font-semibold">
-            {publication ? "Export results" : `Export to ${tool.name}`}
+            {publication ? "Hand-off results" : `Hand off to ${tool.name}`}
           </h2>
-          <DialogDescription className="mt-0.5 mb-0 text-[13px] text-muted-foreground">
-            {publication
-              ? summary(publication)
-              : `Only ready items are exported. Summary, description (latest revision with acceptance criteria) and labels are written to ${tool.name}; status, assignee and sprint stay owned by ${tool.name}.`}
+          <DialogDescription
+            // Announced when the results replace the preview.
+            aria-live="polite"
+            className="mt-0.5 mb-0 text-[13px] text-muted-foreground"
+          >
+            {publication && results && plan
+              ? summary(publication, results, plan.entries, tool.name)
+              : `Only ready specifications are handed off, with their children. Summary, description (latest revision with acceptance criteria) and labels are written to ${tool.name}; status, assignee and sprint stay owned by ${tool.name}.`}
           </DialogDescription>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -312,7 +358,7 @@ export function ExportDialog({
           {plan && (
             <ul className="divide-y">
               {plan.entries.map((entry) => {
-                const result = publication?.results[entry.workItemId];
+                const result = results?.[entry.workItemId];
                 return (
                   <li
                     key={entry.workItemId}
@@ -367,7 +413,7 @@ export function ExportDialog({
                           {entry.conflict?.includes("linked")
                             ? `Overwrite ${entry.externalKey ?? "the linked issue"} with this specification`
                             : entry.conflict?.length
-                              ? `Changed in ${tool.name} since the last export (${entry.conflict.map((c) => fieldLabel[c]).join(", ")}). Overwrite those changes`
+                              ? `Changed in ${tool.name} since the last hand-off (${entry.conflict.map((c) => fieldLabel[c]).join(", ")}). Overwrite those changes`
                               : `Overwrite the changes made in ${tool.name}`}
                           {entry.externalUrl && (
                             <a
@@ -401,22 +447,23 @@ export function ExportDialog({
             </span>
           )}
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" onClick={onClose}>
+            <Button ref={doneButton} variant="ghost" onClick={onClose}>
               {publication ? "Done" : "Cancel"}
             </Button>
             {publication ? (
               failed.length > 0 && (
+                // Recovery is this dialog's point: retrying is the primary
+                // action. Overwriting what changed in the delivery tool
+                // stays a deliberate, secondary choice.
                 <Button
-                  variant="secondary"
+                  ref={retryButton}
+                  variant={overwriting ? "secondary" : undefined}
                   disabled={busy}
                   onClick={() => void run(failed)}
                 >
                   {busy && <Loader2 className="size-3.5 animate-spin" />}
-                  {failed.every((id) => overwrite.has(id)) &&
-                  failed.some(
-                    (id) => publication.results[id]?.outcome === "conflict",
-                  )
-                    ? "Overwrite and export"
+                  {overwriting
+                    ? "Overwrite and hand off"
                     : `Retry ${failed.length} ${failed.length === 1 ? "item" : "items"}`}
                 </Button>
               )
@@ -437,7 +484,7 @@ export function ExportDialog({
                 )}
                 {exportable.every((e) => e.action === "unchanged")
                   ? `Refresh ${tool.product ?? "external"} status`
-                  : `Export ${exportable.length} ${exportable.length === 1 ? "item" : "items"}`}
+                  : `Hand off ${exportable.length} ${exportable.length === 1 ? "item" : "items"}`}
               </Button>
             )}
           </div>
@@ -459,11 +506,16 @@ function useReturnFocus() {
   );
 }
 
-function summary(p: Publication) {
+function summary(
+  p: Publication,
+  results: Publication["results"],
+  entries: PlanEntry[],
+  tool: string,
+) {
   const counts = new Map<Outcome, number>();
-  for (const id of p.itemIds) {
-    const o = p.results[id]?.outcome ?? "pending";
-    counts.set(o, (counts.get(o) ?? 0) + 1);
+  for (const { workItemId } of entries) {
+    const o = results[workItemId]?.outcome;
+    if (o) counts.set(o, (counts.get(o) ?? 0) + 1);
   }
   const parts = (
     [
@@ -478,7 +530,17 @@ function summary(p: Publication) {
   )
     .filter(([o]) => counts.get(o))
     .map(([o, label]) => `${counts.get(o)} ${label}`);
-  return `${parts.join(", ")}.${p.status === "running" ? " Lictory will finish the remaining items shortly." : ""}`;
+  const done =
+    (counts.get("created") ?? 0) +
+    (counts.get("updated") ?? 0) +
+    (counts.get("unchanged") ?? 0);
+  const next =
+    p.status === "running"
+      ? " Lictory will finish the remaining items shortly."
+      : counts.get("failed") || counts.get("conflict")
+        ? ` ${done ? `The ${done} ${done === 1 ? "item" : "items"} in ${tool} stay as they are. ` : ""}Retry hands off what is missing, with the children that wait for it, and never creates an issue twice.`
+        : "";
+  return `${parts.join(", ")}.${next}`;
 }
 
 function ActionIcon({ entry }: { entry: PlanEntry }) {
@@ -552,8 +614,9 @@ function OutcomeBadge({
 // Sidebar section: where this item lives in the delivery tool and how
 // current it is.
 export function ExternalDelivery({ item }: { item: WorkItem }) {
-  const { organization, directory } = useWorkspace();
+  const { organization, directory, delivery, items, projects } = useWorkspace();
   const links = useExternalLinks(item.id);
+  const parentLinks = useExternalLinks(item.parentId ?? "");
   const availability = useExportAvailability(item);
   const [exporting, setExporting] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -580,7 +643,18 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
       setBusy(false);
     }
   };
-  const ready = item.refinementState === "ready";
+  // A specification goes once it is ready; plain work (Tasks, Subtasks)
+  // goes along under a parent already in the delivery tool.
+  const spec = typeOf(delivery, item).hasSpecification;
+  const parent = item.parentId
+    ? items.find((candidate) => candidate.id === item.parentId)
+    : undefined;
+  const project = projects.find((p) => p.id === item.projectId);
+  const parentKey =
+    parent && project ? identifier(project, parent.number) : undefined;
+  const ready = spec
+    ? item.refinementState === "ready"
+    : parentLinks.some((l) => Boolean(l.externalKey));
   // A link names the tool it lives in; otherwise the project's target does.
   const tool = link
     ? deliveryToolOf(
@@ -617,9 +691,18 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
           <p className="text-xs text-muted-foreground">
             {link.publishedRevisionNumber != null
               ? `Handed off revision ${link.publishedRevisionNumber} · current ${item.revisionNumber}`
-              : "Linked, not exported yet"}
-            {link.syncedAt &&
-              ` · ${new Date(link.syncedAt).toLocaleDateString()}`}
+              : "Linked, not handed off yet"}
+            {link.syncedAt && (
+              <>
+                {" · "}
+                <time
+                  dateTime={link.syncedAt}
+                  title={absoluteTime(link.syncedAt)}
+                >
+                  synced {relativeTime(link.syncedAt)}
+                </time>
+              </>
+            )}
           </p>
           {link.lastError && (
             <p className="text-xs text-destructive">{link.lastError}</p>
@@ -627,15 +710,19 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
         </div>
       ) : link?.status === "pending" ? (
         <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
-          <Loader2 className="size-3.5 animate-spin" /> Exporting…
+          <Loader2 className="size-3.5 animate-spin" /> Handing off…
         </p>
       ) : (
         <p className="text-[13px] text-muted-foreground">
           {!availability.configured
             ? `This project has no hand-off target in ${tool.name} yet.`
             : ready
-              ? "Not exported yet."
-              : "Exportable once the specification is ready."}
+              ? "Not handed off yet."
+              : spec
+                ? "Can be handed off once the specification is ready."
+                : parentKey
+                  ? `Goes to ${tool.name} with ${parentKey}: hand off ${parentKey} to bring it along.`
+                  : `Goes to ${tool.name} with the item it belongs to.`}
         </p>
       )}
       {availability.allowed && availability.configured && (
@@ -644,11 +731,19 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
             size="sm"
             variant="primary"
             disabled={!ready || link?.status === "pending"}
-            title={ready ? undefined : "Only ready items can be exported."}
+            title={
+              ready
+                ? undefined
+                : spec
+                  ? "Only ready specifications can be handed off."
+                  : `Hand off ${parentKey ?? "its parent"} first.`
+            }
             onClick={() => setExporting(true)}
           >
             <Upload className="size-3.5" />
-            {link?.externalKey ? "Export changes" : `Export to ${tool.name}`}
+            {link?.externalKey
+              ? "Hand off changes"
+              : `Hand off to ${tool.name}`}
           </Button>
           {link?.externalKey ? (
             <Button
@@ -695,7 +790,7 @@ export function ExternalDelivery({ item }: { item: WorkItem }) {
             onValueChange={setKey}
             placeholder="Issue key, e.g. PAY-12"
             aria-label={`${tool.Name} issue key`}
-            className="h-7 min-w-0 flex-1 rounded-md border bg-card px-2 text-[13px] outline-none focus:border-primary/60 touch:text-base"
+            className="h-7 min-w-0 flex-1 rounded-md border border-input bg-card px-2 text-[13px] outline-none focus:border-primary/60 touch:text-base"
           />
           <Button size="sm" type="submit" disabled={busy || !key.trim()}>
             Link
@@ -719,7 +814,7 @@ function LinkStatus({
   stale: boolean;
   tool: DeliveryTool;
 }) {
-  if (link.status === "pending") return <Badge>Exporting…</Badge>;
+  if (link.status === "pending") return <Badge>Handing off…</Badge>;
   if (link.status === "conflict")
     return <Badge tone="warning">Changed in {tool.name}</Badge>;
   if (link.status === "failed") return <Badge tone="danger">Failed</Badge>;

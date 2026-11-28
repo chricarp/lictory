@@ -252,7 +252,7 @@ export const declarations: readonly Declaration[] = [
     services: ["database"],
     secret: "issued",
     description:
-      "An administrator connection (a role with CREATEROLE and CREATEDB, such as a managed provider's master user) used once by `database.mjs setup` (`lictory database setup`) to create Lictory's roles and databases. Passed for that command only, never stored. See docs/operations/external-database.md.",
+      "An administrator connection (a role with CREATEROLE and CREATEDB, such as a managed provider's master user) used once by `database.mjs setup` (`lictory database setup`) to create Lictory's roles and databases. Passed for that command only, never stored. See https://docs.lictory.com/self-hosting/database.",
   },
   {
     name: "DATABASE_MIGRATION_TARGET",
@@ -1001,12 +1001,29 @@ export const declarations: readonly Declaration[] = [
 
   // ------------------------------------------------------- website and build
   {
+    name: "APP_VERSION",
+    group: "Builds",
+    services: ["api"],
+    default: "`development`",
+    description:
+      "Release the server runs, reported to MCP clients and shown in organization settings. Set by `deploy/compose.production.yaml` from `LICTORY_VERSION`; not configured by hand.",
+  },
+  {
     name: "NEXT_PUBLIC_APP_VERSION",
     group: "Builds",
     services: ["platform"],
     default: "`package.json` version",
     description:
       "Version shown in the platform. Set by the build; not configured by hand.",
+  },
+  {
+    name: "NEXT_PUBLIC_RELEASE_ASSETS",
+    group: "Builds",
+    services: ["website"],
+    default:
+      "empty: every download is offered, with a note that the page cannot tell which the release carries",
+    description:
+      "Comma-separated file names of the stable release the website's /download page links to. Set by the website's deploy from the GitHub Release; a file not listed is shown as not in that release.",
   },
   {
     name: "MARKETING_STATIC_EXPORT",

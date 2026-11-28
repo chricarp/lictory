@@ -21,6 +21,7 @@ import { popupContainer } from "@lictory/ui/popup";
 import { Button } from "@lictory/ui/button";
 import { track } from "@lictory/core/lib/analytics/client";
 import { cn } from "@lictory/core/lib/utils";
+import { scrimClass } from "@lictory/ui/dialog";
 import { paths } from "@lictory/core/lib/paths";
 import { enabledTypes } from "@lictory/core/lib/work-items";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
@@ -30,6 +31,7 @@ import {
   useRouter,
 } from "@lictory/platform/lib/navigation";
 import { signOut } from "@lictory/platform/lib/account";
+import { useSingleKeyShortcuts } from "@lictory/platform/lib/session";
 import { workspaceTitle } from "@lictory/platform/lib/document-title";
 import {
   rememberProject,
@@ -49,6 +51,11 @@ import {
 import { DockProvider } from "@lictory/platform/components/intelligence/dock/store";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 import { OrganizationBrand } from "@lictory/platform/components/workspace/organization-brand";
+import { PhoneSyncNotice } from "@lictory/platform/components/workspace/sync-status";
+import {
+  SkipLinkSlot,
+  skipLinkClass,
+} from "@lictory/platform/components/shell/skip-links";
 import {
   useSpaceBySlug,
   useSpaces,
@@ -60,6 +67,7 @@ import {
   type SidebarUser,
 } from "@lictory/platform/components/shell/sidebar";
 import { UnreadProvider } from "@lictory/platform/components/shell/unread";
+import { AnnouncerProvider } from "@lictory/platform/components/shell/announcer";
 import {
   NavBadgesProvider,
   useNavBadges,
@@ -128,11 +136,13 @@ export function Shell({
 }) {
   const { organization } = useWorkspace();
   return (
-    <UnreadProvider organizationId={organization.id}>
-      <NavBadgesProvider>
-        <ShellFrame user={user}>{children}</ShellFrame>
-      </NavBadgesProvider>
-    </UnreadProvider>
+    <AnnouncerProvider>
+      <UnreadProvider organizationId={organization.id}>
+        <NavBadgesProvider>
+          <ShellFrame user={user}>{children}</ShellFrame>
+        </NavBadgesProvider>
+      </UnreadProvider>
+    </AnnouncerProvider>
   );
 }
 
@@ -345,6 +355,7 @@ function ShellFrame({
     [organization.id],
   );
   const goPrefix = useRef(0);
+  const singleKeyShortcuts = useSingleKeyShortcuts();
   const [drawerPath, setDrawerPath] = useState(pathname);
   if (drawerPath !== pathname) {
     setDrawerPath(pathname);
@@ -359,6 +370,8 @@ function ShellFrame({
         return;
       }
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      // Single-character shortcuts can be turned off (account preferences).
+      if (!singleKeyShortcuts) return;
       if (isTyping(event.target)) return;
       // `G` then a module's letter goes there (G H Home, G I Inbox).
       const goTo = goPrefix.current && Date.now() - goPrefix.current < 1200;
@@ -448,10 +461,11 @@ function ShellFrame({
               event.preventDefault();
               document.getElementById("main")?.focus();
             }}
-            className="fixed top-2 left-2 z-[60] -translate-y-16 rounded-md bg-popover px-3 py-2 text-[13px] font-medium text-foreground shadow-(--shadow-panel) focus-ring outline-none focus:translate-y-0"
+            className={skipLinkClass}
           >
             Skip to content
           </a>
+          <SkipLinkSlot />
           {/* The left column: the organization rail and the sidebar. */}
           <div className="relative hidden shrink-0 lg:flex">
             {/* Wide windows only: on laptops the room goes to the work,
@@ -461,13 +475,17 @@ function ShellFrame({
                 <OrganizationRail />
               </div>
             )}
+            {/* Named, so it stays apart from a page's own complementary
+                parts (an item's details). Its resizer sits inside it, on
+                its edge, so every control belongs to a landmark. */}
             <aside
               id={sidebarId}
               ref={sidebarElement}
+              aria-label="Sidebar"
               style={sidebarCollapsed ? undefined : resize.pane.style}
               data-sidebar={sidebarCollapsed ? "compact" : "full"}
               className={cn(
-                "flex shrink-0 flex-col bg-sidebar",
+                "relative flex shrink-0 flex-col bg-sidebar",
                 sidebarCollapsed
                   ? "w-12"
                   : resize.pane.sized
@@ -476,8 +494,13 @@ function ShellFrame({
               )}
             >
               {sidebar(sidebarCollapsed)}
+              {!sidebarCollapsed && (
+                <PaneResizer
+                  resize={resize.handle}
+                  className="absolute inset-y-0 right-0"
+                />
+              )}
             </aside>
-            {!sidebarCollapsed && <PaneResizer resize={resize.handle} />}
           </div>
           <Drawer
             open={drawer}
@@ -485,7 +508,9 @@ function ShellFrame({
             side="left"
             container={popupContainer()}
           >
-            <DrawerBackdrop className="fixed inset-0 z-40 bg-black/30 lg:hidden" />
+            <DrawerBackdrop
+              className={cn("fixed inset-0 z-40 lg:hidden", scrimClass)}
+            />
             <DrawerContent
               aria-label="Navigation"
               className="z-50 flex h-dvh max-h-none w-[300px] max-w-[88vw] flex-row gap-0 overflow-hidden border-0 border-r bg-sidebar p-0 text-foreground shadow-xl lg:hidden"
@@ -529,6 +554,7 @@ function ShellFrame({
                   }
                 />
               )}
+              <PhoneSyncNotice />
               {/* Pinned: `overflow-clip`, unlike `hidden`, is not a scroll
                   container, so focusing or scrolling to a field deep in a
                   page never shifts the frame and cuts its top bar. Pages
@@ -634,6 +660,8 @@ function PhoneMenuButton({ onMenu }: { onMenu: () => void }) {
       size="icon"
       aria-label="Open navigation"
       aria-describedby={waiting ? waitingId : undefined}
+      // The dot's meaning in words, for a pointer that hovers.
+      title={waiting ? "Something waits on you" : undefined}
       className="relative size-8 shrink-0"
       onClick={onMenu}
     >
@@ -645,7 +673,7 @@ function PhoneMenuButton({ onMenu }: { onMenu: () => void }) {
           aria-hidden
           className="absolute top-1.5 right-1.5 size-2 rounded-full bg-primary ring-2 ring-background"
         >
-          <span className="sr-only">Unread activity</span>
+          <span className="sr-only">Something waits on you</span>
         </span>
       )}
     </Button>

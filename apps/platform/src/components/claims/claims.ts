@@ -209,6 +209,7 @@ export function leaseLeft(claim: ClaimEntity, now = Date.now()) {
 }
 
 export {
+  leaseLeftLabel,
   claimShownState,
   claimWaitsOnPeople,
   type ClaimShownState,

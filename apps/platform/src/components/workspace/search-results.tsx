@@ -357,7 +357,7 @@ export function SearchResults() {
   const projectField = useId();
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title="Search" icon={<Search />} />
+      <PageHeader title="Search" icon={<Search />} ownSearch />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-3xl space-y-4 px-4 py-5">
           <form
@@ -366,7 +366,7 @@ export function SearchResults() {
               e.preventDefault();
               navigate({ q: draft.trim() });
             }}
-            className="flex items-center gap-2 rounded-lg border bg-card px-3 focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10"
+            className="flex items-center gap-2 rounded-lg border border-input bg-card px-3 focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10"
           >
             <Search
               className="size-4 shrink-0 text-muted-foreground"
@@ -378,7 +378,7 @@ export function SearchResults() {
               onChange={(e) => setDraft(e.target.value)}
               aria-label="Search pages, specifications and decisions"
               placeholder="Search pages, specifications and decisions"
-              className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 touch:text-base"
+              className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-placeholder touch:text-base"
             />
           </form>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -538,7 +538,9 @@ function ResultRow({ result: r }: { result: KnowledgeResult }) {
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <Link
             href={r.href}
-            className="line-clamp-2 min-w-0 font-medium break-words outline-none after:absolute after:inset-0 focus-visible:underline"
+            // The padding gives the link a 24px target without moving the
+            // text (WCAG 2.5.8).
+            className="-my-[3px] line-clamp-2 min-w-0 py-[3px] font-medium break-words outline-none after:absolute after:inset-0 focus-visible:underline"
           >
             <Highlighted text={r.title} highlights={r.titleHighlights} />
           </Link>
@@ -554,8 +556,8 @@ function ResultRow({ result: r }: { result: KnowledgeResult }) {
             // the item as it is now.
             <Link
               href={r.currentHref}
-              aria-label={`Open ${r.key} as it is now`}
-              className="relative z-10 shrink-0 rounded-sm underline decoration-foreground/30 underline-offset-2 outline-none hover:text-foreground hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+              aria-label={`Open current ${r.key}`}
+              className="relative z-10 -my-1 inline-flex min-h-6 shrink-0 items-center rounded-sm underline decoration-foreground/30 underline-offset-2 outline-none hover:text-foreground hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
             >
               Open current
             </Link>

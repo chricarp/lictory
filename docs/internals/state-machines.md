@@ -50,9 +50,10 @@ Some conventions of the table:
 - A state listed as `derived` is read from another column. Closing a pull
   request records a deletion time beside its status; `pullRequestState` and
   `pullRequestIsActive` read both.
-- A specification pull request can be closed after it merged (it leaves the
-  item; the text stays in the specification). A merged page pull request is
-  history and cannot be closed. The two tables say so; do not unify them.
+- A merged pull request is never closed. On a specification, the applied
+  review is the record of who approved which result (a breakdown's reviewers,
+  for example); on a page, the merged pull request is history. Each table
+  refuses it in its product's words.
 
 ## Statuses that follow from something else
 

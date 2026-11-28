@@ -33,31 +33,65 @@ export const notificationQuerySchema = z.object({
   organizationId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),
   teamId: z.string().min(1).optional(),
-  kinds: z.array(kind).optional(),
-  status: z.enum(["unread", "all", "archived"]).default("all"),
+  kinds: z
+    .array(kind)
+    .optional()
+    .describe("Only notifications of these kinds."),
+  status: z
+    .enum(["unread", "all", "archived"])
+    .default("all")
+    .describe("unread, all (default, not archived) or archived."),
   // Opaque: `${createdAt ISO}|${id}` of the last row seen.
-  before: z.string().optional(),
+  before: z
+    .string()
+    .optional()
+    .describe(
+      "Page cursor: the last notification's `${createdAt}|${id}` from the previous page.",
+    ),
   limit: z.number().int().min(1).max(100).default(50),
 });
 
 export const notificationActionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("markRead"),
-    ids: z.array(z.string().min(1)).max(500).optional(),
+    ids: z
+      .array(z.string().min(1))
+      .max(500)
+      .optional()
+      .describe(
+        "Notification ids (listNotifications); omitted: every unread notification.",
+      ),
     // Without ids: every unread notification, optionally in one organization.
     organizationId: z.string().min(1).optional(),
-    read: z.boolean().default(true),
+    read: z
+      .boolean()
+      .default(true)
+      .describe("true (default) marks them read; false marks them unread."),
   }),
   z.object({
     action: z.literal("archive"),
-    ids: z.array(z.string().min(1)).min(1).max(500),
-    archived: z.boolean().default(true),
+    ids: z
+      .array(z.string().min(1))
+      .min(1)
+      .max(500)
+      .describe("Notification ids (listNotifications)."),
+    archived: z
+      .boolean()
+      .default(true)
+      .describe("true (default) archives them; false unarchives them."),
   }),
   z.object({
     action: z.literal("setPreferences"),
     organizationId: z.string().min(1),
-    scope: z.enum(["organization", "project", "team"]),
-    scopeId: z.string().min(1),
+    scope: z
+      .enum(["organization", "project", "team"])
+      .describe("Where the rules apply: organization, project or team."),
+    scopeId: z
+      .string()
+      .min(1)
+      .describe(
+        "The organization (id or slug), project or team id the scope names.",
+      ),
     rules: z
       .array(
         z.union([
@@ -67,20 +101,35 @@ export const notificationActionSchema = z.discriminatedUnion("action", [
         ]),
       )
       .min(1)
-      .max(notificationKindList.length),
+      .max(notificationKindList.length)
+      .describe(
+        "Per notification kind: { kind, inApp, email }, or { kind, reset: true } to fall back to the broader scope.",
+      ),
   }),
   z.object({
     action: z.literal("resetScope"),
     organizationId: z.string().min(1),
-    scope: z.enum(["organization", "project", "team"]),
-    scopeId: z.string().min(1),
+    scope: z
+      .enum(["organization", "project", "team"])
+      .describe("organization, project or team."),
+    scopeId: z
+      .string()
+      .min(1)
+      .describe(
+        "The organization (id or slug), project or team id the scope names.",
+      ),
   }),
   z.object({
     action: z.literal("watch"),
     organizationId: z.string().min(1),
     workItemId: z.string().min(1),
     // null clears the explicit choice and falls back to involvement.
-    watching: z.boolean().nullable(),
+    watching: z
+      .boolean()
+      .nullable()
+      .describe(
+        "true watches, false unwatches; null returns to following your involvement.",
+      ),
   }),
 ]);
 export type NotificationQuery = z.input<typeof notificationQuerySchema>;

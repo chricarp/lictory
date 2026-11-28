@@ -6,7 +6,8 @@ import {
   claimShownState,
   claimState,
   claimWaitsOnPeople,
-  doneCheckGlyph,
+  deliveredEvidence,
+  leaseLeftLabel,
   pullRequestStripPart,
 } from "@lictory/platform/components/claims/claim-state";
 
@@ -127,49 +128,75 @@ void test("the open pull request speaks before a merged one; closed ones are not
   assert.equal(pullRequestStripPart(undefined), null);
 });
 
-void test("a CI check that passed with no checks reported is not drawn as a green tick", () => {
-  const ci = { kind: "checks_passed" as const, passed: true, override: null };
+void test("a Done item keeps the evidence its Definition of Done moved it on", () => {
+  const passed = {
+    action: "definition_of_done_passed",
+    createdAt: "2026-11-20T10:00:00.000Z",
+    detail: {
+      checks: [
+        {
+          key: "merged",
+          label: "Merged",
+          overridden: false,
+          detail: "#1 merged.",
+        },
+        { key: "ci", label: "CI passed", overridden: true },
+      ],
+      pullRequests: [
+        {
+          title: "acme/api#1 Retries",
+          url: null,
+          state: "merged",
+          headSha: "abc",
+        },
+      ],
+    },
+  };
+  const toDone = {
+    action: "status_changed",
+    createdAt: "2026-11-20T10:00:00.000Z",
+    detail: { category: "done" },
+  };
+  // Same instant, listed in either order: the record precedes its move.
+  for (const activity of [
+    [passed, toDone],
+    [toDone, passed],
+  ]) {
+    const evidence = deliveredEvidence(activity);
+    assert.equal(evidence?.checks.length, 2);
+    assert.equal(evidence?.checks[0]?.detail, "#1 merged.");
+    assert.equal(evidence?.checks[1]?.overridden, true);
+    assert.equal(evidence?.pullRequests[0]?.state, "merged");
+  }
+  // Reopened and then moved to Done by a person: the old record no longer
+  // explains why it is Done.
   assert.equal(
-    doneCheckGlyph(ci, evaluated({ state: "open", checks: "none" })),
-    "no_checks",
+    deliveredEvidence([
+      passed,
+      toDone,
+      {
+        action: "status_changed",
+        createdAt: "2026-11-21T10:00:00.000Z",
+        detail: { category: "started" },
+      },
+      {
+        action: "status_changed",
+        createdAt: "2026-11-22T10:00:00.000Z",
+        detail: { category: "done" },
+      },
+    ]),
+    undefined,
   );
-  assert.equal(
-    doneCheckGlyph(ci, evaluated({ state: "open", checks: "passing" })),
-    "passed",
-  );
-  // A merged pull request is what was delivered: its checks speak.
-  assert.equal(
-    doneCheckGlyph(
-      ci,
-      evaluated(
-        { state: "merged", checks: "passing" },
-        { state: "open", checks: "none" },
-      ),
-    ),
-    "passed",
-  );
-  // Evaluations projected before check states existed claim nothing.
-  assert.equal(doneCheckGlyph(ci, evaluated({ state: "open" })), "passed");
-  // Passed by hand stays passed; open stays open.
-  assert.equal(
-    doneCheckGlyph(
-      { ...ci, override: { by: "ada", at: "", reason: "flaky host" } },
-      evaluated({ state: "open", checks: "none" }),
-    ),
-    "passed",
-  );
-  assert.equal(
-    doneCheckGlyph(
-      { ...ci, passed: false },
-      evaluated({ state: "open", checks: "none" }),
-    ),
-    "open",
-  );
-  assert.equal(
-    doneCheckGlyph(
-      { kind: "pull_request_merged", passed: true, override: null },
-      evaluated({ state: "merged", checks: "none" }),
-    ),
-    "passed",
-  );
+  assert.equal(deliveredEvidence([]), undefined);
+});
+
+void test("a lease reads in minutes, hours or days, never 10080 min", () => {
+  const now = Date.parse("2026-11-26T12:00:00Z");
+  const at = (ms: number) => ({
+    leaseExpiresAt: new Date(now + ms).toISOString(),
+  });
+  assert.equal(leaseLeftLabel(at(15 * 60_000), now), "15 min");
+  assert.equal(leaseLeftLabel(at(5 * 60 * 60_000), now), "5 h");
+  assert.equal(leaseLeftLabel(at(7 * 24 * 60 * 60_000), now), "7 days");
+  assert.equal(leaseLeftLabel(at(-60_000), now), "0 min");
 });

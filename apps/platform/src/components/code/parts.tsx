@@ -15,9 +15,11 @@ import {
 } from "lucide-react";
 import type {
   CodeChecks,
+  CodeConnectionEntity,
   CodeLinkTarget,
   CodePullRequestEntity,
 } from "@lictory/core/code/entities";
+import { reviewState } from "@lictory/core/code/merge-rules";
 import { cn } from "@lictory/core/lib/utils";
 import { StatusChip, type StatusTone } from "@lictory/ui/status-chip";
 import { Tooltip } from "@lictory/ui/tooltip";
@@ -53,7 +55,7 @@ export function PullRequestIcon({
 }) {
   const [Icon, tone, label]: [LucideIcon, string, string] =
     state === "merged"
-      ? [GitMerge, "text-violet-600 dark:text-violet-400", "Merged"]
+      ? [GitMerge, "text-merged", "Merged"]
       : state === "closed"
         ? [GitPullRequestClosed, "text-destructive", "Closed"]
         : draft
@@ -104,7 +106,8 @@ export function ChecksIcon({
   className,
 }: {
   state: CodeChecks["state"];
-  // Its words, when they differ from the state's (a skipped run).
+  // Its words, when they differ from the state's (a skipped run); empty
+  // when words beside it say the same (the icon is then decoration).
   label?: string;
   className?: string;
 }) {
@@ -120,6 +123,10 @@ export function ChecksIcon({
             ]
           : // Nothing reported is not "pending": a flat dash, not a ring.
             [CircleMinus, "text-muted-foreground"];
+  if (!label)
+    return (
+      <Icon aria-hidden className={cn("size-3.5 shrink-0", tone, className)} />
+    );
   return (
     <Tooltip label={label}>
       <Icon
@@ -145,13 +152,16 @@ export function ChecksBadge({ checks }: { checks: CodeChecks }) {
   return (
     <StatusChip
       tone={tone}
-      icon={<ChecksIcon state={checks.state} className="size-3" />}
+      // The words say it; the icon is decoration here.
+      icon={<ChecksIcon state={checks.state} label="" className="size-3" />}
     >
       {checks.state === "failure"
-        ? `${failing} failing`
+        ? `${failing || "Checks"} failing`
         : checks.state === "pending"
-          ? `${pending} running`
-          : checkWords[checks.state]}
+          ? `${pending || "Checks"} running`
+          : checks.state === "none"
+            ? "No checks"
+            : checkWords[checks.state]}
     </StatusChip>
   );
 }
@@ -174,7 +184,22 @@ const reviewLooks: Record<
   none: ["neutral", CircleMinus],
 };
 
-// The host's review decision as a state chip.
+// One answer to "is it reviewed?": the host's decision, unless a review
+// recorded in Lictory on the head commit (a reviewer agent's or a person's,
+// which the Definition of Done counts) says more. Requested changes on
+// either side win.
+export function reviewDecisionOf(
+  host: CodePullRequestEntity["reviewDecision"],
+  here: "approve" | "request_changes" | null | undefined,
+): CodePullRequestEntity["reviewDecision"] {
+  if (host === "changes_requested" || here === "request_changes")
+    return "changes_requested";
+  if (here === "approve") return "approved";
+  return host;
+}
+
+// A review decision as a state chip (`reviewState` joins the host's and
+// the reviews recorded in Lictory).
 export function ReviewBadge({
   decision,
 }: {
@@ -198,5 +223,85 @@ export function shortSha(sha: string | null | undefined) {
   return sha ? sha.slice(0, 7) : "";
 }
 
+// Why the host's webhook deliveries stopped counting, when Lictory refused
+// one after the last it accepted; null when nothing was refused since.
+export function webhookRefusal(connection: CodeConnectionEntity) {
+  const refusedAt = connection.lastWebhookRefusedAt;
+  if (!refusedAt || !connection.lastWebhookRefusal) return null;
+  if (connection.lastWebhookAt && connection.lastWebhookAt > refusedAt)
+    return null;
+  const host = providerLabels[connection.provider];
+  return {
+    at: refusedAt,
+    text:
+      connection.lastWebhookRefusal === "payload"
+        ? `${host} sent a delivery that is not JSON. Set the webhook's content type to application/json.`
+        : `${host} sent a delivery whose signature does not match this connection's webhook secret. Paste the secret again in the host's webhook settings, or create a new one under Settings → Code hosts.`,
+  };
+}
+
 export const message = (e: unknown) =>
   e instanceof Error ? e.message : "The request failed. Try again.";
+
+// An item's open pull request on a board card or backlog row: its number,
+// checks and review, so work waiting on a merge is visible where people
+// plan. It moves no status: delivery status stays a person's (or the
+// Definition of Done's) to change.
+export function PullRequestChip({
+  pullRequests,
+}: {
+  pullRequests: readonly CodePullRequestEntity[];
+}) {
+  const [pr, ...more] = pullRequests;
+  if (!pr) return null;
+  const review = reviewState(pr);
+  const reviewWord =
+    review === "approved"
+      ? "approved"
+      : review === "changes_requested"
+        ? "changes requested"
+        : null;
+  const checksWord =
+    pr.checks.state === "failure"
+      ? "Failing"
+      : pr.checks.state === "pending"
+        ? "Running"
+        : null;
+  const spoken = [
+    `${pr.draft ? "Draft pull request" : "Pull request"} #${pr.number}`,
+    checkWords[pr.checks.state].toLowerCase(),
+    reviewWord ?? "not reviewed",
+    more.length > 0 && `and ${more.length} more`,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  return (
+    <span
+      data-pull-request-chip
+      title={spoken}
+      className="inline-flex h-5 items-center gap-1 rounded-full bg-muted px-1.5 text-foreground/80"
+    >
+      <span className="sr-only">{spoken}</span>
+      <span aria-hidden className="inline-flex items-center gap-1">
+        <PullRequestIcon state={pr.state} draft={pr.draft} className="size-3" />
+        <span className="tabular-nums">#{pr.number}</span>
+        <ChecksIcon state={pr.checks.state} label="" className="size-3" />
+        {/* Checks that are not green say so in words, not only by the
+            icon's shape and colour (a title is not shown on focus or
+            touch). */}
+        {checksWord && <span>{checksWord}</span>}
+        {checksWord && reviewWord && <span>·</span>}
+        {reviewWord && (
+          <span
+            className={
+              review === "approved" ? "text-success" : "text-destructive"
+            }
+          >
+            {review === "approved" ? "Approved" : "Changes"}
+          </span>
+        )}
+        {more.length > 0 && <span>+{more.length}</span>}
+      </span>
+    </span>
+  );
+}

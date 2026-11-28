@@ -9,7 +9,10 @@ import { deliveryIndex, type Project } from "@lictory/core/lib/work-items";
 import {
   inFlight,
   readyToStart,
+  recentOutcomes,
   recentPages,
+  waitingGroup,
+  waitingKinds,
   waitingOnYou,
 } from "@lictory/platform/components/shell/home/derive";
 
@@ -104,30 +107,66 @@ void test("in flight is my started work, newest first, in either delivery mode",
   assert.equal(result.total, 3);
 });
 
-void test("ready to start lists ready work that is mine or unassigned, mine first", () => {
+void test("ready to start lists startable work that is mine or unassigned, mine first", () => {
   const unassigned = item({
-    refinementState: "ready",
+    statusId: "unstarted",
     updatedAt: "2026-11-05T00:00:00Z",
   });
   const mine = item({
-    refinementState: "ready",
+    statusId: "unstarted",
     assigneeId: me,
     updatedAt: "2026-11-01T00:00:00Z",
   });
-  const theirs = item({ refinementState: "ready", assigneeId: "grace" });
-  const committed = item({
-    refinementState: "ready",
-    committedRevisionId: "revision",
-  });
-  const inReview = item({ refinementState: "in_review" });
-  const started = item({ refinementState: "ready", statusId: "started" });
+  const theirs = item({ statusId: "unstarted", assigneeId: "grace" });
+  // Ready, but nobody accepted its scope: not startable, so not listed.
+  const unaccepted = item({ refinementState: "ready" });
+  const external = item({ projectId: "jira", statusId: "unstarted" });
+  const startable = new Set([unassigned.id, mine.id, theirs.id, external.id]);
   const result = readyToStart(
-    context([unassigned, mine, theirs, committed, inReview, started]),
+    {
+      ...context([unassigned, mine, theirs, unaccepted, external]),
+      startable: (i) => startable.has(i.id),
+    },
     10,
   );
   assert.deepEqual(
     result.rows.map((r) => r.id),
     [mine.id, unassigned.id],
+  );
+});
+
+void test("work broken down into open children starts through its children", () => {
+  const parent = item({ statusId: "unstarted", committedRevisionId: "r5" });
+  const child = item({ statusId: "unstarted", parentId: parent.id });
+  const doneChild = item({ statusId: "done", parentId: "other" });
+  const other = item({ id: "other", statusId: "unstarted" });
+  const result = readyToStart(
+    {
+      ...context([parent, child, doneChild, other]),
+      // Claimability refuses started and closed work.
+      startable: (i) => i.statusId === "unstarted",
+    },
+    10,
+  );
+  assert.deepEqual(
+    result.rows.map((r) => r.id).sort(),
+    [child.id, other.id].sort(),
+  );
+});
+
+void test("in native delivery, ready to start follows the claimability rule the item shows", () => {
+  // Ready, but nobody accepted its scope: it waits on a person, not here.
+  const unaccepted = item({ refinementState: "ready" });
+  // A task under an accepted specification is agreed work.
+  const agreedTask = item({ statusId: "unstarted" });
+  const startable = (i: WorkItem) => i.id === agreedTask.id;
+  const result = readyToStart(
+    { ...context([unaccepted, agreedTask]), startable },
+    10,
+  );
+  assert.deepEqual(
+    result.rows.map((r) => r.id),
+    [agreedTask.id],
   );
 });
 
@@ -190,10 +229,13 @@ void test("waiting on you is one queue: agents' questions first, each thing once
       },
       // Waiting for my next message: the session itself, once.
       { session: { id: "s2", updatedAt: "2026-10-29" } },
+      // A session I started that failed waits like a review.
+      { session: { id: "s3", updatedAt: "2026-11-03" }, failed: true },
     ],
   });
   // An agent waiting on a person is stopped: its questions lead, newest
-  // first; then reviews (items and pages by time), changes, merges.
+  // first; then reviews others wait on (items and pages by time); then my
+  // own work: the failed session to retry, changes, merges.
   assert.deepEqual(
     rows.map((r) => r.key),
     [
@@ -202,9 +244,161 @@ void test("waiting on you is one queue: agents' questions first, each thing once
       "agent:session:s2",
       "page:p2",
       "item:i2:Review requested",
+      "agent:failed:s3",
       "item:i1:Changes requested",
       "page:p1",
     ],
   );
+  assert.deepEqual(rows.map(waitingGroup), [
+    "agents",
+    "agents",
+    "agents",
+    "reviews",
+    "reviews",
+    "yours",
+    "yours",
+    "yours",
+  ]);
   assert.equal(new Set(rows.map((r) => r.key)).size, rows.length);
+});
+
+void test("rows Home does not show are named by kind, so its count reconciles", () => {
+  const rows = waitingOnYou({
+    items: [
+      {
+        reason: "Blocked",
+        weight: 2,
+        item: { id: "i1", updatedAt: "2026-11-05" },
+      },
+      {
+        reason: "Blocked",
+        weight: 2,
+        item: { id: "i2", updatedAt: "2026-11-04" },
+      },
+      {
+        reason: "Review requested",
+        weight: 0,
+        item: { id: "i3", updatedAt: "2026-11-01" },
+      },
+    ],
+    pages: [],
+    requests: [
+      {
+        session: { id: "s1", updatedAt: "2026-10-30" },
+        approval: { id: "a1", createdAt: "2026-10-30" },
+      },
+      { session: { id: "s3", updatedAt: "2026-11-03" }, failed: true },
+    ],
+  });
+  assert.equal(
+    waitingKinds(rows),
+    "1 request from an agent · 1 review · 1 failed agent session · 2 blocked items",
+  );
+  // Home shows the first rows; the rest are said, not hidden.
+  assert.equal(waitingKinds(rows.slice(3)), "2 blocked items");
+  assert.equal(waitingKinds([]), "");
+});
+
+void test("recent outcomes are my delivered work and my agents' finished sessions, newest first", () => {
+  const now = Date.parse("2026-11-20T12:00:00Z");
+  const delivered = item({
+    statusId: "done",
+    assigneeId: me,
+    updatedAt: "2026-11-19T00:00:00Z",
+  });
+  const theirs = item({
+    statusId: "done",
+    assigneeId: "grace",
+    updatedAt: "2026-11-19T00:00:00Z",
+  });
+  const old = item({
+    statusId: "done",
+    assigneeId: me,
+    updatedAt: "2026-11-01T00:00:00Z",
+  });
+  const open = item({
+    statusId: "started",
+    assigneeId: me,
+    updatedAt: "2026-11-19T00:00:00Z",
+  });
+  const session = (
+    id: string,
+    status: string,
+    completedAt: string,
+    requestedById: string | null,
+    agentId = "forge",
+  ) => ({
+    id,
+    agentId,
+    requestedById,
+    status,
+    completedAt,
+    updatedAt: completedAt,
+  });
+  const failed = session("failed", "failed", "2026-11-20T08:00:00Z", me);
+  // A policy started it; I own the agent.
+  const finished = session(
+    "finished",
+    "completed",
+    "2026-11-18T00:00:00Z",
+    null,
+  );
+  const running = session("running", "running", "2026-11-20T09:00:00Z", me);
+  const someoneElses = session(
+    "other",
+    "failed",
+    "2026-11-20T09:00:00Z",
+    "grace",
+    "hawk",
+  );
+  const result = recentOutcomes(
+    {
+      ...context([delivered, theirs, old, open]),
+      sessions: [failed, finished, running, someoneElses],
+      agentOwner: (id) => (id === "forge" ? me : "grace"),
+      now,
+    },
+    10,
+  );
+  assert.deepEqual(
+    result.rows.map((r) => r.key),
+    ["session:failed", `item:${delivered.id}`, "session:finished"],
+  );
+  assert.equal(
+    result.rows[0]!.kind === "session" && result.rows[0]!.failed,
+    true,
+  );
+  // A failure already waiting on me (to retry) is listed there, once.
+  const once = recentOutcomes(
+    {
+      ...context([delivered]),
+      sessions: [failed, finished],
+      agentOwner: () => me,
+      now,
+      listed: new Set(["failed"]),
+    },
+    10,
+  );
+  assert.deepEqual(
+    once.rows.map((r) => r.key),
+    [`item:${delivered.id}`, "session:finished"],
+  );
+  // The session that delivered an item listed as done is that item's row:
+  // one delivery, one outcome.
+  const delivering = {
+    ...session("delivering", "completed", "2026-11-19T06:00:00Z", me),
+    workItemId: delivered.id,
+  };
+  assert.deepEqual(
+    recentOutcomes(
+      {
+        ...context([delivered]),
+        sessions: [delivering, finished],
+        agentOwner: () => me,
+        now,
+      },
+      10,
+    ).rows.map((r) => r.key),
+    [`item:${delivered.id}`, "session:finished"],
+  );
 });

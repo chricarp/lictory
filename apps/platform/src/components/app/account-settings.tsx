@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   AtSign,
   Check,
+  Keyboard,
   Monitor,
   Moon,
   Palette,
@@ -55,7 +56,8 @@ import {
   accountChanged,
   forgetAccountLocally,
 } from "@lictory/platform/lib/account";
-import { useSessionUser } from "@lictory/platform/lib/session";
+import { refreshSession, useSessionUser } from "@lictory/platform/lib/session";
+import { Switch } from "@lictory/ui/switch";
 import { oauthErrorMessage } from "@lictory/core/lib/oauth-errors";
 import { cn, formValue } from "@lictory/core/lib/utils";
 
@@ -158,6 +160,7 @@ export function AccountSettings(props: AccountSettingsProps) {
     { id: "handle", label: "Handle" },
     { id: "email", label: "Email" },
     { id: "appearance", label: "Appearance" },
+    { id: "keyboard", label: "Keyboard" },
     ...(props.signIn.password ? [{ id: "password", label: "Password" }] : []),
     { id: "two-factor", label: "Two-factor" },
     ...(props.signIn.password ? [{ id: "passkeys", label: "Passkeys" }] : []),
@@ -207,9 +210,10 @@ export function AccountSettings(props: AccountSettingsProps) {
 
         <SettingsGroup
           title="Preferences"
-          description="How Lictory looks for you, on every device you sign in to."
+          description="How Lictory looks and responds to you, on every device you sign in to."
         >
           <AppearanceSection />
+          <KeyboardSection />
         </SettingsGroup>
 
         <SettingsGroup
@@ -346,11 +350,7 @@ function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
                 autoComplete="name"
                 required
               />
-              <Button
-                type="submit"
-                variant="secondary"
-                disabled={pending || !dirty}
-              >
+              <Button type="submit" disabled={pending || !dirty}>
                 {pending ? "Saving…" : "Save"}
               </Button>
             </div>
@@ -846,6 +846,74 @@ function AppearanceSection() {
             ))}
           </RadioGroup>
         </div>
+        <Status tone="error">{error}</Status>
+      </SettingsBody>
+    </SettingsSection>
+  );
+}
+
+// Single-character shortcuts can fire by accident, from a speech-input
+// command or a stray key (WCAG 2.1.4), so each person may turn them off.
+// Applied at once; saved in the background and reverted if it fails.
+function KeyboardSection() {
+  const saved = useSessionUser().singleKeyShortcuts;
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const on = chosen ?? saved;
+
+  async function choose(next: boolean) {
+    setError(null);
+    setChosen(next);
+    const response = await fetch("/api/preferences", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ singleKeyShortcuts: next }),
+    }).catch(() => null);
+    if (!response?.ok) {
+      setChosen(null);
+      setError(
+        "The shortcut setting was not saved. Check your connection and try again.",
+      );
+      return;
+    }
+    await refreshSession().catch(() => undefined);
+    setChosen(null);
+  }
+
+  return (
+    <SettingsSection
+      id="keyboard"
+      icon={<Keyboard />}
+      title="Keyboard"
+      description="Shortcuts with Ctrl, ⌘ or Alt always work. Arrow keys, Enter and Esc work either way."
+      learnMore="shortcuts"
+    >
+      <SettingsBody className="space-y-3">
+        <label className="flex items-start justify-between gap-4">
+          <span className="min-w-0">
+            <span
+              id="single-key-shortcuts-label"
+              className="block text-[13px] font-medium"
+            >
+              Single-key shortcuts
+            </span>
+            <span
+              id="single-key-shortcuts-hint"
+              className="block text-[13px] leading-5 text-muted-foreground"
+            >
+              C creates an item, / searches, [ folds the sidebar, G then a
+              letter goes to a page, J, K and O move through lists. Turn them
+              off if you use speech input or press keys by accident.
+            </span>
+          </span>
+          <Switch
+            className="mt-0.5"
+            checked={on}
+            aria-labelledby="single-key-shortcuts-label"
+            aria-describedby="single-key-shortcuts-hint"
+            onCheckedChange={(next) => void choose(next)}
+          />
+        </label>
         <Status tone="error">{error}</Status>
       </SettingsBody>
     </SettingsSection>

@@ -27,7 +27,7 @@ const sections = [
   { id: "disciplines", label: "Disciplines", group: "People" },
   { id: "teams", label: "Teams", group: "People" },
   { id: "workflow", label: "Workflow & types", group: "Work" },
-  { id: "readiness", label: "Readiness", group: "Work" },
+  { id: "readiness", label: "Definition of Ready", group: "Work" },
   { id: "done", label: "Definition of Done", group: "Work" },
   { id: "planning", label: "Planning", group: "Work" },
   { id: "delivery", label: "Delivery", group: "Work" },
@@ -40,6 +40,7 @@ const sections = [
   },
 ] as const;
 type SectionId = (typeof sections)[number]["id"];
+const nativeOnlySections = new Set<SectionId>(["done", "planning"]);
 
 // The header and section navigation live in the settings layout so they stay
 // mounted while people move between sections; only the section re-renders.
@@ -49,12 +50,19 @@ export function ProjectSettingsLayout({ children }: { children: ReactNode }) {
   const members = directory.projectMembers.filter(
     (m) => m.projectId === project.id,
   ).length;
-  const nav: SettingsNavItem[] = sections.map((s) => ({
-    id: s.id,
-    label: s.label,
-    group: s.group,
-    href: paths.projectSettings(organization.slug, project.key, s.id),
-  }));
+  // A project that hands work off to Jira has no Definition of Done or
+  // iterations in Lictory: those sections never apply, so the navigation
+  // leaves them out (their pages still explain why, for old links).
+  const nav: SettingsNavItem[] = sections
+    .filter(
+      (s) => project.deliveryMode === "native" || !nativeOnlySections.has(s.id),
+    )
+    .map((s) => ({
+      id: s.id,
+      label: s.label,
+      group: s.group,
+      href: paths.projectSettings(organization.slug, project.key, s.id),
+    }));
   return (
     <SettingsLayout
       title={project.name}

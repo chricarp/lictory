@@ -61,23 +61,30 @@ export function Panel({
             {icon}
           </span>
         )}
-        <Heading id={id} className="text-[13px] font-semibold">
+        {/* One line at every width: the title keeps its words, the link to
+            all of them gives way (truncates) on a phone. */}
+        <Heading
+          id={id}
+          className="shrink-0 text-[13px] font-semibold whitespace-nowrap"
+        >
           {title}
         </Heading>
         {count !== undefined && count > 0 && (
-          <span className="rounded-full bg-muted px-1.5 text-[11px] leading-[18px] font-medium text-muted-foreground tabular-nums">
+          // A tint of the text colour, not --muted: on a dark card the muted
+          // fill is the card's own colour, and the chip became a bare number.
+          <span className="shrink-0 rounded-full bg-foreground/8 px-1.5 text-[11px] leading-[18px] font-medium text-muted-foreground tabular-nums">
             {count}
           </span>
         )}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex min-w-0 items-center gap-1">
           {actions}
           {more && hasRows && (
             <Link
               href={more.href}
-              className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
+              className="inline-flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs whitespace-nowrap text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
             >
-              {more.label}
-              <ArrowRight aria-hidden className="size-3" />
+              <span className="truncate">{more.label}</span>
+              <ArrowRight aria-hidden className="size-3 shrink-0" />
             </Link>
           )}
         </div>

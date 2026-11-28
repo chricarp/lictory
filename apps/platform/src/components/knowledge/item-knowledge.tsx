@@ -996,14 +996,14 @@ function ProposeForm({
         autoFocus
         value={title}
         maxLength={200}
-        placeholder="Document the finance approval time"
+        placeholder="e.g. Document the finance approval time"
         onValueChange={(value) => {
           setTitle(value);
           if (error?.field === "title") setError(undefined);
         }}
         aria-invalid={error?.field === "title" || undefined}
         aria-describedby={describedBy("title", `${titleId}-hint`)}
-        className="h-8 w-full rounded-md border bg-background px-2 text-[13px] outline-none placeholder:text-muted-foreground/60 focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base"
+        className="h-8 w-full rounded-md border bg-background px-2 text-[13px] outline-none placeholder:text-placeholder focus-visible:ring-2 focus-visible:ring-ring/60 touch:text-base"
       />
       <Collapsible
         open={advanced}

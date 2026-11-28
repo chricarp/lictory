@@ -14,6 +14,8 @@ const userSchema = z.object({
   handle: z.string().nullable().optional(),
   appearance: z.string().nullable().optional(),
   theme: z.string().nullable().optional(),
+  // Single-character shortcuts (C, /, [, G chords, J/K/O) on or off.
+  singleKeyShortcuts: z.boolean().default(true),
   twoFactorEnabled: z.boolean().optional(),
   // Instance policy (the server enforces it either way): instance
   // administrators open the admin console; organization creation may be
@@ -55,6 +57,8 @@ const sessionSchema = z.object({
     .default(defaultSignIn),
   // Whether the server has object storage for attachments.
   attachments: z.boolean().default(true),
+  // Whether the server sends email (invitations, notifications).
+  email: z.boolean().default(true),
   // Days between scheduling an organization's deletion and the deletion.
   organizationDeletionGraceDays: z.number().int().positive().default(30),
 });
@@ -68,6 +72,7 @@ export type Session = {
   twoFactorRequiredBy: z.infer<typeof heldSchema>[];
   signIn: SignInOptions;
   attachments: boolean;
+  email: boolean;
   organizationDeletionGraceDays: number;
 };
 
@@ -85,17 +90,44 @@ function set(next: State) {
   for (const listener of listeners) listener();
 }
 
+// Every page waits for the session check, so a check that gets no answer
+// ends in an error with a retry instead of waiting forever.
+const sessionTimeoutMs = 15_000;
+
+// The server did not answer the session check: the connection dropped or
+// the check timed out. A retry may succeed.
+export class ServerUnreachableError extends Error {
+  constructor() {
+    super("Couldn’t reach the server. Check your connection and retry.");
+    this.name = "ServerUnreachableError";
+  }
+}
+
 async function fetchSession(): Promise<Session> {
-  const response = await fetch("/api/session", {
-    cache: "no-store",
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-  });
-  if (!response.ok)
-    throw new Error(
-      `Your session could not be checked (HTTP ${response.status}). Reload to try again.`,
-    );
-  return sessionSchema.parse(await response.json());
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), sessionTimeoutMs);
+  let body: unknown;
+  try {
+    const response = await fetch("/api/session", {
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok)
+      throw new Error(
+        `Your session could not be checked (HTTP ${response.status}). Reload to try again.`,
+      );
+    body = await response.json();
+  } catch (error) {
+    // fetch rejects with a TypeError when the network fails.
+    if (controller.signal.aborted || error instanceof TypeError)
+      throw new ServerUnreachableError();
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+  return sessionSchema.parse(body);
 }
 
 // Resolves the current session, reusing a request already in flight. `force`
@@ -134,6 +166,7 @@ export function clearSession() {
       signIn: state.session?.signIn ?? defaultSignIn,
       twoFactorRequiredBy: [],
       attachments: state.session?.attachments ?? true,
+      email: state.session?.email ?? true,
       organizationDeletionGraceDays:
         state.session?.organizationDeletionGraceDays ?? 30,
     },
@@ -160,6 +193,12 @@ export function useSessionUser(): SessionUser {
   return user;
 }
 
+// Whether this person uses single-character shortcuts (WCAG 2.1.4: they can
+// be turned off). Shortcuts with Ctrl, Cmd or Alt do not depend on it.
+export function useSingleKeyShortcuts(): boolean {
+  return useSessionState().session?.user?.singleKeyShortcuts ?? true;
+}
+
 export function useAuthProviders(): AuthProviders {
   return useSessionState().session?.providers ?? noProviders;
 }
@@ -176,6 +215,11 @@ export function useTwoFactorRequiredBy() {
 // How long an organization stays locked before it is deleted.
 export function useOrganizationDeletionGraceDays(): number {
   return useSessionState().session?.organizationDeletionGraceDays ?? 30;
+}
+
+// False when the server sends no email: choices about email say so.
+export function useEmailAvailable(): boolean {
+  return useSessionState().session?.email ?? true;
 }
 
 // False when the server has no file storage: uploads are not offered.

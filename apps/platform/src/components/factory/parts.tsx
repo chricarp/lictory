@@ -1,11 +1,12 @@
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Factory, GitPullRequest } from "lucide-react";
 import {
   sessionTitle,
+  waitsForRunner,
   type AgentEntity,
   type SessionEntity,
 } from "@lictory/core/factory/entities";
-import { identifier } from "@lictory/core/lib/work-items";
+import { identifier, relativeTime } from "@lictory/core/lib/work-items";
 import { cn } from "@lictory/core/lib/utils";
 import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -24,9 +25,30 @@ import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import { sessionState } from "@lictory/platform/lib/session-state";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import { useFactory } from "@lictory/platform/components/factory/store";
+import { activeStatuses } from "@lictory/platform/components/factory/labels";
+import {
+  formatDuration,
+  sessionDuration,
+} from "@lictory/platform/components/factory/overview-blocks";
 
 // Pieces shared by the Factory's pages: the page frame (one header with the
 // Factory's tabs), who started a session, its state and its row.
+
+// How long a session has run, kept current while it runs: the timer counts
+// up each second instead of showing the time the page was first drawn.
+export function useSessionDuration(
+  session: Parameters<typeof sessionDuration>[0] | undefined,
+) {
+  const moving = Boolean(session?.startedAt) && !session?.completedAt;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!moving) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [moving]);
+  return session ? sessionDuration(session, moving ? now : undefined) : null;
+}
 
 export function FactoryPage({
   meta,
@@ -52,6 +74,7 @@ export function FactoryPage({
           label: "Overview",
           exact: true,
         },
+        { href: factoryPaths.sessions(org), label: "Sessions", exact: true },
         { href: factoryPaths.agents(org), label: "Agents" },
         { href: factoryPaths.runners(org), label: "Runners" },
       ]}
@@ -66,6 +89,9 @@ export function FactoryPage({
         meta={meta}
         tabs={<div className="max-sm:hidden">{tabs}</div>}
         actions={actions}
+        // New agent, Add runner: on phones the page's create replaces the
+        // shell's "+".
+        ownCreate={!!actions}
       />
       {/* Phones: the header keeps the title; the tabs get their own row. */}
       <div className="flex h-10 shrink-0 items-center border-b px-2 sm:hidden">
@@ -118,13 +144,15 @@ export function useDecider() {
 export function useSessionStateOf() {
   const claims = useLiveClaims();
   const decider = useDecider();
+  const { runners } = useFactory();
   return useCallback(
     (session: SessionEntity, agent: AgentEntity | undefined) =>
       sessionState(session, {
         claim: session.workItemId ? claims.get(session.workItemId) : null,
         decider: decider(session, agent),
+        noRunner: waitsForRunner(session, agent, runners),
       }),
-    [claims, decider],
+    [claims, decider, runners],
   );
 }
 
@@ -151,6 +179,13 @@ export function titleBeside(title: string, key: string | undefined) {
   return key && text.startsWith(`${key}: `) ? text.slice(key.length + 2) : text;
 }
 
+// A line of someone else's text (an agent's error) ended once, so copy can
+// follow it: "…already exists." + " Open it to retry.", never "exists..".
+export function asSentence(text: string) {
+  const trimmed = text.trim();
+  return /[.!?…:]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
 // What a finished session changed, in one line: its summary or why it
 // failed, and its pull request.
 export function sessionOutcome(
@@ -169,20 +204,77 @@ export function sessionOutcome(
 
 // One session in a list: the agent, the item key and title, who started it
 // (or what it changed, once finished), its state and when it last moved.
+// As a `log` row (the Sessions tab) every row has the same shape whatever its
+// state: who ran it, who started it, how long it ran and, once finished,
+// what came of it; its time is when it started, the list's order.
 export function SessionRow({
   session,
   agent,
   showOutcome = false,
+  log = false,
 }: {
   session: SessionEntity;
   agent: AgentEntity | undefined;
   showOutcome?: boolean;
+  log?: boolean;
 }) {
   const { organization } = useWorkspace();
   const stateOf = useSessionStateOf();
   const itemKey = useItemKey();
   const pullRequest = Boolean(session.pullRequestId ?? session.pullRequestUrl);
   const key = itemKey(session.workItemId);
+  const finished = !activeStatuses.includes(session.status);
+  const ran = useSessionDuration(session);
+  if (log)
+    return (
+      <ListRow
+        className="max-sm:[&>time]:hidden"
+        href={factoryPaths.session(organization.slug, session.id)}
+        leading={agent ? <AgentAvatar agent={agent} size={20} /> : undefined}
+        identifier={key}
+        title={titleBeside(session.title, key)}
+        meta={
+          <>
+            <AgentActor
+              agent={agent}
+              ownerId={agent?.ownerId}
+              avatar={false}
+              className="shrink-0"
+            />
+            <span className="flex shrink-0 items-center gap-1">
+              by <SessionStarter session={session} />
+            </span>
+            {ran !== null && (
+              <span className="shrink-0 tabular-nums">
+                {/* A session waiting on a person is open, not running. */}
+                {finished
+                  ? "ran "
+                  : session.status === "waiting"
+                    ? "open for "
+                    : "running "}
+                {formatDuration(ran)}
+              </span>
+            )}
+            {finished && (
+              <span className="min-w-0 truncate">
+                {sessionOutcome(session)}
+              </span>
+            )}
+            {pullRequest && (
+              <span className="flex shrink-0 items-center gap-1">
+                <GitPullRequest aria-hidden className="size-3" />
+                Pull request
+              </span>
+            )}
+          </>
+        }
+        chips={<SessionStateChip state={stateOf(session, agent)} />}
+        time={{
+          iso: session.createdAt,
+          label: `Started ${relativeTime(session.createdAt)}`,
+        }}
+      />
+    );
   return (
     <ListRow
       // Phones keep the title: the time gives way.
@@ -197,7 +289,6 @@ export function SessionRow({
             <span className="min-w-0 truncate">{sessionOutcome(session)}</span>
             {pullRequest && (
               <span className="flex shrink-0 items-center gap-1">
-                <span aria-hidden>·</span>
                 <GitPullRequest aria-hidden className="size-3" />
                 Pull request
               </span>
@@ -211,9 +302,9 @@ export function SessionRow({
               avatar={false}
               className="shrink-0"
             />
-            <span aria-hidden>·</span>
-            <span className="shrink-0">started by</span>
-            <SessionStarter session={session} />
+            <span className="flex shrink-0 items-center gap-1">
+              started by <SessionStarter session={session} />
+            </span>
           </>
         )
       }

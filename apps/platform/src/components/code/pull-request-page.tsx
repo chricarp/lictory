@@ -1,10 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import { MissingState } from "@lictory/ui/status-page";
 import {
   ArrowUpRight,
+  Bot,
   ChevronRight,
+  CircleCheck,
+  CircleX,
   FileDiff,
   GitMerge,
   Loader2,
+  Lock,
   MessageSquare,
 } from "lucide-react";
 import {
@@ -15,17 +20,18 @@ import {
 import { Tabs, TabsPanel } from "@ui-sdk/react/tabs";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type { CodePullRequestEntity } from "@lictory/core/code/entities";
-import { mergeBlockers } from "@lictory/core/code/merge-rules";
+import { mergeBlockers, reviewState } from "@lictory/core/code/merge-rules";
+import { effectiveDoneChecks } from "@lictory/core/claims/contracts";
 import type { CodePullRequestFile } from "@lictory/core/code/provider";
 import { codePullRequest } from "@lictory/core/contracts/state-machines";
 import { cn } from "@lictory/core/lib/utils";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { numberPatch } from "@lictory/platform/lib/patch";
+import { byType, relativeTime } from "@lictory/core/lib/work-items";
 import { Button } from "@lictory/ui/button";
 import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
-import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { Link, useParams } from "@lictory/platform/lib/navigation";
@@ -45,6 +51,7 @@ import {
   type MergeRequirement,
 } from "@lictory/platform/components/review/merge-box";
 import { Actor, AgentActor } from "@lictory/platform/components/identity/actor";
+import { CheckIcon } from "@lictory/platform/components/review/flow-ui";
 import { useFactory } from "@lictory/platform/components/factory/store";
 import {
   useCodeHosts,
@@ -61,6 +68,15 @@ import {
   shortSha,
 } from "@lictory/platform/components/code/parts";
 import { WriteStatus } from "@lictory/platform/components/code/write-status";
+import {
+  HostLogin,
+  UnlinkedLogins,
+  useLoginMember,
+} from "@lictory/platform/components/code/host-login";
+import {
+  pullRequestSnapshot,
+  useAnnouncePullRequests,
+} from "@lictory/platform/components/code/announce";
 import { PullRequestEvidence } from "@lictory/platform/components/code/pull-request-evidence";
 
 // One pull request: what it changes (the files are read from the host when
@@ -88,15 +104,21 @@ export function PullRequestPage() {
           }}
         />
         {complete ? (
-          <EmptyState title="This pull request is unavailable">
-            It may belong to a code host that was disconnected.{" "}
-            <Link
-              className="underline"
-              href={codePaths.index(organization.slug)}
-            >
-              Back to Code
-            </Link>
-          </EmptyState>
+          <MissingState
+            illustration="search"
+            headingLevel={2}
+            title="This pull request is unavailable"
+            action={
+              <Button
+                variant="secondary"
+                render={<Link href={codePaths.index(organization.slug)} />}
+              >
+                Back to Code
+              </Button>
+            }
+          >
+            It may belong to a code host that was disconnected.
+          </MissingState>
         ) : (
           <LoadingState label="Loading the pull request" />
         )}
@@ -108,9 +130,15 @@ export function PullRequestPage() {
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
-  const { organization } = useWorkspace();
+  const { organization, userId } = useWorkspace();
   const { agentById } = useFactory();
   const noun = changeNoun(pr.provider);
+  // Check results and the merge are announced while the page is open.
+  const snapshot = useMemo(
+    () => [pullRequestSnapshot(pr, noun, userId)],
+    [pr, noun, userId],
+  );
+  useAnnouncePullRequests(snapshot);
   const [tab, setTab] = useState<"conversation" | "files">("conversation");
   const agent = pr.agentId ? agentById.get(pr.agentId) : undefined;
   const author = useLoginOwner(pr.authorLogin);
@@ -147,7 +175,11 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
         <Tabs
           value={tab}
           onValueChange={(next) => next && setTab(next)}
-          className="mx-auto grid max-w-6xl gap-x-8 gap-y-6 px-4 pt-6 pb-12 sm:px-8 lg:grid-cols-[minmax(0,1fr)_19rem]"
+          className={cn(
+            "mx-auto grid max-w-6xl gap-x-8 gap-y-6 px-4 pt-6 pb-12 sm:px-8",
+            // Code review needs width: the diff takes the rail's column.
+            tab === "conversation" && "lg:grid-cols-[minmax(0,1fr)_19rem]",
+          )}
         >
           <div className="min-w-0 space-y-6">
             <PullRequestHeader
@@ -156,25 +188,29 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
               author={
                 agent ? (
                   <AgentActor agent={agent} ownerId={pr.openedById} size={20} />
-                ) : (author ?? pr.openedById) ? (
-                  <Actor userId={author ?? pr.openedById} size={20} />
+                ) : !author && pr.openedById ? (
+                  <Actor userId={pr.openedById} size={20} />
                 ) : (
-                  <span>{pr.authorLogin ?? "unknown"}</span>
+                  <HostLogin login={pr.authorLogin} provider={pr.provider} />
                 )
               }
+              mergedBy={<Merger pr={pr} />}
               base={pr.baseBranch}
               head={pr.headBranch}
               meta={
                 <>
-                  <span aria-hidden>·</span>
-                  <span>
-                    head{" "}
+                  {/* Each dot travels with the fact after it, so a wrap
+                      never leaves a dot dangling at a line's end. */}
+                  <span className="whitespace-nowrap">
+                    <span aria-hidden>· </span>head{" "}
                     <code className="font-mono text-xs">
                       {shortSha(pr.headSha)}
                     </code>
                   </span>
-                  <span aria-hidden>·</span>
-                  <span>updated {relativeTime(pr.hostUpdatedAt)}</span>
+                  <span className="whitespace-nowrap">
+                    <span aria-hidden>· </span>updated{" "}
+                    {relativeTime(pr.hostUpdatedAt)}
+                  </span>
                 </>
               }
               tabs={
@@ -217,6 +253,7 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
           </div>
           <aside
             aria-label="Evidence"
+            hidden={tab !== "conversation"}
             className="flex min-w-0 flex-col gap-4 lg:pt-1"
           >
             <PullRequestEvidence pr={pr} />
@@ -227,11 +264,40 @@ function PullRequestView({ pr }: { pr: CodePullRequestEntity }) {
   );
 }
 
+// Who merged it: the person who merged from Lictory (with the agent they
+// merged through), Autopilot under its policy, or the host's login (the
+// member who claimed it, when one did).
+function Merger({ pr }: { pr: CodePullRequestEntity }) {
+  if (pr.mergeRequestedById) {
+    if (pr.mergedVia?.startsWith("Autopilot"))
+      return (
+        <span title={pr.mergedVia} className="inline-flex items-center gap-1">
+          <Bot aria-hidden className="size-4" />
+          Autopilot
+        </span>
+      );
+    return (
+      <>
+        {pr.mergedVia && <span className="mr-1">{pr.mergedVia} via</span>}
+        <Actor userId={pr.mergeRequestedById} size={20} />
+      </>
+    );
+  }
+  if (pr.mergedByLogin)
+    return <HostLogin login={pr.mergedByLogin} provider={pr.provider} />;
+  return <span>Someone on {providerLabels[pr.provider]}</span>;
+}
+
 // The checks, reviews and conflicts the merge depends on, as requirements
-// in words. `mergeBlockers` is the rule; these rows explain it.
+// in words. `mergeBlockers` is the rule; these rows explain it. Reviews
+// recorded in Lictory (a person's, or an agent's with the person it acts
+// for) count beside the host's.
 function requirements(
   pr: CodePullRequestEntity,
   memberName: (id: string | null) => string,
+  ciRequired: boolean,
+  // A host login as the member who linked it, else the login itself.
+  loginName: (login: string) => string = (login) => login,
 ): MergeRequirement[] {
   const rows: MergeRequirement[] = [];
   if (pr.draft)
@@ -249,66 +315,101 @@ function requirements(
           key: "checks",
           state: "success",
           text: "Checks passed.",
-          detail: runs.length > 0 && <CheckRuns runs={runs} />,
+          detail: runs.length > 0 && <CheckRuns runs={runs} pr={pr} />,
         }
       : pr.checks.state === "failure"
         ? {
             key: "checks",
             state: "failure",
             text: `Checks are failing (${failing.length} of ${runs.length}).`,
-            detail: <CheckRuns runs={runs} />,
+            detail: <CheckRuns runs={runs} pr={pr} />,
           }
         : pr.checks.state === "pending"
           ? {
               key: "checks",
               state: "running",
               text: `Checks are still running (${running.length} of ${runs.length}).`,
-              detail: <CheckRuns runs={runs} />,
+              detail: <CheckRuns runs={runs} pr={pr} />,
             }
-          : {
-              key: "checks",
-              state: "neutral",
-              text: "The code host reports no checks.",
-            },
+          : ciRequired
+            ? {
+                // The work it delivers is Done only with green CI: no
+                // check is no evidence, so the merge waits, as Autopilot's.
+                key: "checks",
+                state: "pending",
+                text: `Waiting for CI: the code host has reported no checks for ${shortSha(pr.headSha)}.`,
+                detail:
+                  "The Definition of Done of the work it delivers requires CI to pass.",
+              }
+            : {
+                key: "checks",
+                state: "neutral",
+                text: `The code host has reported no checks for ${shortSha(pr.headSha)}.`,
+                detail:
+                  "No check is no evidence that CI passed. If this repository runs CI, wait for it to report.",
+              },
   );
-  const lictoryReviewers = pr.reviews
-    .filter((r) => r.current && r.decision === "approve")
-    .map((r) =>
-      r.agentName
-        ? `${r.agentName} via ${memberName(r.reviewerId)}`
-        : memberName(r.reviewerId),
-    );
-  const approvers = [...pr.approvedBy, ...lictoryReviewers];
+  const reviewer = (r: CodePullRequestEntity["reviews"][number]) =>
+    r.agentName
+      ? `${r.agentName} via ${memberName(r.reviewerId)}`
+      : memberName(r.reviewerId);
+  const current = pr.reviews.filter((r) => r.current);
+  const lictoryApprovals = current.filter((r) => r.decision === "approve");
+  const lictoryChanges = current
+    .filter((r) => r.decision === "request_changes")
+    .map(reviewer);
+  const approvers = [
+    ...pr.approvedBy.map(loginName),
+    ...lictoryApprovals.map(reviewer),
+  ];
+  // Approvals on the host are people's logins; in Lictory, a review without
+  // an agent is a person's.
+  const personApproved =
+    pr.approvedBy.length > 0 || lictoryApprovals.some((r) => !r.agentId);
+  const asked =
+    pr.requestedReviewers.length > 0 &&
+    `Asked: ${pr.requestedReviewers.map(loginName).join(", ")}.`;
+  const decision = reviewState(pr);
   rows.push(
-    pr.reviewDecision === "approved"
+    decision === "changes_requested"
       ? {
           key: "reviews",
-          state: "success",
-          text: "Approved.",
-          detail: approvers.length > 0 && `By ${approvers.join(", ")}.`,
+          state: "failure",
+          text: "A reviewer requested changes.",
+          detail:
+            lictoryChanges.length > 0
+              ? `${lictoryChanges.join(", ")} requested changes at ${shortSha(pr.headSha)}.`
+              : `On ${providerLabels[pr.provider]}.`,
         }
-      : pr.reviewDecision === "changes_requested"
+      : approvers.length > 0
         ? {
             key: "reviews",
-            state: "failure",
-            text: "A reviewer requested changes.",
+            state: "success",
+            text: `Approved at ${shortSha(pr.headSha)}.`,
+            detail: [
+              `By ${approvers.join(", ")}.`,
+              // Allowed by policy, but said plainly: an agent's approval is
+              // not a person reading the code.
+              !personApproved && "No person has reviewed this code.",
+              pr.reviewDecision === "review_required" &&
+                "The code host still asks for a review of its own.",
+            ]
+              .filter(Boolean)
+              .join(" "),
           }
-        : pr.reviewDecision === "review_required"
+        : decision === "review_required"
           ? {
               key: "reviews",
               state: "pending",
-              text: "A review is required.",
-              detail:
-                pr.requestedReviewers.length > 0 &&
-                `Asked: ${pr.requestedReviewers.join(", ")}.`,
+              text: "The code host requires a review.",
+              detail: asked || undefined,
             }
           : {
+              // Informative: nothing makes the merge wait for a review.
               key: "reviews",
               state: "neutral",
-              text: "No reviews yet.",
-              detail:
-                pr.requestedReviewers.length > 0 &&
-                `Asked: ${pr.requestedReviewers.join(", ")}.`,
+              text: "Nobody has reviewed this commit. Merging does not wait for a review.",
+              detail: asked || undefined,
             },
   );
   rows.push(
@@ -333,11 +434,72 @@ function requirements(
   return rows;
 }
 
+// Whether the work this pull request delivers requires CI to pass: a
+// linked item's project keeps "Required CI checks passed" in its Definition
+// of Done (the default). The merge command applies the same rule.
+function useCiRequired(pr: CodePullRequestEntity) {
+  const { view } = useWorkspace();
+  const projectIds = [...new Set(pr.links.map((l) => l.projectId))];
+  const stored = byType(Object.values(view.entities), "definitionOfDone");
+  return projectIds.some((id) =>
+    effectiveDoneChecks(stored.find((d) => d.projectId === id)).some(
+      (c) => c.kind === "checks_passed",
+    ),
+  );
+}
+
+// Under "Ready to merge": what the evidence is, never more. Nothing blocks
+// the merge, but missing evidence is named ("no checks reported").
+function readySummary(
+  rows: readonly MergeRequirement[],
+  target: string,
+  // Set when only agents approved: under Build a person merges, and the
+  // headline they read says who approved, not "it is approved".
+  agentsOnly: string | null,
+): string {
+  const missing: string[] = [];
+  for (const r of rows) {
+    if (r.state === "success") continue;
+    if (r.key === "checks") missing.push("no checks were reported");
+    else if (r.key === "reviews")
+      missing.push(
+        r.state === "pending"
+          ? "the code host still requires a review"
+          : "nobody approved it",
+      );
+    else if (r.key === "conflicts") missing.push("conflicts are not known yet");
+  }
+  if (!missing.length)
+    return agentsOnly
+      ? `Checks passed and it merges cleanly into ${target}. Only an agent approved it (${agentsOnly}): no person has reviewed this code.`
+      : `Checks passed, it is approved and it merges cleanly into ${target}.`;
+  const list =
+    missing.length === 1
+      ? missing[0]
+      : `${missing.slice(0, -1).join(", ")} and ${missing.at(-1)}`;
+  return `Nothing blocks merging into ${target}, but ${list}.`;
+}
+
+// Each run links to its details on the host; a run the host gave no link
+// for opens the pull request's checks there.
+const runWords: Record<
+  CodePullRequestEntity["checks"]["runs"][number]["state"],
+  string
+> = {
+  success: "passed",
+  failure: "failed",
+  pending: "running",
+  neutral: "skipped",
+};
+
 function CheckRuns({
   runs,
+  pr,
 }: {
   runs: CodePullRequestEntity["checks"]["runs"];
+  pr: Pick<CodePullRequestEntity, "provider" | "webUrl">;
 }) {
+  const fallback = hostChecksUrl(pr);
   return (
     <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
       {runs.map((run) => (
@@ -346,14 +508,23 @@ function CheckRuns({
             state={run.state === "neutral" ? "none" : run.state}
             label={run.state === "neutral" ? "Skipped" : undefined}
           />
-          {run.url ? (
+          {(run.url ?? fallback) ? (
+            // Visibly a link: the next step after a red check is its log.
             <a
-              href={run.url}
+              href={run.url ?? fallback}
               target="_blank"
               rel="noreferrer"
-              className="rounded-sm underline-offset-2 focus-ring outline-none hover:text-foreground hover:underline"
+              className="inline-flex items-center gap-0.5 rounded-sm underline decoration-muted-foreground/40 underline-offset-2 focus-ring outline-none hover:text-foreground hover:decoration-current"
             >
               {run.name}
+              {/* Out of context (a links list) the name still says how
+                  it went and where it opens. */}
+              <span className="sr-only">
+                {" "}
+                ({runWords[run.state]}; {run.url ? "its run" : "the checks"} on{" "}
+                {providerLabels[pr.provider]})
+              </span>
+              <ArrowUpRight aria-hidden className="size-3" />
             </a>
           ) : (
             <span>{run.name}</span>
@@ -363,6 +534,18 @@ function CheckRuns({
       ))}
     </ul>
   );
+}
+
+function hostChecksUrl(
+  pr: Pick<CodePullRequestEntity, "provider" | "webUrl">,
+): string | undefined {
+  if (!pr.webUrl) return undefined;
+  const base = pr.webUrl.replace(/\/$/, "");
+  return pr.provider === "github"
+    ? `${base}/checks`
+    : pr.provider === "gitlab"
+      ? `${base}/pipelines`
+      : base;
 }
 
 function useCanWork(pr: CodePullRequestEntity) {
@@ -397,14 +580,50 @@ function useCall(pr: CodePullRequestEntity) {
 
 function Merge({ pr }: { pr: CodePullRequestEntity }) {
   const { memberName } = useWorkspace();
+  const memberOf = useLoginMember();
+  const loginName = (login: string) => {
+    const member = memberOf(login);
+    return member ? memberName(member) : login;
+  };
+  // Host logins this box names that no member has linked: said once below.
+  const unlinked = (
+    <UnlinkedLogins
+      provider={pr.provider}
+      logins={[
+        ...pr.approvedBy,
+        ...pr.requestedReviewers,
+        pr.mergeRequestedById ? null : pr.mergedByLogin,
+      ]}
+    />
+  );
   const writes = useCodeWrites().filter((w) => w.pullRequestId === pr.id);
   const canWork = useCanWork(pr);
   const [method, setMethod] = useState<"merge" | "squash" | "rebase">(
     pr.provider === "gitlab" ? "merge" : "squash",
   );
   const [confirming, setConfirming] = useState(false);
+  const noteId = useId();
   const { call, error } = useCall(pr);
-  const blockers = mergeBlockers(pr);
+  const ciRequired = useCiRequired(pr);
+  const blockers = mergeBlockers({ ...pr, ciRequired });
+  const rows = requirements(pr, memberName, ciRequired, loginName);
+  const agentApprovals = pr.reviews.filter(
+    (r) => r.current && r.decision === "approve",
+  );
+  const agentsOnly =
+    pr.approvedBy.length === 0 &&
+    agentApprovals.length > 0 &&
+    agentApprovals.every((r) => r.agentId)
+      ? [
+          ...new Set(
+            agentApprovals.map(
+              (r) =>
+                `${r.agentName ?? "an agent"} via ${memberName(r.reviewerId)}`,
+            ),
+          ),
+        ].join(" and ")
+      : null;
+  const autopilot = useAutopilotGoverns(pr);
   const merging = writes.some(
     (w) => w.kind === "merge" && w.status !== "failed",
   );
@@ -424,10 +643,28 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
                 ? ` by ${pr.mergedVia}.`
                 : ` from Lictory by ${pr.mergedVia ? `${pr.mergedVia} via ` : ""}${memberName(pr.mergeRequestedById)}.`
               : pr.mergedByLogin
-                ? ` by ${pr.mergedByLogin} on the code host.`
+                ? ` by ${loginName(pr.mergedByLogin)} on the code host.`
                 : "."}
           </p>
+          {/* What the merge rested on: the head's checks and reviews. */}
+          <ul
+            aria-label="Merged on"
+            className="mt-2 space-y-1 text-xs text-muted-foreground"
+          >
+            {requirements(pr, memberName, false, loginName)
+              .filter((r) => r.key !== "conflicts")
+              .map((r) => (
+                <li key={r.key} className="flex items-start gap-2">
+                  <CheckIcon state={r.state} className="mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-foreground">{r.text}</p>
+                    {r.detail && <div>{r.detail}</div>}
+                  </div>
+                </li>
+              ))}
+          </ul>
         </MergedNotice>
+        {unlinked}
       </div>
     );
   if (pr.state === "closed")
@@ -445,17 +682,27 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
       {status}
       <MergeBox
         target={pr.baseBranch}
-        requirements={requirements(pr, memberName)}
+        requirements={rows}
         blocked={blockers.length > 0}
-        readySummary={`Checks, reviews and conflicts allow merging into ${pr.baseBranch}.`}
+        readySummary={readySummary(rows, pr.baseBranch, agentsOnly)}
+        before={autopilot && <AutopilotWaits pr={pr} />}
+        noteId={noteId}
         note={
-          !canWork
-            ? "Merging here needs “Change properties” in a project this repository serves."
-            : confirming
-              ? `Lictory merges head ${shortSha(pr.headSha)} as you see it here; if new commits arrive first, the merge is refused. The code host’s branch protection still applies.`
-              : blockers.length > 0
-                ? "Merge once every requirement above is met."
-                : "The code host’s branch protection still applies."
+          !canWork ? (
+            "Merging here needs “Change properties” in a project this repository serves."
+          ) : confirming ? (
+            <>
+              <span className="font-medium text-foreground">
+                Merge exactly {shortSha(pr.headSha)}?
+              </span>{" "}
+              New commits arriving first refuse the merge; the code host’s
+              branch protection still applies.
+            </>
+          ) : blockers.length > 0 ? (
+            "Merge once every requirement above is met."
+          ) : (
+            "The code host’s branch protection still applies."
+          )
         }
         action={
           canWork && (
@@ -500,10 +747,17 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
               ) : (
                 <Button
                   disabled={!!blockers.length || merging}
+                  // Blocked, it stays in the tab order and says why.
+                  focusableWhenDisabled
+                  aria-describedby={blockers.length ? noteId : undefined}
                   onClick={() => setConfirming(true)}
                 >
                   {merging ? (
                     <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                  ) : blockers.length ? (
+                    // Blocked reads in the shape, not only in a lighter
+                    // colour: a lock instead of the merge mark.
+                    <Lock className="size-3.5" aria-hidden />
                   ) : (
                     <GitMerge className="size-3.5" aria-hidden />
                   )}
@@ -519,67 +773,143 @@ function Merge({ pr }: { pr: CodePullRequestEntity }) {
           {error}
         </p>
       )}
+      {unlinked}
+    </div>
+  );
+}
+
+// Whether Autopilot merges this pull request by itself: an agent's pull
+// request delivering an item of a project on Autopilot.
+function useAutopilotGoverns(pr: CodePullRequestEntity) {
+  const { view } = useWorkspace();
+  if (!(pr.agentSessionId ?? pr.agentId)) return null;
+  const projectIds = new Set(pr.links.map((l) => l.projectId));
+  return (
+    byType(Object.values(view.entities), "autonomyPolicy").find(
+      (p) => projectIds.has(p.projectId) && p.level === "autopilot",
+    ) ?? null
+  );
+}
+
+// What Autopilot waits for before it merges, in the merge box: a person
+// sees why nothing has happened yet, and that a missing check is waited
+// for, never taken as a pass.
+function AutopilotWaits({ pr }: { pr: CodePullRequestEntity }) {
+  const policy = useAutopilotGoverns(pr);
+  const { agentById } = useFactory();
+  if (!policy) return null;
+  const reviewer = policy.reviewerAgentId
+    ? (agentById.get(policy.reviewerAgentId)?.name ?? "the reviewer agent")
+    : null;
+  const conditions = [
+    `the code host reports passing checks on ${shortSha(pr.headSha)}`,
+    policy.autopilotRequires.includes("code_review_approved") && reviewer
+      ? `${reviewer} approves it`
+      : null,
+    policy.autopilotRequires.includes("definition_of_done")
+      ? "every other Definition of Done check passes"
+      : null,
+  ].filter((c): c is string => Boolean(c));
+  const waiting =
+    pr.checks.state === "none"
+      ? "Waiting: the code host has reported no checks for this commit yet."
+      : pr.checks.state === "pending"
+        ? "Waiting: checks are still running."
+        : pr.checks.state === "failure"
+          ? "Checks are failing, so Autopilot will not merge this commit."
+          : null;
+  return (
+    <div className="flex items-start gap-2 text-xs" data-autopilot-waits>
+      <Bot aria-hidden className="mt-px size-3.5 shrink-0" />
+      <p>
+        <span className="font-medium">Autopilot</span> merges this when{" "}
+        {conditions.length > 1
+          ? `${conditions.slice(0, -1).join(", ")} and ${conditions.at(-1)}`
+          : conditions[0]}
+        .{waiting && <span className="text-muted-foreground"> {waiting}</span>}
+      </p>
     </div>
   );
 }
 
 // A comment for the code host, written in the shared editor and signed
-// with the person's name there; closing and reopening sit beside it.
+// with the person's name there, or the person's review of the head commit:
+// recorded in Lictory (as agents' reviews are) and shown on the host,
+// signed. Closing and reopening sit beside it.
 function Discussion({ pr }: { pr: CodePullRequestEntity }) {
   const canWork = useCanWork(pr);
+  // The host shows the connection's account as the author; Lictory signs
+  // the text with the person's name.
+  const { repositories, connections } = useCodeHosts();
+  const account = connections.find(
+    (c) =>
+      c.id === repositories.find((r) => r.id === pr.repositoryId)?.connectionId,
+  )?.accountLabel;
   const [comment, setComment] = useState("");
   const { call, error } = useCall(pr);
   const editor = useRef<MarkdownEditorHandle>(null);
   if (!canWork) return null;
   const noun = changeNoun(pr.provider);
+  const host = providerLabels[pr.provider];
+  const canReview = codePullRequest.allows(pr.state, "review");
   const send = async () => {
     if (!comment.trim()) return;
     if (await call("commentOnCodePullRequest", { body: comment.trim() }))
       setComment("");
   };
+  const review = async (decision: "approve" | "request_changes") => {
+    if (
+      await call("reviewCodePullRequest", {
+        decision,
+        body: comment.trim() || undefined,
+        // The head the person read: a newer one refuses the review.
+        expectedHeadSha: pr.headSha,
+      })
+    )
+      setComment("");
+  };
   return (
     <form
-      aria-label="Comment"
+      aria-label="Comment or review"
       className="space-y-2"
       onSubmit={(e) => {
         e.preventDefault();
         void send();
       }}
     >
-      {/* The shared composer's frame: the rich editor with its toolbar,
-          the action at its end (as in channels and sessions). */}
-      <div className="flex items-end gap-1 rounded-xl border bg-card pr-1.5 pb-1.5 shadow-xs transition-shadow focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10">
-        <div className="min-w-0 flex-1">
-          <MarkdownEditor
-            ref={editor}
-            value={comment}
-            onValueChange={setComment}
-            onSubmit={() => void send()}
-            references={false}
-            compact
-            minHeight="3rem"
-            maxHeight="20rem"
-            placeholder={`Comment on ${providerLabels[pr.provider]}`}
-            aria-label="Comment"
-            aria-describedby="code-comment-hint"
-            containerClassName="rounded-xl border-0 bg-transparent ring-0 focus-within:border-transparent focus-within:ring-0"
-          />
-        </div>
-        <Button type="submit" size="sm" disabled={!comment.trim()}>
-          Comment
-        </Button>
+      {/* The shared composer's frame: the rich editor with its toolbar. */}
+      <div className="rounded-xl border border-input bg-card shadow-xs transition-shadow focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10">
+        <MarkdownEditor
+          ref={editor}
+          value={comment}
+          onValueChange={setComment}
+          onSubmit={() => void send()}
+          references={false}
+          compact
+          minHeight="3rem"
+          maxHeight="20rem"
+          // One short line: a longer prompt wrapped under the toolbar on
+          // phones.
+          placeholder={`Comment on ${host}`}
+          aria-label="Comment"
+          aria-describedby="code-comment-hint"
+          containerClassName="rounded-xl border-0 bg-transparent ring-0 focus-within:border-transparent focus-within:ring-0"
+        />
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <p
-          id="code-comment-hint"
-          className="mr-auto px-1 text-xs text-muted-foreground"
-        >
-          Posted on {providerLabels[pr.provider]}, signed with your name.
-        </p>
+      {/* A full-width line on where it goes and how it is signed, then one
+          decision row: closing apart on the left, the review decisions
+          alike, and posting the comment as the one primary action. */}
+      <p id="code-comment-hint" className="px-1 text-xs text-muted-foreground">
+        {`Posted on ${host}${account ? ` as ${account}` : ""}, signed with your name.`}
+        {canReview &&
+          ` Approve or Request changes records one review of ${shortSha(pr.headSha)} in Lictory, which the merge box counts, and posts it there too; say what must change to request changes.`}
+      </p>
+      <div className="flex flex-wrap items-center justify-end gap-1.5">
         {codePullRequest.allows(pr.state, "close") && (
           <Button
             variant="ghost"
             type="button"
+            className="mr-auto"
             onClick={() => call("setCodePullRequestState", { state: "closed" })}
           >
             Close {noun}
@@ -590,11 +920,40 @@ function Discussion({ pr }: { pr: CodePullRequestEntity }) {
             <Button
               variant="ghost"
               type="button"
+              className="mr-auto"
               onClick={() => call("setCodePullRequestState", { state: "open" })}
             >
               Reopen
             </Button>
           )}
+        {canReview && (
+          <>
+            <Button
+              variant="secondary"
+              type="button"
+              // Changes are requested with what must change; until then it
+              // stays in the tab order, described by the line that says so.
+              disabled={!comment.trim()}
+              focusableWhenDisabled
+              aria-describedby="code-comment-hint"
+              onClick={() => void review("request_changes")}
+            >
+              <CircleX aria-hidden className="size-3.5" />
+              Request changes
+            </Button>
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => void review("approve")}
+            >
+              <CircleCheck aria-hidden className="size-3.5" />
+              Approve
+            </Button>
+          </>
+        )}
+        <Button type="submit" disabled={!comment.trim()}>
+          Comment
+        </Button>
       </div>
       {error && (
         <p role="alert" className="text-xs text-destructive">
@@ -698,21 +1057,50 @@ function FilesChanged({
                 </CollapsibleTrigger>
                 <CollapsiblePanel>
                   {f.patch ? (
-                    <pre className="overflow-x-auto border-t text-xs leading-5">
-                      {f.patch.split("\n").map((line, i) => (
-                        <div
-                          key={i}
-                          className={cn(
-                            "px-3 font-mono whitespace-pre",
-                            line.startsWith("+") && "bg-success/10",
-                            line.startsWith("-") && "bg-destructive/10",
-                            line.startsWith("@@") &&
-                              "bg-muted text-muted-foreground",
-                          )}
-                        >
-                          {line || " "}
-                        </div>
-                      ))}
+                    // Old and new line numbers in a gutter, then the line.
+                    <pre
+                      role="group"
+                      aria-label={`Diff of ${f.path}`}
+                      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region needs a tab stop to scroll with arrow keys
+                      tabIndex={0}
+                      className="grid grid-cols-[auto_auto_1fr] overflow-x-auto border-t font-mono text-xs leading-5 focus-ring-inset outline-none"
+                    >
+                      {numberPatch(f.patch).map((line, i) => {
+                        const tone = cn(
+                          line.kind === "add" && "bg-success/10",
+                          line.kind === "delete" && "bg-destructive/10",
+                          line.kind === "hunk" &&
+                            "bg-muted text-muted-foreground",
+                          line.kind === "note" && "text-muted-foreground",
+                        );
+                        return (
+                          <Fragment key={i}>
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "min-w-10 pr-2 pl-3 text-right text-muted-foreground tabular-nums select-none",
+                                tone,
+                              )}
+                            >
+                              {line.old ?? ""}
+                            </span>
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "min-w-10 border-r pr-2 text-right text-muted-foreground tabular-nums select-none",
+                                tone,
+                              )}
+                            >
+                              {line.new ?? ""}
+                            </span>
+                            <span
+                              className={cn("pr-3 pl-2 whitespace-pre", tone)}
+                            >
+                              {line.text || " "}
+                            </span>
+                          </Fragment>
+                        );
+                      })}
                     </pre>
                   ) : (
                     <p className="border-t px-3 py-2 text-xs text-muted-foreground">

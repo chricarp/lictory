@@ -43,6 +43,12 @@ import { shortRange } from "@lictory/platform/components/items/delivery-properti
 import { estimateLabel } from "@lictory/platform/components/delivery/card";
 import { BacklogRow } from "@lictory/platform/components/delivery/backlog";
 import {
+  MoveMenu,
+  refocusMoved,
+} from "@lictory/platform/components/delivery/move-menu";
+import { rankNeighbours } from "@lictory/platform/components/delivery/move";
+import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/store";
+import {
   ItemPeek,
   useItemPeek,
 } from "@lictory/platform/components/delivery/item-peek";
@@ -98,6 +104,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
   } = useWorkspace();
   const { openCreate } = useShell();
   const capabilities = capabilitiesIn(project.id);
+  const pullRequests = useOpenPullRequestsByItem();
   const canTriage = capabilities.changeProperties;
   const canCreate =
     capabilities.editSpecifications || capabilities.changeProperties;
@@ -378,6 +385,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                         <BacklogRow
                           item={item}
                           {...peekProps(item)}
+                          pullRequests={pullRequests.get(item.id)}
                           label={identifier(project, item.number)}
                           href={hrefOf(item)}
                           estimate={estimateLabel(project, item.estimate)}
@@ -391,6 +399,27 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                           actions={
                             canTriage ? (
                               <>
+                                <MoveMenu
+                                  itemId={item.id}
+                                  label={identifier(project, item.number)}
+                                  index={index}
+                                  count={backlog.length}
+                                  where={`${team.name} backlog`}
+                                  onRank={(to) => {
+                                    const neighbours = rankNeighbours(
+                                      backlog.map((r) => r.id),
+                                      item.id,
+                                      to,
+                                    );
+                                    if (!neighbours) return;
+                                    void mutate({
+                                      type: "rankWorkItem",
+                                      workItemId: item.id,
+                                      ...neighbours,
+                                    });
+                                    refocusMoved(item.id);
+                                  }}
+                                />
                                 {planPicker(item)}
                                 <Button
                                   variant="ghost"
@@ -503,6 +532,7 @@ function TeamBacklogView({ project, team }: { project: Project; team: Team }) {
                         <BacklogRow
                           item={item}
                           {...peekProps(item)}
+                          pullRequests={pullRequests.get(item.id)}
                           label={identifier(project, item.number)}
                           href={hrefOf(item)}
                           estimate={estimateLabel(project, item.estimate)}

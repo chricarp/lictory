@@ -105,6 +105,8 @@ export function ChannelBrowser() {
         <PageHeader
           title="Channels"
           icon={<Hash />}
+          ownSearch
+          ownCreate
           meta={
             loaded && (
               <span>
@@ -370,7 +372,7 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
             id={ids.name}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="payments"
+            placeholder="e.g. payments"
             data-autofocus
           />
         </Field>

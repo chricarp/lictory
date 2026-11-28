@@ -30,11 +30,17 @@ import {
 import { Kbd } from "@lictory/ui/primitives";
 import { PersonAvatar } from "@lictory/platform/components/identity/actor";
 import { Link, usePathname, useRouter } from "@lictory/platform/lib/navigation";
-import { useSessionState } from "@lictory/platform/lib/session";
+import {
+  useSessionState,
+  useSingleKeyShortcuts,
+} from "@lictory/platform/lib/session";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { SyncStatus } from "@lictory/platform/components/workspace/sync-status";
 import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
-import { navSections } from "@lictory/platform/components/shell/nav-registry";
+import {
+  navSections,
+  topSections,
+} from "@lictory/platform/components/shell/nav-registry";
 import { useNavBadges } from "@lictory/platform/components/shell/nav-badges";
 import {
   CompactSidebarContext,
@@ -84,6 +90,7 @@ export function Sidebar({
     () => (isMac() ? "⌘K" : "Ctrl K"),
     () => "Ctrl K",
   );
+  const singleKey = useSingleKeyShortcuts();
   return (
     <CompactSidebarContext value={compact}>
       <div
@@ -101,9 +108,9 @@ export function Sidebar({
               !compact && "max-lg:hidden",
             )}
             data-sidebar-toggle
-            aria-keyshortcuts="["
+            aria-keyshortcuts={singleKey ? "[" : undefined}
             aria-label={compact ? "Expand app sidebar" : "Collapse app sidebar"}
-            title={`${compact ? "Expand app sidebar" : "Collapse app sidebar"}  [`}
+            title={`${compact ? "Expand app sidebar" : "Collapse app sidebar"}${singleKey ? "  [" : ""}`}
             aria-expanded={!compact}
             aria-controls={sidebarId}
             onClick={onCollapse}
@@ -125,7 +132,9 @@ export function Sidebar({
         <button
           type="button"
           aria-label={compact ? "Search Lictory" : undefined}
-          aria-keyshortcuts="Meta+K Control+K /"
+          aria-keyshortcuts={
+            singleKey ? "Meta+K Control+K /" : "Meta+K Control+K"
+          }
           title={compact ? `Search  ${shortcut}` : undefined}
           onClick={onSearch}
           className={cn(
@@ -139,7 +148,11 @@ export function Sidebar({
           {!compact && (
             <>
               <span className="min-w-0 flex-1 truncate text-left">Search…</span>
-              <span aria-hidden className="flex items-center gap-0.5">
+              {/* No keyboard hint where the screen is the pointer. */}
+              <span
+                aria-hidden
+                className="flex items-center gap-0.5 max-sm:hidden [@media(pointer:coarse)]:hidden"
+              >
                 <Kbd>{shortcut}</Kbd>
               </span>
             </>
@@ -149,14 +162,13 @@ export function Sidebar({
           <button
             type="button"
             aria-label="Create work item"
-            title="New item  C"
-            aria-keyshortcuts="C"
+            title={singleKey ? "New item  C" : "New item"}
+            aria-keyshortcuts={singleKey ? "C" : undefined}
             onClick={onCreate}
             className={cn(
               "grid size-8 shrink-0 place-items-center rounded-lg focus-ring outline-none",
-              compact
-                ? "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground"
-                : "bg-sidebar-accent text-foreground shadow-(--shadow-border) hover:shadow-(--shadow-border-hover)",
+              // An action beside the search field, not a second field.
+              "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
             )}
           >
             <SquarePen className="size-4" aria-hidden />
@@ -169,7 +181,7 @@ export function Sidebar({
       <nav
         aria-label="Workspace"
         className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-2",
+          "flex min-h-0 flex-1 [scrollbar-width:thin] flex-col overflow-y-auto overscroll-contain px-2 pb-2",
           compact ? "items-center gap-1.5" : "gap-3.5",
         )}
       >
@@ -180,8 +192,8 @@ export function Sidebar({
             className={cn(
               "space-y-0.5",
               compact && "flex flex-col items-center",
-              // Home and Inbox sit together at the top.
-              !compact && index === 1 && "-mt-3",
+              // The single-row destinations sit together at the top.
+              !compact && index > 0 && index < topSections && "-mt-3",
             )}
           >
             <section.Section badge={badges.get(section.id) ?? null} />

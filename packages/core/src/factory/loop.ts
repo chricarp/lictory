@@ -318,6 +318,150 @@ const endReasons: Record<string, string> = {
   definition_of_done: "its Definition of Done passed",
 };
 
+const hostNames = {
+  github: "GitHub",
+  gitlab: "GitLab",
+  bitbucket: "Bitbucket",
+};
+
+// "PAY-4 is Done: its Definition of Done passed. Pull request #3 was merged
+// by Bo Lind. Delivered revision 2." From Lictory's own records: the item,
+// the claim's delivered revision and the session's pull request as the Code
+// module mirrors it. Who merged: the person who merged from Lictory, or
+// Autopilot with its policy's administrator; the host's login (as the
+// member who linked it, when one did) only when nobody merged in Lictory.
+async function deliveredNotice(tx: Tx, session: SessionRow, claimId: string) {
+  const [item] = session.workItemId
+    ? await tx
+        .select({ key: s.project.key, number: s.workItem.number })
+        .from(s.workItem)
+        .innerJoin(s.project, eq(s.project.id, s.workItem.projectId))
+        .where(
+          and(
+            eq(s.workItem.organizationId, session.organizationId),
+            eq(s.workItem.id, session.workItemId),
+          ),
+        )
+    : [];
+  const [revision] = await tx
+    .select({ number: s.specificationRevision.number })
+    .from(s.workItemClaim)
+    .innerJoin(
+      s.specificationRevision,
+      and(
+        eq(
+          s.specificationRevision.organizationId,
+          s.workItemClaim.organizationId,
+        ),
+        eq(s.specificationRevision.id, s.workItemClaim.deliveredRevisionId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.workItemClaim.organizationId, session.organizationId),
+        eq(s.workItemClaim.id, claimId),
+      ),
+    );
+  const pull = session.pullRequestId
+    ? await mergedPull(tx, session.organizationId, session.pullRequestId)
+    : undefined;
+  return [
+    `${item ? `${item.key}-${item.number}` : "The item"} is Done: its Definition of Done passed.`,
+    pull ? `Pull request #${pull.number} was merged${pull.by}.` : null,
+    revision ? `Delivered revision ${revision.number}.` : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+async function mergedPull(
+  tx: Tx,
+  organizationId: string,
+  pullRequestId: string,
+) {
+  const [pull] = await tx
+    .select({
+      number: s.codePullRequest.number,
+      state: s.codePullRequest.state,
+      mergedByLogin: s.codePullRequest.mergedByLogin,
+      mergeRequestedById: s.codePullRequest.mergeRequestedById,
+      mergedVia: s.codePullRequest.mergedVia,
+      connectionId: s.codeRepository.connectionId,
+      provider: s.codeConnection.provider,
+    })
+    .from(s.codePullRequest)
+    .innerJoin(
+      s.codeRepository,
+      and(
+        eq(s.codeRepository.organizationId, s.codePullRequest.organizationId),
+        eq(s.codeRepository.id, s.codePullRequest.repositoryId),
+      ),
+    )
+    .innerJoin(
+      s.codeConnection,
+      and(
+        eq(s.codeConnection.organizationId, s.codeRepository.organizationId),
+        eq(s.codeConnection.id, s.codeRepository.connectionId),
+      ),
+    )
+    .where(
+      and(
+        eq(s.codePullRequest.organizationId, organizationId),
+        eq(s.codePullRequest.id, pullRequestId),
+      ),
+    );
+  if (pull?.state !== "merged") return undefined;
+  // The host can report the merge before Lictory records the answer to
+  // its own merge request: that request is the merge's provenance too.
+  const [sent] = pull.mergeRequestedById
+    ? [{ requestedById: pull.mergeRequestedById, via: pull.mergedVia }]
+    : await tx
+        .select({
+          requestedById: s.codeWrite.requestedById,
+          via: s.codeWrite.performedVia,
+        })
+        .from(s.codeWrite)
+        .where(
+          and(
+            eq(s.codeWrite.organizationId, organizationId),
+            eq(s.codeWrite.pullRequestId, pullRequestId),
+            eq(s.codeWrite.kind, "merge"),
+            inArray(s.codeWrite.status, ["sending", "succeeded"]),
+          ),
+        )
+        .orderBy(desc(s.codeWrite.createdAt))
+        .limit(1);
+  if (sent?.via?.startsWith("Autopilot"))
+    return { number: pull.number, by: ` by ${sent.via}` };
+  if (sent) {
+    const names = await memberNames(tx, [sent.requestedById]);
+    const name = names.get(sent.requestedById) ?? "a person";
+    return {
+      number: pull.number,
+      by: ` by ${name}${sent.via ? ` via ${sent.via}` : ""}`,
+    };
+  }
+  if (!pull.mergedByLogin) return { number: pull.number, by: "" };
+  const [linked] = await tx
+    .select({ name: s.user.name })
+    .from(s.codeHostIdentity)
+    .innerJoin(s.user, eq(s.user.id, s.codeHostIdentity.userId))
+    .where(
+      and(
+        eq(s.codeHostIdentity.organizationId, organizationId),
+        eq(s.codeHostIdentity.connectionId, pull.connectionId),
+        sql`lower(${s.codeHostIdentity.login}) = lower(${pull.mergedByLogin})`,
+      ),
+    )
+    .limit(1);
+  return {
+    number: pull.number,
+    by: linked
+      ? ` by ${linked.name} on ${hostNames[pull.provider]}`
+      : ` by ${pull.mergedByLogin} on ${hostNames[pull.provider]}`,
+  };
+}
+
 async function claimSessionOf(tx: Tx, event: SessionResumeEvent) {
   if (!event.agentSessionId) return undefined;
   return lockSession(tx, event.organizationId, event.agentSessionId);
@@ -399,6 +543,16 @@ const resumer = (): SessionResumer => ({
     // claim_ended
     const session = await claimSessionOf(tx, event);
     if (!session) return;
+    // The work landed: the conversation that started it hears how it ended
+    // (merged, Done, the delivered revision), not only the item's chip.
+    if (event.state === "completed" && event.reason === "definition_of_done")
+      await postSessionNotice(
+        tx,
+        session,
+        `delivered:${event.claimId}`,
+        await deliveredNotice(tx, session, event.claimId),
+        { besideCard: true },
+      );
     const why = endReasons[event.reason] ?? event.reason.replaceAll("_", " ");
     if (session.status === "queued") {
       // Nothing started yet: the session would work on unclaimed work.
@@ -462,6 +616,20 @@ const channelAgent = (a: AgentRow): ChannelAgent => ({
 // copied into a session every member of the organization can read in the
 // Factory.
 // "#payments", or "a direct conversation": where a person asked an agent.
+// The project a channel is homed in, if any.
+async function channelProject(tx: Tx, event: AgentMentionEvent) {
+  const [channel] = await tx
+    .select({ projectId: s.channel.projectId })
+    .from(s.channel)
+    .where(
+      and(
+        eq(s.channel.organizationId, event.organizationId),
+        eq(s.channel.id, event.channelId),
+      ),
+    );
+  return channel?.projectId ?? null;
+}
+
 async function askedIn(tx: Tx, channelId: string) {
   const [channel] = await tx
     .select({ kind: s.channel.kind, name: s.channel.name })
@@ -639,6 +807,7 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
   const prompt = plainMessage(event.body);
   let context: string | null | undefined;
   let asked: string | undefined;
+  let home: { projectId: string | null } | undefined;
   let started = 0;
   for (const agent of agents) {
     const running = live.find((l) => l.agent.id === agent.id);
@@ -682,10 +851,20 @@ async function mentioned(tx: Tx, event: AgentMentionEvent) {
       }
     }
     // "… in acme/payments": the repository the person names, if Code
-    // knows it (for the item's project, when there is one).
+    // knows it (for the item's project, when there is one); else the only
+    // repository of the item's project or the channel's, within the
+    // agent's scope.
+    home ??= { projectId: await channelProject(tx, event) };
+    const homeProjectId =
+      projectId ??
+      (home.projectId &&
+      (!agent.projectIds || agent.projectIds.includes(home.projectId))
+        ? home.projectId
+        : null);
     const repositoryId = await sessionRepositoryNamed(tx, {
       organizationId: event.organizationId,
       projectId,
+      homeProjectId,
       text: plainMessage(event.body),
     });
     // The person's words are the task; where they asked and the quoted

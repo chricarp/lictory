@@ -87,6 +87,10 @@ export async function containerExec(
   worktree: string,
 ): Promise<{ exec: Exec; remove(): Promise<void> }> {
   const name = `lictory-${sessionId.replaceAll("-", "").slice(0, 16)}`;
+  if (!config.containerImage)
+    throw new Error(
+      "Container isolation needs containerImage in the runner's config.json: an image with git and the harnesses.",
+    );
   const started = await run("docker", [
     "run",
     "--detach",

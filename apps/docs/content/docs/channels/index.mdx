@@ -35,6 +35,11 @@ to the whole organization.
 - Drop, paste or attach files. Images show a preview.
 - **↑** in an empty composer edits your last message. **Escape** closes a
   thread.
+- Until the server has a message, it says so under the text: _Sending…_, or
+  _Not sent yet_ while the connection is down. During a reconnect the
+  composer says that messages you send are delivered once the connection is
+  back; with no connection at all, your text stays in the composer until
+  you can send it.
 
 Edit or delete your own messages from a message's **More actions** menu.
 A deleted message leaves "This message was deleted." in its place, and its
@@ -62,7 +67,8 @@ a thread you follow. Change it per channel with the bell in its header:
 - **Mentions and my threads** (the default).
 - **Nothing**: the channel is muted. Unread mentions are still counted.
 
-The desktop app's badge counts unread mentions and direct messages.
+The desktop app's badge counts unread mentions and direct messages, with
+everything else that waits on you (see [the desktop app](/basics/desktop#notifications-and-the-badge)).
 
 ## Promote a message
 
@@ -88,17 +94,27 @@ the agent, or its owner shared it with the organization, the message starts
 an [agent session](/factory) on a runner and its thread becomes the
 session's thread:
 
+- It works in the repository your message names (`in acme/payments`, or its
+  address). Otherwise, when the linked work item's project, or the channel's
+  project, has exactly one repository, it works there; with none it works in
+  a scratch workspace whose files are discarded when it ends.
 - A **session card** answers in the thread: the agent "via" its owner, its
   live status, the work item when the message links exactly one, and
-  **Open session** for the full transcript in the Factory.
+  **Open session** for the full transcript in the Factory. **Interrupt**
+  and **Cancel…** are on the card too. In the channel, the message shows the
+  session's state beside its reply count (**Running**, **Waiting on you**,
+  **Completed**), so you see an agent waiting without opening the thread.
 - **Reply in the thread to steer it.** Your replies reach the agent when
   you started the session or own the agent. Anyone else's replies stay
   conversation and never reach the agent; the reply box says who steers it.
 - The agent's answers to your replies and its summary arrive as messages
   from the agent. Tool calls and commands stay in the Factory transcript.
-- When it needs permission, an **approval card** asks in the thread. Only
-  the person who started the session and the agent's owner see **Approve**
-  and **Deny**; everyone else sees who can decide.
+- When it needs permission, the session card shows the request, with what
+  it would run and the evidence, beside the state that says it waits: one
+  place to decide. The thread keeps a line where it was asked, so it reads
+  in order. Only the person who started the session and the agent's owner
+  see **Approve** and **Deny**; everyone else sees who can decide. Once
+  answered, the line stays as the record of who decided.
 
 Only your own message starts a session. A message sent through an agent or
 an access token does not, and a mention of an agent you may not use gets a

@@ -13,10 +13,11 @@ import type { TextRange } from "@lictory/core/editor/word-diff";
 
 export type ThreadMark = { threadId: string; blocking: boolean };
 
-// Tints of discussed passages; the selected and pointed-at thread read
-// stronger (rules in specification.tsx).
+// Discussed passages: a tint and a solid line under the text in the thread's
+// colour (app.css), red for blocking ones. The selected and pointed-at thread
+// read stronger (rules in specification.tsx).
 export const anchorClass =
-  "spec-anchor cursor-pointer rounded-[3px] bg-warning/18 text-inherit transition-[background-color] duration-150 ease-out";
+  "spec-anchor cursor-pointer rounded-[3px] bg-warning/18 text-inherit transition-[background-color,box-shadow] duration-150 ease-out";
 export const blockingAnchorClass = "spec-anchor-blocking bg-destructive/12";
 
 export function threadMarks(ranges: readonly Mark<ThreadMark>[]) {
@@ -31,6 +32,26 @@ export function threadMarks(ranges: readonly Mark<ThreadMark>[]) {
             : anchorClass
           ).split(" "),
           dataThreads: data.map((d) => d.threadId).join(" "),
+        },
+      },
+      children,
+    }));
+}
+
+// Passages a suggested change would rewrite: a dotted underline, so they
+// read apart from discussed passages (tints) and from diffs.
+export const suggestionAnchorClass =
+  "spec-suggestion cursor-pointer bg-transparent text-inherit underline decoration-primary decoration-dotted decoration-2 underline-offset-4";
+
+export function suggestionMarks(ranges: readonly Mark<string>[]) {
+  return () => (tree: Root) =>
+    markText(textModel(tree), ranges, (children, data): Nodes => ({
+      type: "emphasis",
+      data: {
+        hName: "mark",
+        hProperties: {
+          className: suggestionAnchorClass.split(" "),
+          dataSuggestions: data.join(" "),
         },
       },
       children,

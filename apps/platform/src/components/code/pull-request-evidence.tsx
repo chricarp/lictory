@@ -1,19 +1,26 @@
 import { sessionTitle } from "@lictory/core/factory/entities";
 import {
+  Circle,
   CircleCheckBig,
   ClipboardCheck,
   FileCheck2,
   Bot,
   MessagesSquare,
 } from "lucide-react";
-import type { DoneEvaluationEntity } from "@lictory/core/claims/contracts";
+import {
+  doneCheckLabel,
+  effectiveDoneChecks,
+  type DoneEvaluationEntity,
+} from "@lictory/core/claims/contracts";
 import type { CodePullRequestEntity } from "@lictory/core/code/entities";
-import type { WorkItem } from "@lictory/core/contracts/protocol";
+import type { Entity, WorkItem } from "@lictory/core/contracts/protocol";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
 import {
+  byType,
   identifier,
   refinementMeta,
+  relativeTime,
   type Project,
 } from "@lictory/core/lib/work-items";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
@@ -36,6 +43,7 @@ import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { SessionStateChip } from "@lictory/platform/components/shell/session-chip";
 import { shortSha } from "@lictory/platform/components/code/parts";
+import { deliveredEvidence } from "@lictory/platform/components/claims/claim-state";
 
 // Beside a code pull request, the evidence a person merges on: what the
 // linked work is and whether it was agreed (readiness, the accepted
@@ -73,7 +81,11 @@ export function PullRequestEvidence({ pr }: { pr: CodePullRequestEntity }) {
 // (the item's own, or its parent's for a Task or Subtask) with its
 // readiness, the accepted revision, and the Definition of Done.
 function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
-  const { organization, items, projects, delivery } = useWorkspace();
+  const { organization, items, projects, delivery, view } = useWorkspace();
+  const definition = byType(
+    Object.values(view.entities),
+    "definitionOfDone",
+  ).find((d) => d.projectId === project.id);
   // The item's own rows (its Definition of Done evaluation) load with it.
   const { entities } = useItemView(item.id);
   const done = entities.find(
@@ -100,6 +112,17 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
       : null;
   const ready = spec?.refinementState === "ready";
   const passedDone = done?.checks.filter((c) => c.passed).length ?? 0;
+  // A Done item's evaluation left the projection; its record stays.
+  const category = status?.category;
+  const delivered =
+    !done && category === "done"
+      ? deliveredEvidence(
+          entities.filter(
+            (e): e is Extract<Entity, { type: "activity" }> =>
+              e.type === "activity" && e.workItemId === item.id,
+          ),
+        )
+      : undefined;
   const muted = "text-muted-foreground";
   return (
     <li className="px-3.5 py-3">
@@ -172,24 +195,60 @@ function LinkedItem({ item, project }: { item: WorkItem; project: Project }) {
                     key={c.key}
                     className={cn(
                       "h-1.5 flex-1 rounded-full",
-                      c.passed ? "bg-success" : "bg-foreground/12",
+                      c.passed ? "bg-success" : "inset-ring inset-ring-input",
                     )}
                   />
                 ))}
               </span>
             </span>
+          ) : delivered ? (
+            <span className="flex items-center gap-1.5">
+              <CircleCheckBig aria-hidden className="size-3.5 text-success" />
+              {delivered.checks.length} of {delivered.checks.length} passed
+              <span className={muted}>· {relativeTime(delivered.at)}</span>
+            </span>
+          ) : category === "done" ? (
+            <span className={muted}>Moved to Done by a person</span>
+          ) : category === "canceled" ? (
+            <span className={muted}>Canceled</span>
           ) : (
-            <span className={muted}>Checked once work on it starts</span>
+            <span className={muted}>Not started yet</span>
           )}
         </Fact>
       </dl>
+      {!done &&
+        !delivered &&
+        category !== "done" &&
+        category !== "canceled" && (
+          // What Done will need, checked from when work starts: a list
+          // named once, not "Done needs:" before every line.
+          <ul
+            aria-label={`What Done needs for ${key}`}
+            className="mt-2 space-y-0.5 text-xs text-muted-foreground"
+          >
+            {effectiveDoneChecks(definition).map((c) => (
+              <li key={c.id} className="flex items-start gap-1.5">
+                <Circle aria-hidden className="mt-0.5 size-3 shrink-0" />
+                {doneCheckLabel(c)}
+              </li>
+            ))}
+          </ul>
+        )}
       {done && done.checks.some((c) => !c.passed) && (
-        <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+        <ul
+          aria-label={`Done checks not met yet for ${key}`}
+          className="mt-2 space-y-0.5 text-xs text-muted-foreground"
+        >
           {done.checks
             .filter((c) => !c.passed)
             .map((c) => (
-              <li key={c.key} className="truncate" title={c.detail}>
-                Not yet: {c.label}
+              <li
+                key={c.key}
+                title={c.detail}
+                className="flex items-start gap-1.5"
+              >
+                <Circle aria-hidden className="mt-0.5 size-3 shrink-0" />
+                {c.label}
               </li>
             ))}
         </ul>
@@ -248,8 +307,8 @@ function AgentSession({ sessionId }: { sessionId: string }) {
   );
 }
 
-// Reviews recorded in Lictory (agents' reviews), bound to the head commit
-// they read: a review of an older head no longer counts.
+// Reviews recorded in Lictory (people's and agents'), bound to the head
+// commit they read: a review of an older head no longer counts.
 function LictoryReviews({ pr }: { pr: CodePullRequestEntity }) {
   const { agentById } = useFactory();
   return (

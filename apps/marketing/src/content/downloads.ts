@@ -13,8 +13,38 @@ import type {
 
 // Everything lictory.com/download offers. Every link is the newest stable
 // release's file under its version-free name (`releases/latest/download/`),
-// so the page never needs a redeploy for a release and never asks GitHub
-// anything from the visitor's browser.
+// and the page never asks GitHub anything from the visitor's browser.
+//
+// The deploy workflow passes the files that release actually carries
+// (NEXT_PUBLIC_RELEASE_ASSETS, comma-separated; the site is rebuilt with
+// every release). A file the release lacks gets no link, which would 404:
+// the page says it is not in that release and how to build it from source.
+// Without the list (local builds, the browser suite) every file is offered
+// and the page links the release so a visitor can check what it carries.
+
+/** Which contract files the release has; `null`: not known, offer all. */
+export function releaseFiles(list: string | undefined) {
+  const names = (list ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+  return names.length ? new Set(names) : null;
+}
+
+const publishedFiles = releaseFiles(process.env.NEXT_PUBLIC_RELEASE_ASSETS);
+/** Whether the build knows the release's files. */
+export const releaseFilesKnown = publishedFiles !== null;
+/** The version the site was built for, when the deploy named one. */
+const builtVersion = process.env.NEXT_PUBLIC_APP_VERSION?.trim();
+export const releaseVersion = builtVersion?.length ? builtVersion : null;
+
+export const isPublished = (file: string, published = publishedFiles) =>
+  !published || published.has(file);
+
+/** "Lictory 0.26.0" or "the newest release", for "is not in …". */
+export const releaseName = releaseVersion
+  ? `Lictory ${releaseVersion}`
+  : "the newest release";
 
 export type DesktopDownload = {
   id: string;
@@ -26,11 +56,16 @@ export type DesktopDownload = {
   detail: string;
   file: LatestDesktopInstaller;
   href: string;
+  /** The release carries the file. */
+  available: boolean;
 };
 
-const desktop = (download: Omit<DesktopDownload, "href">): DesktopDownload => ({
+const desktop = (
+  download: Omit<DesktopDownload, "href" | "available">,
+): DesktopDownload => ({
   ...download,
   href: latestDownloadUrl(download.file),
+  available: isPublished(download.file),
 });
 
 export const desktopDownloads = [
@@ -75,7 +110,8 @@ export const desktopDownloads = [
     os: "linux",
     system: "Debian and Ubuntu",
     label: "Debian and Ubuntu x64, .deb",
-    detail: "Installs with your package manager, which also updates it.",
+    detail:
+      "Install it with apt or your software center. It does not update itself: to update, install the newest .deb from this page.",
     file: "lictory_amd64.deb",
   }),
   desktop({
@@ -83,7 +119,8 @@ export const desktopDownloads = [
     os: "linux",
     system: "Debian and Ubuntu (arm64)",
     label: "Debian and Ubuntu arm64, .deb",
-    detail: "Installs with your package manager, which also updates it.",
+    detail:
+      "Install it with apt or your software center. It does not update itself: to update, install the newest .deb from this page.",
     file: "lictory_arm64.deb",
   }),
 ] as const satisfies readonly DesktopDownload[];
@@ -120,7 +157,8 @@ export function otherSystems(primary: DesktopDownload) {
     .map(({ os, name }) => ({
       name,
       download: desktopDownloads.find((item) => item.os === os)!,
-    }));
+    }))
+    .filter(({ download }) => download.available);
 }
 
 const installScript = latestDownloadUrl("lictory-runner-install.sh");
@@ -132,7 +170,9 @@ export const runnerInstallCommands = [
     id: "unix",
     label: "macOS and Linux",
     shell: "Terminal",
-    command: `curl -fsSL ${installScript} | sh`,
+    // Downloaded, then run, so a failed download is an error instead of an
+    // empty script that sh runs successfully.
+    command: `curl -fsSLO ${installScript} && sh lictory-runner-install.sh`,
   },
   {
     id: "windows",
@@ -142,11 +182,23 @@ export const runnerInstallCommands = [
   },
 ] as const;
 
-const runnerTarget = (target: RunnerTarget, label: string) => ({
+/** A file of the release: its name, link and whether the release has it. */
+type ReleaseFile = {
+  label: string;
+  file: string;
+  href: string;
+  available: boolean;
+};
+
+const releaseFile = (label: string, file: string): ReleaseFile => ({
   label,
-  file: runnerAsset(target),
-  href: latestDownloadUrl(runnerAsset(target)),
+  file,
+  href: latestDownloadUrl(file),
+  available: isPublished(file),
 });
+
+const runnerTarget = (target: RunnerTarget, label: string) =>
+  releaseFile(label, runnerAsset(target));
 
 export const runnerBinaries = [
   runnerTarget("darwin-arm64", "macOS, Apple silicon"),
@@ -158,27 +210,23 @@ export const runnerBinaries = [
 ] as const;
 
 export const runnerScripts = [
-  {
-    label: "Installer for macOS and Linux",
-    file: "lictory-runner-install.sh",
-    href: installScript,
-  },
-  {
-    label: "Installer for Windows",
-    file: "lictory-runner-install.ps1",
-    href: installPowerShell,
-  },
+  releaseFile("Installer for macOS and Linux", "lictory-runner-install.sh"),
+  releaseFile("Installer for Windows", "lictory-runner-install.ps1"),
 ] as const;
 
+/** Whether the one-line installers work with the release. */
+export const runnerInstallersAvailable = runnerScripts.every(
+  (file) => file.available,
+);
+
 export const checksumFiles = [
-  {
-    label: "Checksums of every file",
-    file: checksumsName,
-    href: latestDownloadUrl(checksumsName),
-  },
-  {
-    label: "Signature of the checksums (Sigstore)",
-    file: checksumsSignatureName,
-    href: latestDownloadUrl(checksumsSignatureName),
-  },
+  releaseFile("Checksums of every file", checksumsName),
+  releaseFile("Signature of the checksums (Sigstore)", checksumsSignatureName),
 ] as const;
+
+/** Building lictory-runner from source, for a release without its files. */
+export const runnerFromSource = [
+  "git clone https://github.com/chricarp/lictory.git && cd lictory",
+  "bun install --frozen-lockfile",
+  "bun run --cwd apps/runner build linux-x64   # or darwin-arm64, windows-x64…",
+].join("\n");

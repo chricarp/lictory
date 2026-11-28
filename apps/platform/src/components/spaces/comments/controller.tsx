@@ -141,7 +141,12 @@ function useMountedEditor(editor: Editor | null) {
   );
 }
 
+// `top` is where the selection's bar goes (viewport coordinates): under the
+// selected lines, so the passage and the lines leading to it stay readable,
+// or above them when the window has no room below.
 type Selected = { from: number; to: number; top: number; left: number };
+const BAR_HEIGHT = 36;
+const BAR_GAP = 8;
 
 // The text selected inside the editor (DOM selection, so read-only views
 // work too), with where to show the "Comment" action.
@@ -171,10 +176,14 @@ function useEditorSelection(editor: Editor | null) {
         if (from >= to || !editor.state.doc.textBetween(from, to, " ").trim())
           return setSelected(null);
         const rect = selection.getRangeAt(0).getBoundingClientRect();
+        const below =
+          rect.bottom + BAR_GAP + BAR_HEIGHT < window.innerHeight - BAR_GAP;
         setSelected({
           from,
           to,
-          top: rect.top,
+          top: below
+            ? rect.bottom + BAR_GAP
+            : Math.max(BAR_GAP, rect.top - BAR_GAP - BAR_HEIGHT),
           left: rect.left + rect.width / 2,
         });
       } catch {
@@ -182,7 +191,12 @@ function useEditorSelection(editor: Editor | null) {
       }
     };
     document.addEventListener("selectionchange", update);
-    return () => document.removeEventListener("selectionchange", update);
+    // The bar is fixed to the window: it follows the text when it scrolls.
+    window.addEventListener("scroll", update, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener("selectionchange", update);
+      window.removeEventListener("scroll", update, { capture: true });
+    };
   }, [editor]);
   return selected;
 }
@@ -364,6 +378,68 @@ export function PageComments({
     dom.addEventListener(COMMENT_SELECTION_EVENT, onRequest);
     return () => dom.removeEventListener(COMMENT_SELECTION_EVENT, onRequest);
   }, [editor, canComment, startComment]);
+  // In the read-only reader, Mod+Alt+M comments on the text selected with
+  // the keyboard (or the pointer); with nothing selected it opens the
+  // comments, where the whole page can be commented on.
+  const selectionRef = useRef(selection);
+  useEffect(() => {
+    selectionRef.current = selection;
+  });
+  // The bar of actions on selected text lives at the end of the document
+  // (it floats over the text), so Tab from the reader would skip it: with
+  // text selected, Tab moves into the bar, and Escape (or leaving the bar
+  // with Tab) returns to the text with the selection kept.
+  const barRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!editor || !hasView(editor)) return;
+    const dom = editor.view.dom;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || event.shiftKey || editor.isEditable) return;
+      const first = barRef.current?.querySelector<HTMLElement>("button");
+      if (!selectionRef.current || !first) return;
+      event.preventDefault();
+      first.focus();
+    };
+    dom.addEventListener("keydown", onKey);
+    return () => dom.removeEventListener("keydown", onKey);
+  }, [editor]);
+  const backToText = useCallback(() => {
+    if (editor && hasView(editor))
+      editor.view.dom.focus({ preventScroll: true });
+  }, [editor]);
+  const hasSelection = Boolean(selection);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const onKey = (event: KeyboardEvent) => {
+      const buttons = [...bar.querySelectorAll<HTMLElement>("button")];
+      const at = buttons.indexOf(document.activeElement as HTMLElement);
+      if (
+        event.key === "Escape" ||
+        (event.key === "Tab" && !event.shiftKey && at === buttons.length - 1) ||
+        (event.key === "Tab" && event.shiftKey && at === 0)
+      ) {
+        event.preventDefault();
+        backToText();
+      }
+    };
+    bar.addEventListener("keydown", onKey);
+    return () => bar.removeEventListener("keydown", onKey);
+  }, [hasSelection, backToText]);
+  useEffect(() => {
+    if (!editor || !canComment || !hasView(editor)) return;
+    const dom = editor.view.dom;
+    const onKey = (event: KeyboardEvent) => {
+      if (editor.isEditable) return;
+      if (!(event.metaKey || event.ctrlKey) || !event.altKey) return;
+      if (event.code !== "KeyM") return;
+      event.preventDefault();
+      if (selectionRef.current) startComment(selectionRef.current);
+      else onOpenChange(true);
+    };
+    dom.addEventListener("keydown", onKey);
+    return () => dom.removeEventListener("keydown", onKey);
+  }, [editor, canComment, startComment, onOpenChange]);
 
   const activate = useCallback(
     (threadId: string) => {
@@ -455,10 +531,11 @@ export function PageComments({
           // it, or (on the published page) create work from it or ask
           // Litto about it.
           <div
+            ref={barRef}
             role="group"
             aria-label="Selected text"
             style={{
-              top: Math.max(8, selection.top - 44),
+              top: selection.top,
               left: selection.left,
             }}
             className="fixed z-40 flex max-w-[calc(100vw-16px)] -translate-x-1/2 items-center gap-0.5 rounded-full bg-popover p-1 text-popover-foreground shadow-lg ring-1 ring-foreground/10"

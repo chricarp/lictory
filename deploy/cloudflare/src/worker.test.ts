@@ -367,6 +367,16 @@ void test("the documentation serves only its static files, with the website's se
   );
   assert.equal(page.headers.get("X-Robots-Tag"), null);
   assert.equal(page.headers.get("Cache-Control"), null);
+  // A moved page answers with one permanent redirect to its new address.
+  const moved = await worker.fetch(
+    new Request("https://docs.lictory.com/delivery/factory/"),
+    docs,
+  );
+  assert.equal(moved.status, 301);
+  assert.equal(
+    moved.headers.get("Location"),
+    "https://docs.lictory.com/factory/autonomy",
+  );
 });
 
 void test("documentation pages have Markdown versions with a canonical HTML target", async () => {

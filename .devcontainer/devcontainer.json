@@ -11,9 +11,9 @@
     // rather than Moby, which has no Debian trixie packages.
     "ghcr.io/devcontainers/features/docker-in-docker:2": { "moby": false }
   },
-  "hostRequirements": { "memory": "8gb" },
+  "hostRequirements": { "memory": "12gb" },
   "remoteUser": "node",
-  "postCreateCommand": "test -f .env || cp .env.example .env; bun install",
+  "postCreateCommand": "bun install && bun run dev:env",
   "forwardPorts": [3000, 3100, 8025],
   "portsAttributes": {
     "3000": { "label": "App" },

@@ -12,16 +12,31 @@ parts so the rest of the guide can refer to them.
 Opening an organization lands on **Home**, which answers "what needs me, and
 what is moving?":
 
-- **Waiting on you**: reviews requested of you, pull requests and page
-  changes that wait for your approval or a merge, and items of yours with
-  changes requested or blocking discussions. **Open Inbox** shows all of
-  them ([Inbox](/inbox)).
+- **Waiting on you**: the first few of everything that waits on you:
+  questions and approvals from agents, reviews requested of you, pull
+  requests and page changes that wait for your approval or a merge, and
+  items of yours with changes requested or blocking discussions. The
+  Inbox's **To do** is the whole list ([Inbox](/inbox)).
 - **In flight**: work assigned to you that has started.
-- **Ready to start**: ready work that is yours or nobody's yet.
+- **Ready to start**: work that can start now and is yours or nobody's yet,
+  by the same rule agents claim by: its scope accepted, nothing blocking it.
+  A ready specification nobody accepted yet waits on its owner under
+  **Waiting on you** instead. In a project delivered in Jira, ready
+  specifications not handed off yet are listed here.
+- **Recent outcomes**: what finished in the last seven days: your work that
+  was delivered, and agent sessions you started (or whose agent you own)
+  that finished or failed (a session that delivered an item listed there is
+  that item's row). Open a failed one to retry it.
 - **Recently edited pages** in your [spaces](/spaces).
-- **Agents ask you** and **Agents at work**, once your organization has
-  agents: the questions and approvals agents wait on you for, and the
-  agent sessions running now ([the Factory](/factory)).
+- **Agents at work**, once your organization has agents: the agent sessions
+  running now ([the Factory](/factory)), and those waiting on a teammate,
+  listed after them. The heading says when they wait (**Agents waiting on
+  teammates**).
+
+A new organization's administrators also see its setup checklist. A member
+who belongs to no project yet is told so, and who adds them; a member of a
+project without a discipline is told that reviews can't be asked of them
+until an administrator gives them one.
 
 Everything on Home updates as the work changes; there is nothing to refresh.
 
@@ -48,23 +63,27 @@ From top to bottom:
 - **New item** (the pencil beside Search, or `C`) creates a work item in the
   project you are in.
 - **Home**, then **Inbox**, which collects the notifications and to-dos that
-  need you. Its badge counts unread notifications, or, when everything is
-  read, your open to-dos. **Litto** opens the conversations with Lictory's
+  need you. Its badge counts your to-dos (the same number as Home's
+  **Waiting on you**); a dot beside it means unread updates. **Litto** opens the conversations with Lictory's
   assistant ([Litto](/ai/litto)).
-- **Channels** lists **All channels** and the channels you joined, bold when
-  something is unread, with a count when you were mentioned. **Direct
-  messages** lists your recent conversations with people and agents. The
-  **+** beside each heading starts a channel or a conversation.
-- **Factory** has its **Overview**, your **Agents** and the **Runners**
-  they work on. Its count is the agent sessions waiting for your answer or
-  approval ([the Factory](/factory)). **Code** shows repositories and pull
-  requests.
+- **Factory**: its page has tabs for the overview, your **Agents** and the
+  **Runners** they work on. A dot means agent sessions wait for your answer
+  or approval; the Inbox's count already includes them ([the Factory](/factory)). **Code** shows repositories
+  and pull requests.
 - **Projects**: the project you are in, with its views (below). Open the
   project switcher to choose another; the gear beside it opens **Project
-  settings**.
+  settings**. Outside the project's pages (Home, a channel, a space) its
+  views fold under the switcher so your conversations stay in view; the
+  arrow beside the name unfolds them, and Lictory remembers that choice in
+  this browser.
 - **Spaces** lists **All spaces** and the organization's spaces and those
   of your projects and teams. The **+** beside the heading creates a space.
   See [Spaces](/spaces).
+- **Channels** lists **All channels** and the channels you joined, bold when
+  something is unread, with a count when you were mentioned. **Direct
+  messages** lists your recent conversations with people and agents. The
+  **+** beside each heading starts a channel or a conversation. They come
+  last because their lists grow with the organization.
 - **Organization settings** sits at the bottom.
 - **Your account menu** (your name at the very bottom) has **Account
   settings**, **Privacy preferences**, **Sign out** and the version of
@@ -76,13 +95,15 @@ browser. A folded section still shows its count.
 
 ### A project's views
 
-Under the project switcher the views follow what you do with the work:
+Under the project switcher the views follow what you do with the work,
+under **Refine** (agreeing on what to build) and **Deliver** (building it or
+handing it off):
 
 | Views                                                                                                     | What for                                                                                |
 | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **Proposals**, **Refinement**, **Reviews**                                                                | The [refinement](/specifications) queues                                                |
+| **Proposals**, **Refinement**, **My reviews**                                                             | The [refinement](/specifications) queues                                                |
 | **Board** and **Backlog** (**Backlog & sprints** or **Backlog & cycles** when the project plans that way) | [Delivery](/delivery)                                                                   |
-| **Factory queue**                                                                                         | What agents may claim and why other work waits ([the Factory](/delivery/factory))       |
+| **Factory queue**                                                                                         | What agents may claim and why other work waits ([the Factory](/factory/autonomy))       |
 | **All items**                                                                                             | Every work item of the project, with filters                                            |
 | **Teams**                                                                                                 | One entry per team, yours first: its [backlog](/delivery/teams)                         |
 | **Spaces**                                                                                                | The project's own spaces                                                                |
@@ -100,7 +121,7 @@ Every work item, whatever its type, opens on the same page.
 ### The header
 
 From left to right: the way back to the view you came from (**Refinement**,
-**Reviews**, **Proposals** or **All items**), the parent item, the item's
+**My reviews**, **Proposals** or **All items**), the parent item, the item's
 type and key (select the key to copy it), and who else is looking at the
 item right now. On the right:
 
@@ -112,10 +133,10 @@ item right now. On the right:
   readiness). It opens the [discussion panel](/specifications/discussions)
   beside the text.
 - **Changes** compares revisions ([history](/specifications/history)).
-- **Export to Jira**, in projects that deliver in Jira, once the item is
+- **Hand off to Jira**, in projects that deliver in Jira, once the item is
   ready.
 - **Watch** to follow the item ([notifications](/inbox/notifications)).
-- **More actions** (**⋯**): **Copy link**, export, and **Archive** or
+- **More actions** (**⋯**): **Copy link**, hand off, and **Archive** or
   **Restore**.
 - **Review & details** opens the review rail when the window is too narrow
   to show it beside the text.
@@ -132,7 +153,9 @@ Under the header, top to bottom:
    specification changed since your last visit.
 2. The title and the **workflow card**: one sentence saying where the item
    stands, its evidence, and the next action (start refinement, request a
-   review, accept a revision for delivery).
+   review, accept a revision for delivery). When your review is requested, it
+   leads with your decision and says whether an approval you gave earlier is
+   outdated.
 3. The **specification**, the primary surface ([specifications](/specifications)).
    Items of a type without a specification have a description instead.
 4. Its **branches** and **Breakdown** into child items
@@ -191,8 +214,11 @@ keep working.
 
 `Ctrl K` (`⌘ K` on a Mac) or `/` opens the command palette anywhere. Type to
 find work items (by title or key, such as `PAY-142`), pages, spaces,
-projects and their views, and commands: **New proposal**, **New page in …**,
-create an item or a space, **Go to** any part of the sidebar, settings,
+projects and their views, pull requests of the connected code hosts, agent
+sessions and agents, and commands: **New Story proposal** (one entry per
+type that carries a specification), **Create Task** (and the other delivery
+types), **New page in …**, **Start agent session**, **Add runner**,
+**New agent**, create an item or a space, **Go to** any part of the sidebar, settings,
 switch organization, switch to the light or dark appearance, ask Litto, and,
 while an item is open, **Assign PAY-142 to me** or **Set status: …**. See
 [search](/search).
@@ -201,7 +227,12 @@ while an item is open, **Assign PAY-142 to me** or **Set status: …**. See
 
 Lictory saves as you work; there is no save button for properties,
 comments or ordering. The indicator beside your name in the sidebar says
-where your changes are:
+where your changes are. While it is offline, waiting for your help or
+signed out, it says so in a word beside the icon (**Offline**, **Not
+saved**, **Signed out**); while it reconnects its icon turns. On a phone,
+where the sidebar is tucked away, the same problems show as a strip across
+the top of the page; tap it for the details. Screen readers announce each
+change:
 
 | Indicator                        | Meaning                                                                                                    |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------- |

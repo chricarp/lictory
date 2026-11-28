@@ -195,13 +195,18 @@ async function connected(options: { privateChannel?: boolean } = {}) {
   fake.addPerson({ id: "UBO", name: "Bo", email: bo.email });
   fake.addPerson({ id: "UGUEST", name: "Ines", email: "ines@agency.test" });
   fake.addPerson({ id: "UOUT", name: "Outsider", email: outsider.email });
-  await saveSlackApp(db, owner.id, {
-    organizationId,
-    appId: fake.app.appId,
-    clientId: fake.app.clientId,
-    clientSecret: fake.app.clientSecret,
-    signingSecret: fake.app.signingSecret,
-  });
+  await saveSlackApp(
+    db,
+    owner.id,
+    {
+      organizationId,
+      appId: fake.app.appId,
+      clientId: fake.app.clientId,
+      clientSecret: fake.app.clientSecret,
+      signingSecret: fake.app.signingSecret,
+    },
+    { client: slack },
+  );
   const { url: authorizeUrl } = await startSlackInstall(
     db,
     owner.id,
@@ -380,6 +385,15 @@ void test("the Events API refuses bad and stale signatures, answers the URL chec
     body: challenge,
   });
   assert.equal(unsigned.status, 401);
+  // An organization without a saved app answers the same, so an
+  // unauthenticated caller learns nothing about its configuration.
+  const unknown = await receiveSlackRequest(db, {
+    organizationId: crypto.randomUUID(),
+    kind: "events",
+    headers: signSlackBody("0000000000000000aaaaaaaaaaaaaaaa", challenge),
+    body: challenge,
+  });
+  assert.deepEqual(unknown, unsigned);
 
   const event = JSON.stringify({
     type: "event_callback",
@@ -1051,6 +1065,46 @@ void test("connecting and linking are guarded: administrators, matching privacy,
       signingSecret: "0123456789abcdef0123456789abcdef",
     }),
     "forbidden",
+  );
+  // Slack checks the Client ID and Secret on save; a wrong one is named.
+  const wrong = (input: { clientId?: string; clientSecret?: string }) =>
+    saveSlackApp(
+      db,
+      f.owner.id,
+      {
+        organizationId: f.organizationId,
+        appId: f.fake.app.appId,
+        clientId: input.clientId ?? f.fake.app.clientId,
+        clientSecret: input.clientSecret ?? f.fake.app.clientSecret,
+        signingSecret: f.fake.app.signingSecret,
+      },
+      { client: f.slack },
+    );
+  await assert.rejects(wrong({ clientId: "1234567.7654321" }), {
+    category: "validation",
+    message: /Slack does not know this Client ID/,
+  });
+  await assert.rejects(
+    wrong({ clientSecret: "0123456789abcdef0123456789abcdef" }),
+    { category: "validation", message: /Slack refused the Client Secret/ },
+  );
+  await assert.rejects(
+    saveSlackApp(
+      db,
+      f.owner.id,
+      {
+        organizationId: f.organizationId,
+        appId: f.fake.app.appId,
+        clientId: f.fake.app.clientId,
+        clientSecret: f.fake.app.clientSecret,
+        signingSecret: "not-hex",
+      },
+      { client: f.slack },
+    ),
+    {
+      category: "validation",
+      message: /The Signing Secret is not in Slack's format/,
+    },
   );
   await rejectsWith(
     startSlackInstall(db, f.ada.id, f.organizationId),

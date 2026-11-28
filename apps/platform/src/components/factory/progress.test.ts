@@ -6,12 +6,16 @@ import type {
   SessionEventRow,
 } from "@lictory/core/factory/entities";
 import {
+  approvalAction,
   filesChangedLabel,
   sessionProgress,
 } from "@lictory/platform/components/factory/progress";
 import {
   agentActivity,
+  failedForMe,
+  formatDuration,
   overviewBlocks,
+  sessionDuration,
   waitsOnMe,
 } from "@lictory/platform/components/factory/overview-blocks";
 
@@ -113,17 +117,27 @@ void test("each session is in exactly one block of the overview", () => {
     blocks.needsYou.map((s) => s.id),
     ["a"],
   );
+  // Waiting on a teammate: the team's view of who holds an agent up.
+  assert.deepEqual(
+    blocks.waitingOnOthers.map((s) => s.id),
+    ["bb"],
+  );
   // At work before queued.
   assert.deepEqual(
     blocks.running.map((s) => s.id),
-    ["ccc", "bb", "dddd"],
+    ["ccc", "dddd"],
   );
   assert.deepEqual(
     blocks.recent.map((s) => s.id),
     ["ffffff", "eeeee"],
   );
   assert.equal(blocks.queued, 1);
-  const all = [...blocks.needsYou, ...blocks.running, ...blocks.recent];
+  const all = [
+    ...blocks.needsYou,
+    ...blocks.waitingOnOthers,
+    ...blocks.running,
+    ...blocks.recent,
+  ];
   assert.equal(new Set(all.map((s) => s.id)).size, sessions.length);
   // Ben sees his own waiting session as his.
   assert.deepEqual(
@@ -179,4 +193,84 @@ void test("an agent's activity is the session that needs a person first", () => 
   const idle = agentActivity("sentry", sessions);
   assert.equal(idle.current, null);
   assert.equal(idle.lastActive, null);
+});
+
+void test("an approval request names the exact action it asks for", () => {
+  assert.deepEqual(
+    approvalAction({
+      tool: "Bash",
+      input: { command: " bun run db:migrate " },
+    }),
+    { kind: "command", text: "bun run db:migrate" },
+  );
+  assert.deepEqual(
+    approvalAction({ tool: "Write", input: { file_path: "CHANGES.md" } }),
+    { kind: "file", tool: "Write", text: "CHANGES.md" },
+  );
+  assert.deepEqual(approvalAction({ tool: "WebFetch", input: {} }), {
+    kind: "tool",
+    text: "WebFetch",
+  });
+  // A plain question names no action; nothing is guessed.
+  assert.equal(approvalAction({ tool: null, input: null }), null);
+  assert.equal(approvalAction(null), null);
+});
+
+void test("a failed session waits on the person who started it until retried or replaced", () => {
+  const now = Date.parse("2026-11-20T12:00:00Z");
+  const failed = (id: string, at: string, extra: Partial<SessionEntity> = {}) =>
+    ({
+      id,
+      status: "failed",
+      requestedById: "ada",
+      workItemId: null,
+      createdAt: at,
+      completedAt: at,
+      updatedAt: at,
+      ...extra,
+    }) as SessionEntity;
+  const sessions = [
+    failed("mine", "2026-11-19T10:00:00Z"),
+    failed("theirs", "2026-11-19T10:00:00Z", { requestedById: "ben" }),
+    failed("old", "2026-11-01T10:00:00Z"),
+    failed("replaced", "2026-11-18T10:00:00Z", { workItemId: "i1" }),
+    failed("later", "2026-11-19T11:00:00Z", {
+      workItemId: "i1",
+      status: "running",
+      completedAt: null,
+    }),
+  ];
+  assert.deepEqual(
+    failedForMe(sessions, "ada", now).map((s) => s.id),
+    ["mine"],
+  );
+});
+
+void test("a session's duration is its running time, not its time in the queue", () => {
+  const base = {
+    status: "completed" as const,
+    createdAt: "2026-11-24T10:00:00.000Z",
+    startedAt: "2026-11-24T10:01:00.000Z",
+    completedAt: "2026-11-24T10:05:30.000Z",
+  };
+  assert.equal(sessionDuration(base), 270_000);
+  assert.equal(formatDuration(270_000), "4m");
+  // Still running: until now.
+  assert.equal(
+    sessionDuration(
+      { ...base, status: "running", completedAt: null },
+      Date.parse("2026-11-24T10:02:00.000Z"),
+    ),
+    60_000,
+  );
+  // Never left the queue: no duration.
+  assert.equal(
+    sessionDuration({ ...base, status: "canceled", startedAt: null }),
+    null,
+  );
+  assert.equal(formatDuration(45_000), "45s");
+  // A run that ended within a second did take time.
+  assert.equal(formatDuration(300), "under 1s");
+  assert.equal(formatDuration(72 * 60_000), "1h 12m");
+  assert.equal(formatDuration(51 * 3_600_000), "2d 3h");
 });

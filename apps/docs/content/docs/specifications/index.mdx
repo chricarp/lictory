@@ -39,23 +39,28 @@ and comments on it are a conversation under the description.
 
 A spec-backed item shows where it stands in the card under its title. The
 card names the stage in one sentence, shows the evidence behind it, and says
-what happens **Next**:
+what happens **Next**. Under it, the stages are the refinement states, named
+exactly as the **Refinement** property and the Refinement view's tabs name
+them, then delivery: **Draft → In refinement → In review → Ready →
+Delivery**.
 
-| Stage      | The card says                                             | What moves it on                                                              |
-| ---------- | --------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Proposal   | **Shape the proposal**                                    | **Start refinement** when the idea is worth exploring with the team           |
-| Refinement | **Agree on what to build**                                | Requesting a review moves the item to _In review_                             |
-| Review     | **Review the current specification**                      | Reviewers approve the current revision; blocking discussions are resolved     |
-| Ready      | **Ready for delivery**                                    | Every [readiness check](/review/readiness) passes, so Lictory sets it for you |
-| Delivery   | **Accepted for delivery**, **In progress**, **Delivered** | Accepting the revision (in Lictory) or handing it off (to Jira)               |
+| Refinement state | The card says                                                   | What moves it on                                                                                             |
+| ---------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Draft            | **Shape the proposal**                                          | **Request reviews** when the intent is clear; **Start refinement** first to explore it before anyone decides |
+| In refinement    | **Agree on what to build**                                      | Requesting a review moves the item to _In review_                                                            |
+| In review        | **Review the current specification**                            | Reviewers approve the current revision; blocking discussions are resolved                                    |
+| Ready            | **Ready for delivery**                                          | Every [readiness check](/review/readiness) passes, so Lictory sets it for you                                |
+| Delivery         | **Accepted for delivery**, **Delivery underway**, **Delivered** | Accepting the revision (in Lictory) or handing it off (to Jira)                                              |
 
 ![PAY-2 "Retry failed card captures" in review: revision 2 of the specification with its review rail, required Engineering and QA reviews and readiness checks beside the text](/screenshots/specification-review.webp)
 
-Under the sentence, the **Spec** row shows the refinement state, the current
-revision, how many readiness checks pass (for example _3/5 checks_) and any
-blocking discussions. Once a revision is accepted for delivery, a
-**Delivery** row adds the workflow status and the accepted and delivered
-revisions.
+Under the sentence, the **Spec** row summarizes the current revision: how
+many readiness checks pass (for example _3/5 checks_), how many required
+reviews approved it and any blocking discussions. Each lives in one place,
+and its summary opens it: the checks open **Readiness**, the approvals open
+**Review** in the side panel, the blocking discussions open **Discussions**.
+Once a revision is accepted for delivery, a **Delivery** row adds the
+workflow status and the accepted and delivered revisions.
 
 ## Refinement state and delivery status
 
@@ -79,41 +84,43 @@ capability can move an item between **Draft**, **In refinement** and **In
 review** in the **Refinement** property, but not to or from **Ready** while
 the checks say otherwise.
 
-## Main and protected main
+## Protected specifications
 
-A specification's agreed text lives on **main**. While the specification is
-taking shape, people whose discipline may _edit specifications_ change main
-directly: they open the editor, write together and save revisions. See
+A specification's agreed text is its current revision. While the
+specification is taking shape, people whose discipline may _edit
+specifications_ change it directly: they open the editor, write together and save revisions. See
 [live drafts](/specifications/live-drafts).
 
-The first time the item becomes **Ready**, main is **protected**, and it
+The first time the item becomes **Ready**, the specification is
+**protected**, and it
 stays protected even if the item later leaves Ready. From then on nobody
-edits main directly: changes are made on a **branch** and merged through a
-reviewed **pull request**, which can also propose the item's breakdown into
-child work. See [branches and pull requests](/specifications/branches).
+edits it directly: changes are **proposed**, reviewed and then applied as
+the next revision, and a proposed change can also carry the item's breakdown
+into child work. See [proposed changes](/specifications/branches).
 
 <Callout title="Propose a change from the text">
-  Select a passage of a specification and choose **Suggest a change**: Lictory
-  starts a branch and opens it at that passage. It works whether or not main is
-  protected, so it is also the quickest way to propose a change to a ready
-  specification.
+  Select a passage of a specification and choose **Suggest a change**: write the
+  new wording beside the text, and the person asked accepts it as the next
+  revision (on a ready specification, its reviewers approve it). Larger changes
+  open a branch at that passage instead. See [suggest
+  changes](/specifications/suggestions).
 </Callout>
 
 ## The project's views
 
-The project sidebar groups refinement under **Prepare**:
+The project sidebar groups refinement under **Refine**:
 
 - **Proposals** holds spec-backed items in **Draft** that have not started
   refinement: ideas captured but not yet worth the team's time. **New
   proposal** creates one.
 - **Refinement** holds specifications being clarified, reviewed or ready, and
-  not yet in delivery. Its tabs split them: **All in refinement**, **In
-  progress**, **In review** and **Ready for delivery**. An item already in
+  not yet in delivery. Its tabs split them by refinement state: **All**, **In
+  refinement**, **In review** and **Ready**. An item already in
   delivery comes back here only when its specification changes (an
   _amendment_); delivery carries on with the accepted revision meanwhile.
   Above the list, the project's knowledge strip shows its spaces and
   recently published pages.
-- **Reviews** opens **Needs my review**: reviews asked of you or your
+- **My reviews** opens **Needs my review**: reviews asked of you or your
   disciplines on the current revision, and suggestions waiting for your
   approval. Each row says which review is asked, on which revision, and how
   many blocking discussions are open.
@@ -122,7 +129,7 @@ The project sidebar groups refinement under **Prepare**:
 and stage, including done, canceled and (when you ask) archived work. See
 [organizing work](/delivery/organize).
 
-![The Refinement view of the Payments project: the All in refinement, In progress, In review and Ready for delivery tabs with their counts, the Payments knowledge strip, and each item with its next step](/screenshots/work-refinement.webp)
+![The Refinement view of the Payments project: the refinement-state tabs with their counts, the Payments knowledge strip, and each item with its next step](/screenshots/work-refinement.webp)
 
 Refinement is the project's home page when the project has spec-backed
 types. An item opened from one of these views keeps it highlighted in the
@@ -152,7 +159,7 @@ project or handing it off in an external one. See
   <Card title="Discussions" href="/specifications/discussions">
     Comment on the exact text, mark blocking concerns, resolve them.
   </Card>
-  <Card title="Branches and pull requests" href="/specifications/branches">
+  <Card title="Proposed changes" href="/specifications/branches">
     Change a protected specification and its breakdown through review.
   </Card>
   <Card title="Decisions" href="/specifications/decisions">

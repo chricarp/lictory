@@ -155,9 +155,15 @@ export function ChannelHeader({
       <PageHeader
         title={label}
         // The channel searches its own messages; on phones its name keeps
-        // at least twelve characters before the actions crowd it.
+        // at least twelve characters before the actions crowd it. The
+        // shell's "+" (a new work item) stays in the navigation drawer, so
+        // the bar fits at 320px. Wider, the name is the anchor: the topic
+        // beside it gives way first. Its cap is a share of the window, not
+        // of the title group (which is only as wide as its content, so a
+        // percentage of it cut "#partner-launch" to "partner…").
         ownSearch
-        className="max-sm:[&>div:has(>h1)]:min-w-[12ch]"
+        ownCreate
+        className="sm:[&_h1]:max-w-[40vw] sm:[&_h1]:shrink-0 max-sm:[&>div:has(>h1)]:min-w-[12ch]"
         icon={
           direct ? (
             channel.others[0]?.kind === "user" ? (
@@ -214,25 +220,26 @@ export function ChannelHeader({
                 <button
                   type="button"
                   {...props}
-                  aria-label={`${memberCount} ${memberCount === 1 ? "member" : "members"}`}
                   className="flex h-8 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
                 >
-                  <Facepile
-                    people={facepile}
-                    max={3}
-                    size={20}
-                    className="max-sm:hidden"
-                  />
+                  {/* A picture of who is here. The button is named by what
+                      it shows in words, the count ("4 members"), so a voice
+                      user can say the number they see; the faces are not
+                      part of that name and never show a "+N" of their own. */}
+                  <span aria-hidden className="contents">
+                    <Facepile
+                      people={facepile.slice(0, 3)}
+                      max={3}
+                      size={20}
+                      className="max-sm:hidden"
+                    />
+                  </span>
                   <Users className="size-4 sm:hidden" aria-hidden />
-                  {/* The facepile counts beyond three; phones show the
-                      number alone. */}
-                  <span
-                    className={cn(
-                      "tabular-nums",
-                      facepile.length > 3 && "sm:hidden",
-                    )}
-                  >
+                  <span className="tabular-nums">
                     {memberCount}
+                    <span className="sr-only">
+                      {memberCount === 1 ? " member" : " members"}
+                    </span>
                   </span>
                 </button>
               )}

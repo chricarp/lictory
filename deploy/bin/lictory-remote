@@ -14,6 +14,21 @@
 # No shell, no other commands.
 set -euo pipefail
 
+# Run by hand (the forced command passes no arguments): say what it is
+# instead of refusing.
+case "${1:-}" in
+  -h | --help)
+    cat <<'EOF'
+lictory-remote is the SSH forced command of the release automation's deploy
+key: it reads its command from SSH_ORIGINAL_COMMAND, never from arguments.
+Allowed: "<env> prepare", "<env> migrate <version>", "<env> activate <version>",
+"<env> backfill <version> <name>", "<env> rollback", "<env> status",
+"<env> registry-login" and "<env> registry-logout". Operators use `lictory`.
+EOF
+    exit 0
+    ;;
+esac
+
 read -r -a words <<<"${SSH_ORIGINAL_COMMAND:-}"
 environment="${words[0]:-}"
 action="${words[1]:-}"

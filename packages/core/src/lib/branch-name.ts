@@ -48,8 +48,7 @@ export function branchNameProblem(name: string): string | null {
     name.split("/").some((part) => /^[.-]/.test(part) || /\.lock$/i.test(part))
   )
     return "Each part between “/” must start with a letter or number and not end with “.lock”.";
-  if (name.toLowerCase() === "main")
-    return "That branch name is already in use.";
+  if (name.toLowerCase() === "main") return "That name is already in use.";
   return null;
 }
 

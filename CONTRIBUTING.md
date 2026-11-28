@@ -98,9 +98,18 @@ you observed. "Tests pass" alone is not evidence.
 - For UI changes, include before/after screenshots, and a short recording when
   timing or interaction matters. Upload them to the pull request; never commit
   them.
+- UI changes build on the shared components (the app shell, identity and
+  review components, `@lictory/ui`). Their states in light and dark are on
+  one page of the running app, `/<organization>/design-system`, which is not
+  linked from the navigation; start there before styling something new.
 - UI changes must keep WCAG 2.2 AA: they pass the accessibility lint rules and
-  the browser suite's axe checks, and work with a keyboard. See
-  [accessibility](docs/internals/accessibility.md).
+  the browser suite's axe checks. Scans miss what only a person notices, so
+  also check by hand what you changed: use it with the keyboard alone
+  (visible focus, a sensible order, Escape closes what opened); listen to it
+  once with a screen reader (VoiceOver, NVDA or Orca) for names, headings
+  and announcements; zoom to 200% and narrow the window to 320 px (nothing
+  cut off, no sideways scrolling); and look at it in both themes and with
+  reduced motion. See [accessibility](docs/internals/accessibility.md).
 - Before requesting review, run the full verification sequence from
   [the runbook](docs/operations/development.md#full-verification-before-a-pull-request)
   (`bun run verify`, or the commands by hand) and report the results; the

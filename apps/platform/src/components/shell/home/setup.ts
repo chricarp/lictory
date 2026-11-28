@@ -5,21 +5,30 @@ import { paths } from "@lictory/core/lib/paths";
 // own, never lies about progress, and leaves Home once everything exists.
 
 export type SetupFacts = {
+  // The project new work goes to (the first active one), if any.
+  project: { key: string } | null;
+  // Work items in the organization, archived or not.
+  workItems: number;
   codeConnections: readonly { status: string }[];
   runners: readonly { lastSeenAt: string | null; revokedAt: string | null }[];
   agents: readonly { archivedAt: string | null }[];
   channels: readonly { kind: string; archivedAt: number | string | null }[];
   // People in the organization, including me.
   members: number;
+  // Invitations sent and not yet accepted.
+  invited: number;
 };
 
-export type SetupStepId = "code" | "runner" | "agent" | "channel" | "team";
+export type SetupStepId =
+  "proposal" | "team" | "code" | "runner" | "agent" | "channel";
 
 export type SetupStep = {
   id: SetupStepId;
   title: string;
   detail: string;
   done: boolean;
+  // Said even once done, when done does not tell the whole story.
+  note?: string;
   // What to do next, when the person may do it.
   action: { label: string; href: string } | null;
 };
@@ -30,6 +39,35 @@ export function setupSteps(
   isAdmin: boolean,
 ): { steps: SetupStep[]; done: number; complete: boolean } {
   const steps: SetupStep[] = [
+    {
+      // The product's core loop comes first: the factory builds what a
+      // reviewed specification says.
+      id: "proposal",
+      title: "Write a first proposal",
+      detail:
+        "Describe a change, rough is fine, then ask Engineering and QA to review it: the approved revision is what agents build.",
+      done: facts.workItems > 0,
+      action: facts.project
+        ? {
+            label: "New proposal",
+            href: paths.proposals(org, facts.project.key),
+          }
+        : null,
+    },
+    {
+      id: "team",
+      title: "Invite your team",
+      detail: "Product, engineering and QA decide together what agents build.",
+      // Inviting is the step; joining is the invitee's.
+      done: facts.members > 1 || facts.invited > 0,
+      ...(facts.members === 1 &&
+        facts.invited > 0 && {
+          note: `${facts.invited} invited, not joined yet`,
+        }),
+      action: isAdmin
+        ? { label: "Invite", href: paths.settings(org, "members") }
+        : null,
+    },
     {
       id: "code",
       title: "Connect a code host",
@@ -53,7 +91,7 @@ export function setupSteps(
       id: "agent",
       title: "Create an agent",
       detail:
-        "A named agent with an owner and a scope, that people mention in channels and the policy dispatches.",
+        "A named agent with an owner and a scope, that people mention in channels. It works only when asked until a project chooses more autonomy in its settings.",
       done: facts.agents.some((a) => !a.archivedAt),
       action: { label: "Create agent", href: paths.factory(org) + "/agents" },
     },
@@ -64,15 +102,6 @@ export function setupSteps(
         "Where the team and its agents talk; what matters is promoted into proposals and decisions.",
       done: facts.channels.some((c) => c.kind !== "direct" && !c.archivedAt),
       action: { label: "New channel", href: paths.channels(org) },
-    },
-    {
-      id: "team",
-      title: "Invite your team",
-      detail: "Product, engineering and QA decide together what agents build.",
-      done: facts.members > 1,
-      action: isAdmin
-        ? { label: "Invite", href: paths.settings(org, "members") }
-        : null,
     },
   ];
   const done = steps.filter((s) => s.done).length;

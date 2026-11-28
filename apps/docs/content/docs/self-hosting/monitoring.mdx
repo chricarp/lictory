@@ -28,8 +28,18 @@ Every five minutes the monitor checks, and alerts on:
 - a lagging, lost or orphaned replication slot, and `pg_wal` above 6 GB;
 - failed or stuck AI runs, failed or overdue notifications and notification
   email, and
-  partial, failed or stuck Jira exports;
+  partial, failed or stuck Jira hand-offs, and items whose failed hand-off
+  was not retried within an hour;
 - automatic cycles overdue by two hours;
+- organization runners offline for more than ten minutes (personal runners,
+  which are people's own machines, are not alerted on), agent sessions queued
+  for 15 minutes that no online runner can take, sessions queued for an hour
+  because every capable runner is busy, and sessions assigned for ten minutes
+  without starting;
+- agent event subscriptions suspended after repeated failures, or failing for
+  more than an hour;
+- a Slack installation whose token Slack refused, and Slack events or mirrored
+  messages that failed or have waited more than 15 minutes;
 - a backup older than 30 hours (unless backups are disabled).
 
 It posts to `ALERT_WEBHOOK_URL` (Slack- and Discord-compatible JSON) when the

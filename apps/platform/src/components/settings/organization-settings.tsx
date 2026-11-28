@@ -19,21 +19,13 @@ import { OrganizationAudit } from "@lictory/platform/components/settings/org-aud
 import { OrganizationExport } from "@lictory/platform/components/settings/org-export";
 import { OrganizationDeletion } from "@lictory/platform/components/settings/org-deletion";
 import { SlackConnection } from "@lictory/platform/components/settings/org-slack";
+import {
+  organizationSettingsSections,
+  type OrganizationSettingsSectionId,
+} from "@lictory/platform/components/settings/organization-sections";
 
-const sections = [
-  { id: "general", label: "General", group: "Organization" },
-  { id: "members", label: "Members", group: "Organization" },
-  { id: "projects", label: "Projects", group: "Organization" },
-  { id: "security", label: "Security", group: "Organization" },
-  { id: "audit", label: "Audit log", group: "Organization" },
-  { id: "export", label: "Data export", group: "Organization" },
-  { id: "delete", label: "Delete organization", group: "Organization" },
-  { id: "types", label: "Work item types", group: "Shared" },
-  { id: "integrations", label: "Integrations", group: "Shared" },
-  { id: "code", label: "Code hosts", group: "Shared" },
-  { id: "intelligence", label: "Lictory Intelligence", group: "Shared" },
-] as const;
-type Section = (typeof sections)[number]["id"];
+const sections = organizationSettingsSections;
+type Section = OrganizationSettingsSectionId;
 
 // Organization settings own what every project shares: identity, people and
 // application roles, the project list, the type registry, Jira credentials
@@ -45,9 +37,11 @@ export function OrganizationSettingsLayout({
   children: ReactNode;
 }) {
   const { organization, directory, isAdmin } = useWorkspace();
-  const nav: SettingsNavItem[] = sections.map((s) => ({
-    ...s,
-    href: paths.settings(organization.slug, s.id),
+  const nav: SettingsNavItem[] = sections.map(({ id, label, group }) => ({
+    id,
+    label,
+    group,
+    href: paths.settings(organization.slug, id),
   }));
   return (
     <SettingsLayout
@@ -97,10 +91,7 @@ function Integrations() {
   return (
     <>
       <p className="px-1 text-[13px] leading-5 text-muted-foreground">
-        Connections hold the credentials Lictory uses to reach Jira and Slack.
-        Each project delivered in Jira picks its Jira project and maps its work
-        item types in its own delivery settings; each channel links to Slack
-        from its own menu.
+        How Lictory reaches Jira and Slack for this organization.
       </p>
       <JiraConnections />
       <SlackConnection />

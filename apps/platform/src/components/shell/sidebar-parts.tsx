@@ -269,8 +269,10 @@ export function SidebarLink({
       title={compact ? children : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex items-center rounded-lg text-[13px] focus-ring transition-[background-color,color,box-shadow] duration-150 outline-none motion-reduce:transition-none",
-        compact ? "size-8 justify-center" : "h-[30px] gap-2.5 px-2",
+        "relative flex items-center rounded-lg text-[13px] focus-ring-inset transition-[background-color,color,box-shadow] duration-150 outline-none motion-reduce:transition-none",
+        compact
+          ? "size-8 justify-center"
+          : "h-7 gap-2.5 px-2 [@media(pointer:coarse)]:h-8",
         // The current page is a raised card on the shell.
         active
           ? "bg-sidebar-accent font-medium text-foreground shadow-(--shadow-border)"

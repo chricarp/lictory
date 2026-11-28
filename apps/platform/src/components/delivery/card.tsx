@@ -1,5 +1,5 @@
 import { Link } from "@lictory/platform/lib/navigation";
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
@@ -15,6 +15,8 @@ import {
   type WorkItem,
 } from "@lictory/core/contracts/protocol";
 import type { ClaimEntity } from "@lictory/core/claims/contracts";
+import type { CodePullRequestEntity } from "@lictory/core/code/entities";
+import { PullRequestChip } from "@lictory/platform/components/code/parts";
 import {
   ClaimBadge,
   ClaimOwner,
@@ -94,6 +96,8 @@ export const ItemCard = memo(function ItemCard({
   onDragEnd,
   claim,
   claimAgent,
+  pullRequests,
+  move,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -113,6 +117,10 @@ export const ItemCard = memo(function ItemCard({
   // The agent claim holding the item, and the agent's identity.
   claim?: ClaimEntity;
   claimAgent?: AgentIdentity;
+  // Its open pull requests, newest first.
+  pullRequests?: readonly CodePullRequestEntity[];
+  // "Move" without dragging, where the person may move it.
+  move?: ReactNode;
 }) {
   const type = typeOf(delivery, item);
   const id = identifier(project, item.number);
@@ -148,14 +156,6 @@ export const ItemCard = memo(function ItemCard({
             <PersonAvatarById userId={item.assigneeId} />
           </span>
         )}
-        {claim && (
-          <ClaimBadge
-            claim={claim}
-            assigneeId={item.assigneeId}
-            withAgent={false}
-            className="ml-auto"
-          />
-        )}
       </div>
       {project && (
         <Link
@@ -169,12 +169,19 @@ export const ItemCard = memo(function ItemCard({
         </Link>
       )}
       {claim && (
-        <div className="mt-1.5 flex min-w-0">
+        // Who holds it and its state on one line that wraps, so the state
+        // ("Waiting on Amara") is never cut beside a long key.
+        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
           <ClaimOwner
             claim={claim}
             agent={claimAgent}
             assigneeId={item.assigneeId}
             className="max-w-full"
+          />
+          <ClaimBadge
+            claim={claim}
+            assigneeId={item.assigneeId}
+            withAgent={false}
           />
         </div>
       )}
@@ -190,7 +197,11 @@ export const ItemCard = memo(function ItemCard({
             title={estimateSpoken(project, estimate)}
             className="rounded-full bg-muted px-2 text-[11px] font-medium tabular-nums"
           >
-            <span aria-hidden>{estimate}</span>
+            {/* A unit, so an estimate is not read as a count. */}
+            <span aria-hidden>
+              {estimate}
+              {project?.estimateScale !== "tshirt" && " pts"}
+            </span>
             <span className="sr-only">{estimateSpoken(project, estimate)}</span>
           </span>
         )}
@@ -226,11 +237,13 @@ export const ItemCard = memo(function ItemCard({
             {item.blockingThreads === 1 ? "" : "s"}
           </span>
         )}
+        {pullRequests && <PullRequestChip pullRequests={pullRequests} />}
         {item.childCount > 0 && (
           <span className="tabular-nums" title="Children done">
             {item.childDoneCount}/{item.childCount} done
           </span>
         )}
+        {move && <span className="-my-1 ml-auto">{move}</span>}
       </div>
     </div>
   );

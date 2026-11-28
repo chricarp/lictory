@@ -24,12 +24,25 @@ Three append-only tables, all scoped to one organization, are read together:
   invitation), `member.removed`, `member.left`, `member.account_deleted`,
   `member.role_changed` (with the previous and new role),
   `invitation.created`, `invitation.cancelled`, `invitation.rejected`.
-- **Access tokens**: `access_token.created` (access, prefix, expiry) and
-  `access_token.revoked`. A token acts for its owner in every organization the
-  owner belongs to, so each of those organizations records it.
+- **Access** (who and what can act or read): `access_token.created`
+  (access, prefix, expiry) and `access_token.revoked` (a token acts for its
+  owner in every organization the owner belongs to, so each of those
+  organizations records it); agents, their scope and archive; runner
+  registration and revocation; private channels and their members; Slack
+  connections and channel links; agent event webhooks and subscriptions.
 - **Two-factor**: `two_factor.requirement_changed` (with the previous value)
   and `two_factor.member_reset` (an administrator removed a member's
   authenticator; see [two-factor authentication](two-factor-authentication.md)).
+- **Agents, Autopilot & Done**: `autopilot.merged`, written when the code
+  host confirms a merge Autopilot requested, attributed to the administrator
+  whose autonomy policy authorized it (target: the pull request; detail: the
+  head commit, the policy version and the work item);
+  `done_check.overridden` and `done_check.override_withdrawn`, written in the
+  transaction of a person passing a Definition of Done check by hand or
+  withdrawing that (target: the work item; detail: the check, the revision,
+  the reason; see [claims](claims.md#definition-of-done)). Sign-offs are
+  evidence, not overrides, and stay in the item's history only. The same
+  category lists agents' capability calls from `capability_invocation`.
 - **Organization**: `organization.created`, `organization.updated` (name or
   handle), `audit_log.exported`, `data_export.requested` and
   `data_export.downloaded` ([data export](data-export.md)),
@@ -101,6 +114,13 @@ person, date range in UTC days) run on the server. The CSV export streams the
 same query page by page, never holding the whole log in memory, prefixes cells
 that a spreadsheet would evaluate as formulas, and records
 `audit_log.exported` with its filters.
+
+The export is the whole record of each entry, one row per entry, newest
+first: time (UTC, ISO 8601), entry (`source:id`, stable, so overlapping
+exports de-duplicate), category, actor id, name and email at the time,
+action, summary, target type, id and label, and the detail as JSON. A
+collector that needs the log elsewhere (a SIEM) exports by day range and
+de-duplicates by entry; continuous delivery to another system is not built.
 
 The log is not synchronized through Zero. Synced queries authorize by
 organization membership, so every member could read a projection, while the

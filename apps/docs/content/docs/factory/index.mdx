@@ -8,9 +8,15 @@ Claude Code, Codex or Lictory's built-in harness runs on a **runner**, a
 machine you control, in its own git branch. People start sessions, steer
 them and make the decisions; agents do the work in between.
 
-Open it from **Factory** in the sidebar (**Overview**). The overview shows what is waiting
-on you, what agents are working on now, what is queued and what finished
-recently.
+Open it from **Factory** in the sidebar. The overview lists the agent
+requests that wait on you (the same rows as your [Inbox](/inbox)'s **To
+do** and Home, answered right there), the sessions waiting on a teammate and
+on whom, what agents are working on now, what is queued and what finished
+recently. Its tabs lead to **Sessions**, **Agents** and **Runners**;
+**Sessions** lists the recent sessions of the organization, newest started
+first, with who ran and started each, how long it ran and what came of it.
+Narrow it by state, by agent or by who started it to find yesterday's run or
+the ones that failed.
 
 ## Before you start
 
@@ -25,7 +31,21 @@ Choose **Start session**, pick the agent and say what it should do. You can
 name a work item (its key becomes part of the branch name and of the commit
 message, so the code links back to it) and a repository with its base
 branch. The session is **queued** until a runner that may run the agent
-claims it.
+claims it. When no online runner can run it (none is online, none has the
+agent's harness, or the only ones are other people's personal runners), the
+session, its card and its item say **No runner** and the overview points
+you to **Runners**.
+
+The repository starts at the work item's project default. With no work item
+and exactly one repository linked in the organization, it starts at that
+one; you can still choose **None**. Without a repository the agent works in
+a scratch workspace that is discarded when the session ends: the dialog says
+so before you start, and a request to write a file or run a command says so
+before you approve it (a command's effects outside the workspace, such as a
+database migration, are not undone). A session that changed files there ends
+as **Work not kept**, with how many files were discarded, instead of
+**Completed**; **Start again with a repository…** opens Start session with
+the same agent, task and work item.
 
 You can start sessions with agents you own, and with agents their owners
 share with the organization. A shared agent still acts as its owner.
@@ -43,22 +63,42 @@ files it changed and status changes. Below it:
 
 - **Message the agent** to steer it. A message sent while it works reaches
   it when its current step ends.
-- **Interrupt** stops the current turn; the agent waits for your next
-  message.
-- **Cancel** stops the session for good. **Retry** runs a failed or canceled
-  session again from its original instructions; its history stays.
+- **Interrupt** stops the current turn; the agent keeps its work and waits
+  for your next message (the session shows **Waiting on you**). It is offered
+  only while the agent works: a session already waiting on you has nothing
+  to interrupt.
+- **Cancel…** stops the session for good, after you confirm. **Retry** runs a failed or canceled
+  session again from its original instructions and sends it the messages you
+  sent before, so you do not repeat them; its history stays.
 
 Only the person who started the session and the agent's owner can steer it.
 An organization administrator can also cancel it. In a session's channel
-thread, their replies are messages to the agent too.
+thread, their replies are messages to the agent too, and **Interrupt** and
+**Cancel…** are on the session's card there.
 
 ## Answer what the agent asks
 
 When an agent needs a decision (for example a command its harness may not
-run without permission) the session is **Waiting on a person** and an
-approval card appears in the transcript and on the Factory overview. Choose
-**Approve** or **Deny**. Only the person who started the session and the
-agent's owner can answer, and an agent can never answer for them.
+run without permission) the session is **Waiting on you** and an approval
+request appears in the session, on the Factory overview, on Home and in your
+Inbox's To do. It names the item, the agent and the exact action (the
+command it would run or the file it would write). Open **Review** to see the
+evidence, then choose **Approve** or **Deny**.
+
+A request that names no command or file is a **Question**: there is nothing
+to approve, so you answer it in words (**Answer**, then **Send answer**) or
+deny it. Lictory never approves an action on its title alone. Only the
+person who started the session and the agent's owner can answer, and an
+agent can never answer for them.
+
+When the agent asks something in its own words and waits for your answer,
+the session is **Waiting on you** too: reply in the session or in its
+thread.
+
+A session you started that fails is in your To do and on Home until you
+retry it (or for a week). Retry runs the same task again; to change what it
+is asked, update its work item or reply in its thread and start a new
+session (the failed session's page links both).
 
 ## When it finishes
 

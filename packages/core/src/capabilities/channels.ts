@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  CapabilityError,
   defineCapability,
   everywhere,
   id,
@@ -75,6 +76,14 @@ const clientMessageId = z
   .describe(
     "Retry key: posting again with the same value returns the first message instead of a duplicate.",
   );
+// Agents use the idempotency key every write tool takes; the browser keeps
+// its own client message id. Both name the same retry key.
+const messageMutationId = z
+  .uuid()
+  .optional()
+  .describe(
+    "Idempotency key: posting again with the same value returns the first message instead of a duplicate. The same key as clientMessageId; give one of them.",
+  );
 const attachmentIds = z
   .array(id)
   .max(10)
@@ -104,7 +113,10 @@ const listChannelsCapability = defineCapability({
   surfaces: everywhere,
   input: z.object({
     organizationId,
-    joinedOnly: z.boolean().default(false),
+    joinedOnly: z
+      .boolean()
+      .default(false)
+      .describe("true lists only channels you belong to."),
     includeArchived: z.boolean().default(false),
     query: z.string().trim().max(80).optional(),
   }),
@@ -120,10 +132,27 @@ const readChannelCapability = defineCapability({
   input: z.object({
     organizationId,
     channelId: id,
-    afterSequence: z.number().int().min(0).optional(),
-    beforeSequence: z.number().int().min(1).optional(),
+    afterSequence: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        "Read the messages after this sequence: the previous result's nextCursor, or your readSequence from listChannels for what is unread.",
+      ),
+    beforeSequence: z
+      .number()
+      .int()
+      .min(1)
+      .optional()
+      .describe(
+        "Read the messages before this sequence, to page back through history.",
+      ),
     limit: z.number().int().min(1).max(200).default(50),
-    threads: z.boolean().default(false),
+    threads: z
+      .boolean()
+      .default(false)
+      .describe("true also includes thread replies."),
   }),
   run: async (ctx, q) =>
     readChannel(
@@ -144,7 +173,12 @@ const readThreadCapability = defineCapability({
     organizationId,
     channelId: id,
     rootMessageId: id,
-    afterSequence: z.number().int().min(0).optional(),
+    afterSequence: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe("Only the replies after this sequence."),
     limit: z.number().int().min(1).max(200).default(100),
   }),
   run: async (ctx, q) =>
@@ -182,12 +216,25 @@ const badgeCapability = defineCapability({
   name: "getChannelAttention",
   title: "Unread mentions and direct messages",
   description:
-    "Your unread mentions and unread direct messages per organization, and their total: what the desktop app's badge shows. Ordinary channel traffic is not counted.",
+    "Your unread mentions and unread direct messages per organization, and their total: the conversation part of the desktop app's badge (which also counts the open organization's Inbox to-dos). Ordinary channel traffic is not counted.",
   kind: "query",
   surfaces: everywhere,
   input: z.object({}),
   run: (ctx) => attentionCounts(ctx.db, ctx.principal.userId),
 });
+
+function retryKey<T extends { clientMessageId?: string }>(
+  input: T,
+  mutationId: string | undefined,
+): T {
+  if (!mutationId) return input;
+  if (input.clientMessageId && input.clientMessageId !== mutationId)
+    throw new CapabilityError(
+      "validation",
+      "mutationId and clientMessageId are the same retry key; give one of them.",
+    );
+  return { ...input, clientMessageId: mutationId };
+}
 
 const postCapability = defineCapability({
   name: "postChannelMessage",
@@ -202,11 +249,12 @@ const postCapability = defineCapability({
     channelId: id,
     body,
     clientMessageId,
+    mutationId: messageMutationId,
     attachmentIds,
   }),
-  async run(ctx, q) {
+  async run(ctx, { mutationId, ...q }) {
     const { message, replayed } = await ctx.db.transaction((tx) =>
-      postMessage(tx, actorOf(ctx), q),
+      postMessage(tx, actorOf(ctx), retryKey(q, mutationId)),
     );
     return messageResult(message, replayed);
   },
@@ -223,14 +271,17 @@ const replyCapability = defineCapability({
   input: z.object({
     organizationId,
     channelId: id,
-    threadRootId: id,
+    threadRootId: id.describe(
+      "The thread's first message id (threads are one level deep).",
+    ),
     body,
     clientMessageId,
+    mutationId: messageMutationId,
     attachmentIds,
   }),
-  async run(ctx, q) {
+  async run(ctx, { mutationId, ...q }) {
     const { message, replayed } = await ctx.db.transaction((tx) =>
-      postMessage(tx, actorOf(ctx), q),
+      postMessage(tx, actorOf(ctx), retryKey(q, mutationId)),
     );
     return messageResult(message, replayed);
   },
@@ -283,8 +334,15 @@ const reactCapability = defineCapability({
     organizationId,
     channelId: id,
     messageId: id,
-    emoji: z.string().min(1).max(64),
-    add: z.boolean().default(true),
+    emoji: z
+      .string()
+      .min(1)
+      .max(64)
+      .describe("The emoji, such as 👍 or :white_check_mark:."),
+    add: z
+      .boolean()
+      .default(true)
+      .describe("true (default) adds your reaction; false removes it."),
   }),
   run: (ctx, q) =>
     ctx.db.transaction((tx) => reactToMessage(tx, actorOf(ctx), q)),
@@ -301,8 +359,20 @@ const markReadCapability = defineCapability({
   input: z.object({
     organizationId,
     channelId: id,
-    sequence: z.number().int().min(0).optional(),
-    unread: z.boolean().default(false),
+    sequence: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe(
+        "Message sequence to move your read cursor to; omitted: the latest message.",
+      ),
+    unread: z
+      .boolean()
+      .default(false)
+      .describe(
+        "true moves the cursor back on purpose, so messages after sequence are unread again.",
+      ),
   }),
   run: (ctx, q) =>
     ctx.db.transaction((tx) =>
@@ -325,8 +395,13 @@ const threadCapability = defineCapability({
     organizationId,
     channelId: id,
     rootMessageId: id,
-    read: z.boolean().optional(),
-    following: z.boolean().optional(),
+    read: z.boolean().optional().describe("true marks the thread read."),
+    following: z
+      .boolean()
+      .optional()
+      .describe(
+        "true follows the thread (you are told about replies); false unfollows it.",
+      ),
   }),
   async run(ctx, q) {
     await ctx.db.transaction((tx) =>
@@ -390,7 +465,12 @@ const promoteProposal = defineCapability({
   input: z.object({
     ...promotionSource,
     projectId: id,
-    title: z.string().trim().min(1).max(240),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(240)
+      .describe("Title of the new proposal."),
     typeId: id
       .optional()
       .describe("Defaults to the project's Story-level specification type."),
@@ -418,8 +498,18 @@ const promoteDecision = defineCapability({
   input: z.object({
     ...promotionSource,
     workItemId: id,
-    title: z.string().trim().min(1).max(240),
-    body: z.string().trim().max(10_000).optional(),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(240)
+      .describe("The decision in one line."),
+    body: z
+      .string()
+      .trim()
+      .max(10_000)
+      .optional()
+      .describe("Why, and what follows from it, in Markdown."),
   }),
   run: (ctx, { workItemId, title, body: text, ...source }) =>
     promotion(ctx, source, {
@@ -441,11 +531,36 @@ const promoteDiscussion = defineCapability({
   input: z.object({
     ...promotionSource,
     workItemId: id,
-    section: z.string().max(200),
-    quote: z.string().max(2000).optional(),
-    occurrence: z.number().int().min(0).max(10_000).optional(),
-    blocking: z.boolean().default(false),
-    note: z.string().trim().max(10_000).optional(),
+    section: z
+      .string()
+      .max(200)
+      .describe(
+        "Heading of the specification the discussion is anchored to; an empty string for the whole text.",
+      ),
+    quote: z
+      .string()
+      .max(2000)
+      .optional()
+      .describe("Exact text of that section the discussion is about."),
+    occurrence: z
+      .number()
+      .int()
+      .min(0)
+      .max(10_000)
+      .optional()
+      .describe(
+        "When the quote appears more than once under its section: which appearance (0 is the first).",
+      ),
+    blocking: z
+      .boolean()
+      .default(false)
+      .describe("true: the discussion blocks readiness until it is resolved."),
+    note: z
+      .string()
+      .trim()
+      .max(10_000)
+      .optional()
+      .describe("Your own opening words, before the quoted message."),
   }),
   run: (
     ctx,

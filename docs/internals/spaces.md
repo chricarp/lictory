@@ -1055,7 +1055,7 @@ attributed to the anonymized account, like specification threads.
   browser like the sidebar's state; "Show pages" brings it back), and it
   steps aside while comments are open on frames under 80rem. The space home
   has "Find a page" (titles anywhere in the tree, with their path) and
-  "Recently updated" with who published what (`publishedById`,
+  "Recently updated" beside the tree on wide screens, with who published what (`publishedById`,
   `publishedMessage` of the page summary). A page starts with the shell's
   `PageHeader`: its path (Spaces, the space, its parent pages), its title
   and its toolbar; phones keep the title in the bar and put the toolbar
@@ -1180,9 +1180,10 @@ attributed to the anonymized account, like specification threads.
   ([When a line ends](#when-a-line-ends)); the page summary's `openThreads`
   and `blockingThreads` stay page-wide, as the merge gate into main is. The count of blocking threads says what they block ("blocks merging
   pull requests" in Direct spaces, whose Publish they do not stop; "blocks
-  merging" in Reviewed ones). Highlights are tints in the thread's colour;
-  the selected thread and the one pointed at, in the panel or in the text,
-  are tinted more on both sides.
+  merging" in Reviewed ones). Highlights are tints in the thread's colour
+  with a solid line under the text, as in specifications; the selected thread
+  and the one pointed at, in the panel or in the text, are tinted more on
+  both sides.
 - **Space settings.** Every setting applies when it changes (text fields
   when left or on Enter) and shows "Saving…", then "Saved", or the refusal
   beside it. Moving an Inherited space to another location asks first,

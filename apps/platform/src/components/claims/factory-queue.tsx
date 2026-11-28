@@ -2,7 +2,6 @@ import { Children, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Bot,
   CircleCheck,
-  KanbanSquare,
   ListChecks,
   MessageCircleQuestion,
   OctagonPause,
@@ -34,6 +33,8 @@ import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import { ListRow } from "@lictory/platform/components/shell/list-row";
 import { ApprovalRequest } from "@lictory/platform/components/shell/approval-request";
@@ -43,7 +44,7 @@ import {
 } from "@lictory/platform/components/claims/claim-badge";
 import {
   claimWaitsOnPeople,
-  leaseLeft,
+  leaseLeftLabel,
   useAgentLabel,
   useAutonomy,
   useClaimability,
@@ -51,6 +52,7 @@ import {
 } from "@lictory/platform/components/claims/claims";
 import { ReleaseDialog } from "@lictory/platform/components/claims/item-panels";
 import { useFactory } from "@lictory/platform/components/factory/store";
+import { waitsForRunner } from "@lictory/core/factory/entities";
 
 type Dispatch = {
   workItemId: string;
@@ -67,27 +69,20 @@ type Dispatch = {
 // rule, so the queue never promises what a claim would refuse.
 export function FactoryQueue() {
   const project = useProject();
-  const { organization } = useWorkspace();
+  const { directory } = useWorkspace();
+  const tool = projectDeliveryTool(directory, project.id);
   if (project.deliveryMode !== "native")
     return (
-      <MissingState
-        illustration="planning"
-        icon={KanbanSquare}
-        title={`${project.name} delivers in an external tool`}
-        action={
-          <Button
-            variant="secondary"
-            render={
-              <Link href={paths.handoff(organization.slug, project.key)} />
-            }
-          >
-            Open hand-off
-          </Button>
-        }
+      <ExternalProjectNotice
+        project={project}
+        surface="factory queue"
+        title="Factory queue"
+        icon={<ListChecks />}
       >
-        The delivery tool owns execution, so agents do not claim this
-        project&apos;s work.
-      </MissingState>
+        {tool.Name} owns delivery in this project, so agents never claim or get
+        dispatched its work: claims, Build and Autopilot need a project that
+        delivers in Lictory. Refinement, reviews and the hand-off work as usual.
+      </ExternalProjectNotice>
     );
   return <Queue project={project} />;
 }
@@ -105,7 +100,7 @@ function Queue({ project }: { project: Project }) {
     memberName,
     delivery,
   } = useWorkspace();
-  const { agentById, runnerById, sessions } = useFactory();
+  const { agentById, runnerById, runners, sessions } = useFactory();
   const claims = useLiveClaims();
   const verdictOf = useClaimability();
   const label = useAgentLabel();
@@ -161,6 +156,16 @@ function Queue({ project }: { project: Project }) {
     return { claimed, waiting, agreement, claimable, blocked };
   }, [items, claims, verdictOf, project.id]);
   const live = groups.claimed.length + groups.waiting.length;
+  // A claim whose session no online runner can take waits silently
+  // otherwise: its row says so.
+  const noRunner = (claim: ClaimEntity) => {
+    if (claim.state !== "starting" || !claim.agentSessionId) return false;
+    const session = sessions.find((s) => s.id === claim.agentSessionId);
+    return Boolean(
+      session &&
+      waitsForRunner(session, agentById.get(session.agentId), runners),
+    );
+  };
   // Work a person owns stays theirs: the dispatcher gives an assigned item
   // only to an implementer acting for its assignee.
   const implementerOwners = new Set(
@@ -435,13 +440,14 @@ function Queue({ project }: { project: Project }) {
                       assigneeId={item.assigneeId}
                       className="shrink-0"
                     />
-                    <span aria-hidden>·</span>
                     <span className="min-w-0 truncate">
-                      {claim.lastProgress
-                        ? `${claim.lastProgress} · ${relativeTime(claim.lastProgressAt ?? claim.claimedAt)}`
-                        : claim.state === "active"
-                          ? `Lease ends in ${Math.max(leaseLeft(claim), 0)} min`
-                          : `Claimed ${relativeTime(claim.claimedAt)}`}
+                      {noRunner(claim)
+                        ? `Queued: no online runner can run ${agentById.get(claim.agentId)?.name ?? "its agent"}`
+                        : claim.lastProgress
+                          ? `${claim.lastProgress} · ${relativeTime(claim.lastProgressAt ?? claim.claimedAt)}`
+                          : claim.state === "active"
+                            ? `Lease ends in ${leaseLeftLabel(claim)}`
+                            : `Claimed ${relativeTime(claim.claimedAt)}`}
                     </span>
                   </>
                 }
@@ -455,7 +461,7 @@ function Queue({ project }: { project: Project }) {
                       variant="ghost"
                       onClick={() => setReleasing(claim)}
                     >
-                      Release
+                      Release claim…
                     </Button>
                   )
                 }

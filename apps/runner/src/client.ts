@@ -33,6 +33,57 @@ export class ProtocolError extends Error {
   }
 }
 
+// The server could not be reached at all (no HTTP answer), in words that
+// say which address and what to check. Transient: callers retry it.
+export class NetworkError extends Error {
+  constructor(
+    readonly url: string,
+    readonly code: string | undefined,
+    cause: unknown,
+  ) {
+    super(describeNetworkError(url, code, cause));
+    this.name = "NetworkError";
+  }
+}
+
+const TLS_CODES =
+  /CERT|SELF_SIGNED|UNABLE_TO_(GET|VERIFY)|ALTNAME|TLS|SSL|HANDSHAKE/i;
+
+export function describeNetworkError(
+  url: string,
+  code: string | undefined,
+  cause: unknown,
+) {
+  let origin = url;
+  let host = url;
+  try {
+    ({ origin, hostname: host } = new URL(url));
+  } catch {
+    // Not a URL: name it as given.
+  }
+  switch (code) {
+    case "ConnectionRefused":
+    case "ECONNREFUSED":
+      return `Could not connect to ${origin}: nothing accepted the connection. Check the address and port, and that the server is running.`;
+    case "ENOTFOUND":
+    case "EAI_NONAME":
+    case "EAI_AGAIN":
+    case "DNSException":
+      return `Could not find ${host}: the name does not resolve. Check the address (--url) and this machine's DNS.`;
+    case "ETIMEDOUT":
+    case "ConnectionTimeout":
+    case "TimeoutError":
+      return `${origin} did not answer in time. Check that outbound HTTPS to it is allowed (proxy, firewall).`;
+    case "ECONNRESET":
+    case "ConnectionClosed":
+      return `${origin} closed the connection. Check proxies between this machine and the server, then try again.`;
+  }
+  if (code && TLS_CODES.test(code))
+    return `${origin} presented a TLS certificate this machine does not trust (${code}). Use the server's public address, or trust its certificate authority with NODE_EXTRA_CA_CERTS=<ca.pem>.`;
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  return `Could not reach ${origin}: ${detail}${code && !detail.includes(code) ? ` (${code})` : ""}. Check the address and this machine's network.`;
+}
+
 const userAgent = `lictory-runner/${RUNNER_VERSION} (${process.platform}; ${process.arch})`;
 
 export class RunnerClient {
@@ -46,30 +97,47 @@ export class RunnerClient {
   }
 
   async raw(path: string, body: unknown, signal?: AbortSignal) {
-    const response = await fetch(this.endpoint(path), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": userAgent,
-        ...(this.credential
-          ? { Authorization: `Bearer ${this.credential}` }
-          : {}),
-      },
-      body: JSON.stringify(body),
-      signal,
-    });
+    const response = await this.fetch(path, body, signal);
     if (!response.ok) {
       const json = (await response.json().catch(() => null)) as {
         error?: { message?: string; kind?: string; acked?: number };
       } | null;
       throw new ProtocolError(
         response.status,
-        json?.error?.message ?? `The server answered ${response.status}.`,
+        json?.error?.message ??
+          (response.status === 404
+            ? `${this.url} has no Lictory runner API (HTTP 404). Check that --url is the address you open Lictory at.`
+            : `${this.url} answered HTTP ${response.status} without saying why. If a proxy sits in front of Lictory, check its logs.`),
         json?.error?.kind,
         json?.error?.acked,
       );
     }
     return response;
+  }
+
+  private async fetch(path: string, body: unknown, signal?: AbortSignal) {
+    const url = this.endpoint(path);
+    try {
+      return await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": userAgent,
+          ...(this.credential
+            ? { Authorization: `Bearer ${this.credential}` }
+            : {}),
+        },
+        body: JSON.stringify(body),
+        signal,
+      });
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      const code =
+        error && typeof error === "object" && "code" in error
+          ? String(error.code)
+          : undefined;
+      throw new NetworkError(this.url, code, error);
+    }
   }
 
   async post<T>(path: string, body: unknown, signal?: AbortSignal) {
@@ -91,7 +159,11 @@ export class RunnerClient {
   heartbeat(
     report: MachineReport & {
       sessions: { sessionId: string; leaseToken: string }[];
+      // The last problem the runner met; omitted, the server keeps the one
+      // it has.
+      lastError?: { message: string; at: string } | null;
     },
+    signal?: AbortSignal,
   ) {
     return this.post<{
       serverTime: string;
@@ -100,7 +172,7 @@ export class RunnerClient {
         held: boolean;
         status: string | null;
       }[];
-    }>("/heartbeat", report);
+    }>("/heartbeat", report, signal);
   }
 
   claim(wait: number, signal?: AbortSignal) {

@@ -7,6 +7,7 @@ import {
   CalendarPlus,
   CircleAlert,
   CirclePlay,
+  CornerLeftUp,
   Flag,
   ListOrdered,
   Plus,
@@ -38,12 +39,24 @@ import { EmptyState } from "@lictory/ui/primitives";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { SectionCaption } from "@lictory/platform/components/shell/panel";
+import { MetaLine } from "@lictory/platform/components/shell/meta-line";
 import { Actor } from "@lictory/platform/components/identity/actor";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
 import { useLiveClaims } from "@lictory/platform/components/claims/claims";
+import type { CodePullRequestEntity } from "@lictory/core/code/entities";
+import { PullRequestChip } from "@lictory/platform/components/code/parts";
+import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/store";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useShell } from "@lictory/platform/components/workspace/shell";
+import {
+  MoveMenu,
+  refocusMoved,
+} from "@lictory/platform/components/delivery/move-menu";
+import {
+  rankNeighbours,
+  type RankMove,
+} from "@lictory/platform/components/delivery/move";
 import {
   RefinementIcon,
   StatusIcon,
@@ -59,10 +72,10 @@ import {
   useItemPeek,
 } from "@lictory/platform/components/delivery/item-peek";
 import {
-  ExternalProjectNotice,
   TeamFilterPicker,
   useTeamFilter,
 } from "@lictory/platform/components/delivery/board";
+import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 const DAY = 86_400_000;
@@ -96,7 +109,14 @@ export function useIterationReport(
 export function Backlog() {
   const project = useProject();
   if (project.deliveryMode === "external")
-    return <ExternalProjectNotice project={project} surface="backlog" />;
+    return (
+      <ExternalProjectNotice
+        project={project}
+        surface="backlog"
+        title="Backlog"
+        icon={<ListOrdered />}
+      />
+    );
   return <ProjectBacklog project={project} />;
 }
 
@@ -153,6 +173,7 @@ function ProjectBacklog({ project }: { project: Project }) {
   );
   const [drag, setDrag] = useState<string>();
   const [over, setOver] = useState<{ section: string; index: number }>();
+  const pullRequests = useOpenPullRequestsByItem();
   const move = (sectionId: string, rows: WorkItem[], index: number) => {
     const item = teamItems.find((i) => i.id === drag);
     setDrag(undefined);
@@ -175,6 +196,24 @@ function ProjectBacklog({ project }: { project: Project }) {
         afterId: after,
         beforeId: before,
       });
+  };
+  // "Move" on a row: ranks it within its section, as a drop there would.
+  const rank = (rows: WorkItem[], item: WorkItem, to: RankMove) => {
+    const neighbours = rankNeighbours(
+      rows.map((r) => r.id),
+      item.id,
+      to,
+    );
+    if (!neighbours) return;
+    void mutate({ type: "rankWorkItem", workItemId: item.id, ...neighbours });
+    refocusMoved(item.id);
+  };
+  const sectionName = (id: string) => {
+    const iteration =
+      id === "backlog" ? undefined : delivery.iterations.get(id);
+    return iteration
+      ? iterationLabel(iteration, project.iterationMode)
+      : "Backlog";
   };
   const createSprint = () => {
     const last = open.at(-1) ?? iterations.at(-1);
@@ -247,6 +286,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                 )}
                 <BacklogRow
                   item={item}
+                  pullRequests={pullRequests.get(item.id)}
                   label={identifier(project, item.number)}
                   href={paths.item(
                     organization.slug,
@@ -268,6 +308,18 @@ function ProjectBacklog({ project }: { project: Project }) {
                     setDrag(undefined);
                     setOver(undefined);
                   }}
+                  actions={
+                    capabilities.changeProperties && (
+                      <MoveMenu
+                        itemId={item.id}
+                        label={identifier(project, item.number)}
+                        index={index}
+                        count={rows.length}
+                        where={sectionName(id)}
+                        onRank={(to) => rank(rows, item, to)}
+                      />
+                    )
+                  }
                 />
               </li>
             ))}
@@ -382,7 +434,8 @@ function ProjectBacklog({ project }: { project: Project }) {
       >
         <div
           className={cn(
-            "mx-auto max-w-4xl space-y-4 px-6 py-6 max-sm:px-3",
+            // Wide enough that titles, not the margins, get the room.
+            "mx-auto max-w-5xl space-y-4 px-6 py-6 max-sm:px-3",
             peek.peeked && "pb-[60dvh]",
           )}
         >
@@ -503,19 +556,22 @@ function ProjectBacklog({ project }: { project: Project }) {
                   "Drag items here to plan them.",
                 );
               })}
-              {section(
-                "backlog",
-                backlog,
-                <div className="flex items-center gap-2 px-4 py-3">
-                  <h2 className="text-sm font-semibold">Backlog</h2>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {backlog.length} {backlog.length === 1 ? "item" : "items"}
-                    {project.estimateScale !== "none" &&
-                      ` · ${points(backlog)} pts`}
-                  </span>
-                </div>,
-                "The backlog is empty.",
-              )}
+              {/* With no work at all, the empty state below says so once;
+                  an empty backlog card above it would say it twice. */}
+              {teamItems.length > 0 &&
+                section(
+                  "backlog",
+                  backlog,
+                  <div className="flex items-center gap-2 px-4 py-3">
+                    <h2 className="text-sm font-semibold">Backlog</h2>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {backlog.length} {backlog.length === 1 ? "item" : "items"}
+                      {project.estimateScale !== "none" &&
+                        ` · ${points(backlog)} pts`}
+                    </span>
+                  </div>,
+                  "The backlog is empty.",
+                )}
               {iterations.some((i) => i.state === "completed") && (
                 <div>
                   <SectionCaption className="px-1">Completed</SectionCaption>
@@ -618,27 +674,25 @@ function IterationHeader({
             Active
           </StatusChip>
         )}
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {shortRange(iteration)}
-        </span>
-        <span aria-hidden className="text-xs text-muted-foreground">
-          ·
-        </span>
-        <span
-          className={cn(
-            "text-xs tabular-nums",
-            over ? "text-warning" : "text-muted-foreground",
+        <MetaLine className="min-w-0">
+          <span className="tabular-nums">{shortRange(iteration)}</span>
+          <span className="tabular-nums">
+            {rows.length} {rows.length === 1 ? "item" : "items"}
+          </span>
+          {showPoints && (
+            <span
+              className={cn("tabular-nums", over && "text-warning")}
+              title={
+                capacity !== undefined
+                  ? `Recent average velocity: ${capacity} pts`
+                  : undefined
+              }
+            >
+              {points}
+              {capacity !== undefined ? ` / ~${capacity}` : ""} pts
+            </span>
           )}
-          title={
-            capacity !== undefined
-              ? `Recent average velocity: ${capacity} pts`
-              : undefined
-          }
-        >
-          {rows.length} {rows.length === 1 ? "item" : "items"}
-          {showPoints &&
-            ` · ${points}${capacity !== undefined ? ` / ~${capacity}` : ""} pts`}
-        </span>
+        </MetaLine>
         <div className="ml-auto flex items-center gap-1">
           <ContextControl
             project={project}
@@ -821,10 +875,13 @@ export function BacklogRow({
   actions,
   selected,
   onOpen,
+  pullRequests,
 }: {
   item: WorkItem;
   label: string;
   href: string;
+  // Its open pull requests, newest first.
+  pullRequests?: readonly CodePullRequestEntity[];
   teamName?: string;
   estimate: string | null;
   draggable: boolean;
@@ -838,9 +895,14 @@ export function BacklogRow({
   // Plain clicks preview the item instead of following the link.
   onOpen?: (event: React.MouseEvent, id: string) => void;
 }) {
-  const { delivery, projects } = useWorkspace();
+  const { delivery, projects, items } = useWorkspace();
   const project = projects.find((p) => p.id === item.projectId);
   const status = delivery.statuses.get(item.statusId);
+  // A ranked backlog keeps its order, so a child names its parent: the
+  // breakdown of an agreed specification stays visible where it is planned.
+  const parent = item.parentId
+    ? items.find((i) => i.id === item.parentId)
+    : undefined;
   const claim = useLiveClaims().get(item.id);
   return (
     <div
@@ -854,7 +916,9 @@ export function BacklogRow({
       }}
       onDragEnd={onDragEnd}
       className={cn(
-        "relative flex h-9 items-center gap-2 border-b px-4 text-[13px] last:border-b-0 hover:bg-muted/50",
+        // Phones give the states a second line, in words, instead of
+        // squeezing them into icons beside a cut title.
+        "relative flex items-center gap-2 border-b px-4 text-[13px] last:border-b-0 hover:bg-muted/50 max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2 sm:h-9",
         draggable && "cursor-grab",
         dragging && "opacity-40",
         selected &&
@@ -870,20 +934,41 @@ export function BacklogRow({
         draggable={false}
         aria-current={selected ? true : undefined}
         onClick={onOpen ? (e) => onOpen(e, label) : undefined}
-        className="min-w-0 flex-1 truncate after:absolute after:inset-0"
+        // The title keeps its length and gives way last: the parent's name
+        // beside it shrinks first (sm:min-w-32 bounds how far the title goes).
+        className="min-w-0 flex-[1_1_auto] after:absolute after:inset-0 max-sm:line-clamp-2 max-sm:break-words sm:min-w-32 sm:truncate"
       >
         {item.title}
       </Link>
+      {parent && project && (
+        <span
+          title={`Part of ${identifier(project, parent.number)} ${parent.title}`}
+          className="relative z-[1] inline-flex max-w-48 min-w-0 shrink-[4] items-center gap-1 overflow-hidden text-xs text-muted-foreground max-sm:order-last"
+        >
+          <span className="sr-only">Part of </span>
+          <CornerLeftUp aria-hidden className="size-3 shrink-0" />
+          <span className="shrink-0 font-mono">
+            {identifier(project, parent.number)}
+          </span>
+          <span className="hidden min-w-0 truncate @min-[65rem]/frame:inline">
+            {parent.title}
+          </span>
+        </span>
+      )}
+      <span aria-hidden className="basis-full sm:hidden" />
       {teamName && (
         <span className="max-w-28 shrink-0 truncate rounded bg-muted px-1.5 text-xs text-muted-foreground">
           {teamName}
         </span>
       )}
-      {claim && (
-        <ClaimBadge claim={claim} assigneeId={item.assigneeId} compactOnPhone />
+      {claim && <ClaimBadge claim={claim} assigneeId={item.assigneeId} />}
+      {pullRequests && (
+        <span className="hidden shrink-0 text-xs sm:inline-flex">
+          <PullRequestChip pullRequests={pullRequests} />
+        </span>
       )}
       {/* Fixed slots keep the columns aligned from row to row. */}
-      <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
+      <span className="inline-flex shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
         {/* Every row says where its specification stands: a blank cell read
             as missing data. Plain work has no specification. */}
         {item.refinementState ? (
@@ -896,9 +981,7 @@ export function BacklogRow({
             className="inline-flex items-center gap-1"
           >
             <RefinementIcon state={item.refinementState} />
-            <span className="hidden sm:inline">
-              {refinementMeta[item.refinementState].label}
-            </span>
+            {refinementMeta[item.refinementState].label}
           </span>
         ) : (
           <span
@@ -911,7 +994,7 @@ export function BacklogRow({
         {item.blockingThreads > 0 && (
           <span
             title={`${item.blockingThreads} blocking discussion${item.blockingThreads === 1 ? "" : "s"}`}
-            className="hidden items-center gap-1 font-medium text-destructive sm:inline-flex"
+            className="inline-flex items-center gap-1 font-medium text-destructive"
           >
             <CircleAlert aria-hidden className="size-3.5" />
             {item.blockingThreads} blocker
@@ -926,7 +1009,7 @@ export function BacklogRow({
         title={status ? `Delivery status: ${status.name}` : undefined}
       >
         <StatusIcon category={status?.category} color={status?.color} />
-        <span className="hidden truncate @min-[65rem]/frame:inline">
+        <span className="hidden truncate max-sm:inline @min-[65rem]/frame:inline">
           {status?.name}
         </span>
       </span>

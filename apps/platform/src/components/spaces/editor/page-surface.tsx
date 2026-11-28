@@ -223,7 +223,12 @@ export default function PageSurface({
 
 function LoadingDocument({ label }: { label: string }) {
   return (
-    <div aria-busy="true" aria-label={label} className="mt-6 space-y-3">
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={label}
+      className="mt-6 space-y-3"
+    >
       <Bone className="h-4 w-11/12" />
       <Bone className="h-4 w-10/12" />
       <Bone className="h-4 w-8/12" />

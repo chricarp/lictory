@@ -6,6 +6,7 @@ import {
   Clock,
   Hand,
   LoaderCircle,
+  TriangleAlert,
 } from "lucide-react";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 import type {
@@ -21,6 +22,7 @@ const icons: Record<StateGlyph, ReactNode> = {
   running: <StatusDot pulse />,
   waiting: <Hand />,
   completed: <CircleCheck />,
+  unkept: <TriangleAlert />,
   failed: <CircleX />,
   canceled: <CircleSlash />,
 };

@@ -53,6 +53,25 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
     await ada.page.getByRole("button", { name: "Connect a host" }).click();
     await ada.page.getByRole("radio", { name: "Fine-grained token" }).click();
     await ada.page.getByLabel("Host address").fill(FAKE_GITHUB_SITE);
+    // A refused token is explained; another host starts a fresh form.
+    await ada.page
+      .getByLabel("Token", { exact: true })
+      .fill("github_pat_wrong");
+    await ada.page.getByRole("button", { name: "Verify and connect" }).click();
+    const refused = ada.page.getByText("GitHub rejected this token");
+    await expect(refused).toBeVisible();
+    // The token field itself is marked and points at the explanation.
+    const token = ada.page.getByLabel("Token", { exact: true });
+    await expect(token).toHaveAttribute("aria-invalid", "true");
+    await expect(token).toHaveAccessibleDescription(
+      /GitHub rejected this token/,
+    );
+    await ada.page.getByRole("radio", { name: "GitLab" }).click();
+    await expect(ada.page.getByLabel("Host address")).toHaveValue("");
+    await expect(refused).toBeHidden();
+    await ada.page.getByRole("radio", { name: "GitHub", exact: true }).click();
+    await ada.page.getByRole("radio", { name: "Fine-grained token" }).click();
+    await ada.page.getByLabel("Host address").fill(FAKE_GITHUB_SITE);
     await ada.page.getByLabel("Token", { exact: true }).fill(FAKE_GITHUB_TOKEN);
     await ada.page.getByRole("button", { name: "Verify and connect" }).click();
     // The webhook secret is shown once, to paste into the host.
@@ -64,6 +83,13 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
     const secret = (await details.nth(1).textContent())!;
     expect(webhookUrl).toMatch(/\/api\/code\/webhooks\/[0-9a-f-]{36}$/);
     expect(secret).toMatch(/^[0-9a-f]{64}$/);
+    // Next to them, the host's webhook settings as one block, event by
+    // event, instead of ten events picked out of a sentence.
+    const settings = ada.page.getByRole("group", {
+      name: "GitHub webhook settings",
+    });
+    await expect(settings).toContainText("application/json");
+    await expect(settings).toContainText("  Pull request review threads");
     await github("/__fake/hooks", { url: webhookUrl, secret });
     await expect(ada.page.getByText("as @lictory-bot")).toBeVisible();
 
@@ -116,6 +142,41 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
       ben.page.getByRole("heading", { name: "PAY-1: refunds over the API" }),
     ).toBeVisible();
     await expect(ben.page.getByText("Ready to merge")).toBeVisible();
+    // Nothing blocks it, but nobody reviewed it: the summary says so.
+    await expect(
+      ben.page.getByText(
+        "Nothing blocks merging into main, but nobody approved it.",
+      ),
+    ).toBeVisible();
+    // Each check links to its run on the host.
+    await expect(
+      ben.page
+        .locator("[data-merge-box]")
+        .getByRole("link", { name: /^ci \(/ }),
+    ).toBeVisible();
+    // The engineer reviews the head in Lictory: recorded for that commit,
+    // counted by the merge box, and shown on GitHub signed.
+    await ben.page
+      .getByRole("textbox", { name: "Comment" })
+      .fill("Read the refund path; the transaction id is reused.");
+    await ben.page.getByRole("button", { name: "Approve" }).click();
+    const box = ben.page.locator("[data-merge-box]");
+    await expect(box.getByText(/^Approved at [0-9a-f]{7}\.$/)).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(box.getByText("By Ben Engineer.")).toBeVisible();
+    await expect(
+      ben.page.getByRole("region", { name: "Reviews in Lictory" }),
+    ).toContainText("Ben Engineer");
+    // The backlog row shows the pull request waiting to merge (board cards
+    // carry the same chip).
+    await ada.page.goto(seeded.projectPath("/backlog"));
+    await expect(
+      ada.page
+        .locator("[data-pull-request-chip]")
+        .filter({ hasText: "#1" })
+        .first(),
+    ).toHaveAttribute("title", "Pull request #1, checks passed, approved");
     // Opening the files view reads them from the host.
     await ben.page.getByRole("tab", { name: "Files changed" }).click();
     await expect(ben.page.getByText("src/refunds.ts")).toBeVisible();
@@ -125,6 +186,13 @@ test("@smoke a pull request naming an item shows on it, goes green and is merged
     await expect(ben.page.getByText("Merged", { exact: true })).toBeVisible({
       timeout: 30_000,
     });
+    // The header names who merged it, and who opened it after.
+    await expect(ben.page.locator("[data-pull-request-header]")).toContainText(
+      /Ben Engineer\s*merged into/,
+    );
+    await expect(ben.page.locator("[data-pull-request-header]")).toContainText(
+      "opened by",
+    );
     const pulls = (await github(`/__fake/repos/${repository}/pulls`)) as {
       state: string;
     }[];

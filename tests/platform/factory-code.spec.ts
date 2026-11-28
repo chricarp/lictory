@@ -46,7 +46,9 @@ let runner: ChildProcess | undefined;
 let home: string | undefined;
 let output = "";
 
-test.afterEach(async () => {
+test.afterEach(async ({}, info) => {
+  if (info.status !== info.expectedStatus)
+    console.log(`[runner output]\n${output}`);
   const child = runner;
   if (child?.exitCode === null) {
     child.kill("SIGTERM");
@@ -278,12 +280,13 @@ async function pullRequestInThread(
   channelId: string,
 ) {
   await page.goto(`/${seeded.slug}/channels/${channelId}`);
-  const card = page.getByRole("region", { name: "Forge session" }).first();
+  const card = page.getByRole("article", { name: /^Forge session/ }).first();
   await expect(card).toBeVisible({ timeout: 120_000 });
   await expect(card.getByText("RFD-1").first()).toBeVisible();
-  await expect(card.getByRole("link", { name: "Pull request" })).toBeVisible({
-    timeout: 120_000,
-  });
+  // Named by its number and state, not only "Pull request".
+  await expect(
+    card.getByRole("link", { name: /^Pull request #\d+ (open|merged)$/ }),
+  ).toBeVisible({ timeout: 120_000 });
   await page
     .locator("[data-message-id]")
     .filter({ has: card })
@@ -323,16 +326,24 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
   expect(pulls).toHaveLength(1);
   expect(pulls[0]?.head).toMatch(/^lictory\/rfd-1-refund-retries-/);
 
+  // Before CI reports, the CI check waits: no check is no evidence.
+  const done = page.getByRole("region", { name: "Definition of Done" });
+  await expect(
+    done.getByText(/The code host has reported no checks for the head commit/),
+  ).toBeVisible({ timeout: 30_000 });
+
   // CI goes green on the host; Hawk's review session approves the head.
   await github(`/__fake/repos/${repository}/pulls/1/checks`, {
     name: "ci",
     state: "success",
   });
-  const done = page.getByRole("region", { name: "Definition of Done" });
-  await expect(done.getByText("Hawk approved the head commit")).toBeVisible();
+  await expect(done.getByText("Hawk approved the head commit")).toBeVisible({
+    timeout: 120_000,
+  });
   await expect(done.getByText("2 / 3 checks")).toBeVisible({
     timeout: 120_000,
   });
+  await expect(done.getByText("1 required check passed.")).toBeVisible();
 
   // Build: Bo merges, from the pull request's page, the head he sees.
   const second = await newPerson(browser);
@@ -349,6 +360,18 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
     });
     await expect(reviews).toContainText("Hawk");
     await expect(reviews).toContainText("via Bo");
+    // The merge box counts the same evidence: CI and Hawk's approval.
+    const box = second.page.locator("[data-merge-box]");
+    await expect(box.getByText("Checks passed.")).toBeVisible();
+    await expect(box.getByText(/^Approved at /)).toBeVisible();
+    await expect(box.getByText(/By Hawk via Bo/)).toBeVisible();
+    // Allowed by the policy, and said plainly in the headline a person
+    // reads before merging: only an agent read the code.
+    await expect(
+      box.getByText(
+        /^Checks passed and it merges cleanly into main\. Only an agent approved it \(Hawk via Bo[^)]*\): no person has reviewed this code\.$/,
+      ),
+    ).toBeVisible();
     await second.page
       .getByRole("button", { name: "Merge", exact: true })
       .click();
@@ -358,16 +381,29 @@ test("a dispatched session's pull request goes green, the reviewer agent approve
     await expect(second.page.getByText("Merged", { exact: true })).toBeVisible({
       timeout: 30_000,
     });
+    // The header names Bo, who merged it, not the agent that opened it.
+    const header = second.page.locator("[data-pull-request-header]");
+    await expect(header).toContainText(/Bo\s*merged into/);
+    await expect(header).toContainText(/opened by.*Forge/);
   } finally {
     await second.context.close();
   }
 
-  // The item is Done by evidence, with the revision it delivered.
+  // The item is Done by evidence, with the revision it delivered, and
+  // keeps that evidence; its history names who merged and who reviewed.
   await page.goto(seeded.itemPath(1));
   await expect(page.getByText("Delivered revision 1")).toBeVisible({
     timeout: 30_000,
   });
-  expect(output).toContain("Session ");
+  await expect(done.getByText("3 / 3 checks")).toBeVisible();
+  await expect(page.getByText(/merged pull request #1/).first()).toBeVisible();
+  await expect(
+    page.getByText(/Hawk via Bo .*approved pull request #1/).first(),
+  ).toBeVisible();
+  // The runner's log names the outcome and the branch it pushed.
+  expect(output).toMatch(
+    /Session \S+ completed after .+; pushed branch \S+, which Lictory opens or updates a pull request for\./,
+  );
 });
 
 test("on Autopilot Lictory merges the approved, green pull request itself under the policy", async ({
@@ -381,6 +417,29 @@ test("on Autopilot Lictory merges the approved, green pull request itself under 
     "autopilot",
   );
   await pullRequestInThread(page, seeded, channelId);
+
+  // Hawk approves, but CI has not reported: Autopilot waits, and the pull
+  // request page says what for.
+  await page.goto(seeded.itemPath(1));
+  await expect(
+    page.getByText(/Hawk via Bo .*approved pull request #1/).first(),
+  ).toBeVisible({ timeout: 120_000 });
+  const done = page.getByRole("region", { name: "Definition of Done" });
+  await expect(
+    done.getByText(/The code host has reported no checks for the head commit/),
+  ).toBeVisible();
+  const before = (await github(`/__fake/repos/${repository}/pulls`)) as {
+    state: string;
+  }[];
+  expect(before[0]?.state).toBe("open");
+  await page
+    .locator("[data-item-code]")
+    .getByRole("link", { name: "#1 RFD-1: Refund retries" })
+    .click();
+  await expect(page.locator("[data-autopilot-waits]")).toContainText(
+    "the code host has reported no checks for this commit yet",
+  );
+
   await github(`/__fake/repos/${repository}/pulls/1/checks`, {
     name: "ci",
     state: "success",
@@ -403,9 +462,14 @@ test("on Autopilot Lictory merges the approved, green pull request itself under 
     .locator("[data-item-code]")
     .getByRole("link", { name: "#1 RFD-1: Refund retries" })
     .click();
+  const merged = page.getByRole("region", { name: "Merged" });
   await expect(
-    page
-      .getByRole("region", { name: "Merged" })
-      .getByText(/by Autopilot · policy set by Ada/),
+    merged.getByText(/by Autopilot · policy set by Ada/),
   ).toBeVisible();
+  // What the merge rested on stays on the page.
+  await expect(merged.getByText("Checks passed.")).toBeVisible();
+  // The header names Autopilot as the merger, and the agent as the opener.
+  const header = page.locator("[data-pull-request-header]");
+  await expect(header).toContainText(/Autopilot\s*merged into/);
+  await expect(header).toContainText(/opened by.*Forge/);
 });

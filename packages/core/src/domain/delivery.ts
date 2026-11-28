@@ -76,7 +76,9 @@ export const defaultStatuses: {
   { name: "Backlog", color: "gray", category: "backlog" },
   { name: "Todo", color: "gray", category: "unstarted" },
   { name: "In Progress", color: "amber", category: "started" },
-  { name: "In Review", color: "blue", category: "started" },
+  // Not "In review": that names a specification under review, often on
+  // the next screen. This column holds code waiting for its review.
+  { name: "Code review", color: "blue", category: "started" },
   { name: "Done", color: "green", category: "done" },
   { name: "Canceled", color: "gray", category: "canceled" },
 ];

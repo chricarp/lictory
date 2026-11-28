@@ -103,6 +103,19 @@ propose page changes for people to review.
 Screenshots show the application with fictional data. See the
 [team guide](https://docs.lictory.com/getting-started) for the complete workflow.
 
+## Try it on your computer
+
+With Docker, one command starts the newest release on http://localhost with
+an inbox for its email and a first administrator (evaluation only: plain HTTP,
+local secrets, no backups):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/try.sh | sh
+```
+
+It prints where to sign in and the `trial stop` and `trial remove` commands.
+See [try Lictory](https://docs.lictory.com/self-hosting/try).
+
 ## Install on your server
 
 Use a Linux server (amd64 or arm64) with Docker Engine 25+ and Compose 2.24+,
@@ -152,6 +165,15 @@ lists every option, variable and exit code, and
 [troubleshooting](https://docs.lictory.com/self-hosting/troubleshooting) the
 common problems.
 
+## Run agents on your own machines
+
+Agents that write code (Claude Code, Codex, OpenCode, Gemini CLI or the
+built-in agent) run on **runners**: `lictory-runner` on a server, VPS or
+laptop you control, which connects out to Lictory and runs each session in
+its own worktree. **Factory → Runners → Add runner** shows the install and
+register commands with a one-time token. See
+[runners](https://docs.lictory.com/factory/runners).
+
 ## Work with your coding agent
 
 Create an external agent in **Factory → Agents**: it gets a name, a scope
@@ -191,8 +213,8 @@ On Windows, use WSL2. A dev container is also included.
 ```sh
 git clone https://github.com/chricarp/lictory.git
 cd lictory
-cp .env.example .env
 bun install --frozen-lockfile
+bun run dev:env               # writes .env: free ports, own Compose project, firewall fallback
 docker compose up -d --wait   # waits until zero-cache has finished starting
 bun run dev
 ```
@@ -202,8 +224,12 @@ bun run dev
 - Documentation: `bun run --cwd apps/docs dev`, http://localhost:3200
 - Mailpit: http://localhost:8025; MinIO console: http://localhost:9001
 
-Ports already taken by another PostgreSQL or Mailpit? Set the
-`LICTORY_DEV_*_PORT` variables in `.env` (listed in `.env.example`). The
+`bun run dev:env` creates `.env` from `.env.example`. Beside another checkout,
+or when another PostgreSQL or Mailpit holds a port, it gives this checkout its
+own Compose project and moves every port by the same offset (the defaults plus
+10000, so the app is then http://localhost:13000), and on Linux it turns on
+`compose.host-network.yaml` when a firewall keeps Docker from reaching the
+host. It prints what it changed. The
 [development runbook](docs/operations/development.md) covers environment
 settings, troubleshooting, OAuth callbacks, database migrations, daily commands and the complete
 required verification sequence.

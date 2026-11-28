@@ -18,7 +18,6 @@ import {
   Plus,
   Repeat,
   Rows3,
-  Send,
   Settings2,
   UserRound,
   Users,
@@ -47,7 +46,6 @@ import { Button } from "@lictory/ui/button";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { PeoplePicker } from "@lictory/platform/components/ui/people-picker";
 import { EmptyState } from "@lictory/ui/primitives";
-import { MissingState } from "@lictory/ui/status-page";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useShell } from "@lictory/platform/components/workspace/shell";
@@ -65,13 +63,23 @@ import {
   ItemPeek,
   useItemPeek,
 } from "@lictory/platform/components/delivery/item-peek";
-import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 import {
   useAgents,
   useLiveClaims,
 } from "@lictory/platform/components/claims/claims";
+import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/store";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
+import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
+import {
+  MoveMenu,
+  refocusMoved,
+} from "@lictory/platform/components/delivery/move-menu";
+import {
+  rankNeighbours,
+  type RankMove,
+} from "@lictory/platform/components/delivery/move";
 import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
@@ -157,42 +165,17 @@ export function TeamFilterPicker({
   );
 }
 
-// External projects deliver in another tool: Lictory shows the hand-off instead of a
-// board, backlog or iterations.
-export function ExternalProjectNotice({
-  project,
-  surface,
-}: {
-  project: Project;
-  surface: string;
-}) {
-  const { organization, directory } = useWorkspace();
-  const tool = projectDeliveryTool(directory, project.id);
-  return (
-    <MissingState
-      illustration="planning"
-      icon={Send}
-      title={`${project.name} delivers in ${tool.name}`}
-      action={
-        <Button
-          variant="secondary"
-          render={<Link href={paths.handoff(organization.slug, project.key)} />}
-        >
-          Open hand-off
-        </Button>
-      }
-    >
-      Statuses, sprints and estimates for this project are owned by {tool.name},
-      so there is no {surface} in Lictory. The hand-off shows what is ready,
-      what changed since it was handed off and what {tool.name} reports back.
-    </MissingState>
-  );
-}
-
 export function Board() {
   const project = useProject();
   if (project.deliveryMode === "external")
-    return <ExternalProjectNotice project={project} surface="board" />;
+    return (
+      <ExternalProjectNotice
+        project={project}
+        surface="board"
+        title="Board"
+        icon={<KanbanSquare />}
+      />
+    );
   return <ProjectBoard project={project} />;
 }
 
@@ -213,6 +196,8 @@ function ProjectBoard({ project }: { project: Project }) {
   // Agent claims, as a compact mark on each claimed card.
   const claims = useLiveClaims();
   const agentById = useAgents();
+  // Open pull requests, as a chip on each card they deliver.
+  const pullRequests = useOpenPullRequestsByItem();
   const teamFilter = useTeamFilter(project);
   const { params, setParam } = teamFilter;
   const peek = useItemPeek();
@@ -305,10 +290,14 @@ function ProjectBoard({ project }: { project: Project }) {
   }>();
   const canMove = capabilities.changeProperties;
   const projectOf = (i: WorkItem) => projects.find((p) => p.id === i.projectId);
-  const drop = (laneKey: string, statusId: string, index: number) => {
-    const item = scoped.find((i) => i.id === drag);
-    setDrag(undefined);
-    setOver(undefined);
+  // A drop, or "Move" on a card: the same rules either way.
+  const place = (
+    itemId: string | undefined,
+    laneKey: string,
+    statusId: string,
+    index: number,
+  ) => {
+    const item = scoped.find((i) => i.id === itemId);
     if (!item) return;
     const laneItems = lanes.find((l) => l.key === laneKey)?.items ?? scoped;
     const column = laneItems.filter(
@@ -359,6 +348,22 @@ function ProjectBoard({ project }: { project: Project }) {
         `${label} started before its specification is ready (${blocker.detail}).`,
       );
   };
+  const drop = (laneKey: string, statusId: string, index: number) => {
+    const itemId = drag;
+    setDrag(undefined);
+    setOver(undefined);
+    place(itemId, laneKey, statusId, index);
+  };
+  const rank = (cards: WorkItem[], item: WorkItem, to: RankMove) => {
+    const neighbours = rankNeighbours(
+      cards.map((c) => c.id),
+      item.id,
+      to,
+    );
+    if (!neighbours) return;
+    void mutate({ type: "rankWorkItem", workItemId: item.id, ...neighbours });
+    refocusMoved(item.id);
+  };
   const indexAt = (e: React.DragEvent<HTMLElement>) => {
     const cards = [
       ...e.currentTarget.querySelectorAll<HTMLElement>("[data-card]"),
@@ -377,6 +382,18 @@ function ProjectBoard({ project }: { project: Project }) {
     assignees.length || typeFilter.length || teamFilter.value,
   );
   const points = scoped.reduce((sum, i) => sum + (i.estimate ?? 0), 0);
+  // Board work without a team, for the hint when a team's board is empty.
+  const teamless = items.filter(
+    (i) =>
+      i.projectId === project.id &&
+      !i.archivedAt &&
+      !i.teamId &&
+      !isTopLevel(typeOf(delivery, i)) &&
+      (iterationId
+        ? i.iterationId === iterationId
+        : !isClosedCategory(delivery.statuses.get(i.statusId)?.category) ||
+          now - new Date(i.updatedAt).getTime() <= DONE_WINDOW),
+  ).length;
   const assigneeSummary = assignees.length
     ? `${assignees.length} ${assignees.length === 1 ? "person" : "people"}`
     : "Anyone";
@@ -686,7 +703,13 @@ function ProjectBoard({ project }: { project: Project }) {
             : "Start a sprint from the backlog, or view all work on the board."}
         </EmptyState>
       ) : (
-        <BoardScroller startAt={firstFilled}>
+        <BoardScroller
+          startAt={firstFilled}
+          columns={columns.map((c) => ({
+            status: c,
+            count: scoped.filter((i) => i.statusId === c.id).length,
+          }))}
+        >
           <div
             className={cn(
               "inline-flex min-h-full min-w-full flex-col gap-3 p-3 pr-4",
@@ -731,8 +754,10 @@ function ProjectBoard({ project }: { project: Project }) {
                         data-board-column={status.id}
                         className={cn(
                           "flex max-w-[340px] min-w-[224px] flex-1 basis-0 flex-col rounded-[1.125rem] bg-tray p-1.5 ring-1 ring-border/60 ring-inset",
-                          // Phones: one column per screen, snapping.
-                          "max-sm:max-w-none max-sm:min-w-[calc(100vw-3rem)] max-sm:snap-start",
+                          // Phones: one column per screen, snapping, with
+                          // the next one showing at the edge so the flow
+                          // reads as a row of columns.
+                          "max-sm:max-w-none max-sm:min-w-[calc(100vw-5.5rem)] max-sm:snap-start",
                           target && "bg-primary/8 ring-1 ring-primary/30",
                         )}
                         onDragOver={(e) => {
@@ -808,6 +833,7 @@ function ProjectBoard({ project }: { project: Project }) {
                                 }
                                 onOpen={peek.onLinkClick}
                                 claim={claims.get(item.id)}
+                                pullRequests={pullRequests.get(item.id)}
                                 claimAgent={agentById.get(
                                   claims.get(item.id)?.agentId ?? "",
                                 )}
@@ -820,6 +846,36 @@ function ProjectBoard({ project }: { project: Project }) {
                                   setDrag(undefined);
                                   setOver(undefined);
                                 }}
+                                move={
+                                  canMove && (
+                                    <MoveMenu
+                                      itemId={item.id}
+                                      label={identifier(
+                                        projectOf(item),
+                                        item.number,
+                                      )}
+                                      index={index}
+                                      count={cards.length}
+                                      where={status.name}
+                                      columns={columns}
+                                      column={status.id}
+                                      onColumn={(statusId) => {
+                                        place(
+                                          item.id,
+                                          l.key,
+                                          statusId,
+                                          l.items.filter(
+                                            (i) =>
+                                              i.statusId === statusId &&
+                                              i.id !== item.id,
+                                          ).length,
+                                        );
+                                        refocusMoved(item.id);
+                                      }}
+                                      onRank={(to) => rank(cards, item, to)}
+                                    />
+                                  )
+                                }
                               />
                             </div>
                           ))}
@@ -843,9 +899,13 @@ function ProjectBoard({ project }: { project: Project }) {
                 filtered ? "No matching work" : "No work on this board yet"
               }
             >
-              {filtered
-                ? "Adjust the filters to see more work."
-                : "Accept a ready specification for delivery, or create a task when the work needs no specification."}
+              {teamFilter.team && !assignees.length && !typeFilter.length
+                ? teamless > 0
+                  ? `No work on this board belongs to ${teamFilter.team.name}. ${teamless} ${teamless === 1 ? "item has" : "items have"} no team yet: choose “No team” to see ${teamless === 1 ? "it" : "them"}, and set the team on the item.`
+                  : `No work on this board belongs to ${teamFilter.team.name} yet.`
+                : filtered
+                  ? "Adjust the filters to see more work."
+                  : "Accept a ready specification for delivery, or create a task when the work needs no specification."}
             </EmptyState>
           )}
         </BoardScroller>
@@ -895,14 +955,21 @@ function ColumnHeader({
 
 // The board scrolls sideways when its columns outgrow the frame (Litto open
 // on a laptop). A fade on the edge that has more columns says so, instead of
-// the last column looking cut off.
+// the last column looking cut off. Phones show one column per screen and,
+// above it, every column by name and count: the whole flow at a glance, and
+// a press on a name brings that column into view (no arrows over cards).
 function BoardScroller({
   children,
   startAt,
+  columns,
 }: {
   children: ReactNode;
   // The column phones open at (one column fills the screen there).
   startAt?: string;
+  columns: readonly {
+    status: ReturnType<typeof activeStatuses>[number];
+    count: number;
+  }[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // On a phone (also one the window narrows to), open at the first column
@@ -930,6 +997,25 @@ function BoardScroller({
     return () => phone.removeEventListener("change", apply);
   }, [startAt]);
   const [more, setMore] = useState({ left: false, right: false });
+  const [inView, setInView] = useState<string | undefined>(startAt);
+  const show = (id: string) => {
+    const el = ref.current;
+    const column = el?.querySelector<HTMLElement>(
+      `[data-board-column="${CSS.escape(id)}"]`,
+    );
+    if (!el || !column) return;
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    el.scrollTo({
+      left:
+        column.getBoundingClientRect().left -
+        el.getBoundingClientRect().left +
+        el.scrollLeft -
+        12,
+      behavior: reduce ? "auto" : "smooth",
+    });
+  };
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -939,6 +1025,20 @@ function BoardScroller({
       setMore((m) =>
         m.left === left && m.right === right ? m : { left, right },
       );
+      // The column nearest the board's start edge is the one in view.
+      const box = el.getBoundingClientRect();
+      let nearest: string | undefined;
+      let distance = Infinity;
+      for (const column of el.querySelectorAll<HTMLElement>(
+        "[data-board-column]",
+      )) {
+        const d = Math.abs(column.getBoundingClientRect().left - box.left);
+        if (d < distance) {
+          distance = d;
+          nearest = column.dataset.boardColumn;
+        }
+      }
+      setInView(nearest);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -984,10 +1084,37 @@ function BoardScroller({
     el.scrollTo({ left, behavior: reduce ? "auto" : "smooth" });
   };
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <ScrollStrip className="shrink-0 border-b sm:hidden">
+        <ul
+          aria-label="Board columns"
+          className="flex [scrollbar-width:none] gap-1 overflow-x-auto px-3 py-1.5"
+        >
+          {columns.map(({ status, count }) => (
+            <li key={status.id}>
+              <button
+                type="button"
+                aria-pressed={inView === status.id}
+                onClick={() => show(status.id)}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset outline-none",
+                  inView === status.id &&
+                    "bg-muted font-medium text-foreground",
+                )}
+              >
+                <StatusIcon category={status.category} color={status.color} />
+                {status.name}
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {count}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </ScrollStrip>
       <div
         ref={ref}
-        className="h-full [scrollbar-width:thin] overflow-auto max-sm:snap-x max-sm:snap-mandatory max-sm:scroll-px-3"
+        className="min-h-0 flex-1 [scrollbar-width:thin] overflow-auto max-sm:snap-x max-sm:snap-mandatory max-sm:scroll-px-3"
       >
         {children}
       </div>
@@ -995,7 +1122,8 @@ function BoardScroller({
         <div
           key={side}
           className={cn(
-            "pointer-events-none absolute inset-y-0 flex items-center transition-opacity duration-150",
+            // Wider screens only: phones step with the column names above.
+            "pointer-events-none absolute inset-y-0 flex items-center transition-opacity duration-150 max-sm:hidden",
             side === "left"
               ? "left-0 w-12 justify-start bg-linear-to-r pl-1.5"
               : "right-0 w-16 justify-end bg-linear-to-l pr-1.5",

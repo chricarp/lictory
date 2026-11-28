@@ -4,6 +4,7 @@ import * as s from "@lictory/core/db/schema";
 import {
   PROTOCOL,
   canManageProject,
+  canOverrideDoneCheck,
   capabilitiesOf,
   type Command,
   type Entity,
@@ -48,6 +49,7 @@ import {
 import { isTopLevel } from "@lictory/core/lib/work-items";
 import { mentionToken } from "@lictory/core/notifications/mentions";
 import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import { recordAuditEvent } from "@lictory/core/domain/audit";
 import { writeProjections } from "@lictory/core/domain/projections";
 import {
   applyMutation,
@@ -399,6 +401,8 @@ export async function projectFacts(
                       (pr.authorId ? name(pr.authorId) : undefined) ??
                       pr.authorLogin ??
                       null,
+                    // "ada" alone reads as if it named a teammate.
+                    unlinkedLogin: !pr.authorId && !!pr.authorLogin,
                   },
                 ],
           ),
@@ -735,6 +739,26 @@ export async function claimItem(
       );
       const item = facts.items.find((i) => i.id === input.workItemId)!;
       const key = facts.key(item);
+      // The holder asking again (a retry that lost the answer and sent no
+      // mutationId) gets its own live claim back instead of a conflict.
+      // Only the same agent, for the same person, in the same session.
+      if (
+        held &&
+        !isExpired(held, now) &&
+        held.agentId === agent.agentId &&
+        held.ownerId === actor.userId &&
+        (held.agentSessionId ?? null) === (actor.agentSessionId ?? null)
+      )
+        return {
+          claimId: held.id,
+          workItemId: item.id,
+          key,
+          state: held.state,
+          status:
+            roster.statuses.find((x) => x.id === item.statusId)?.name ?? null,
+          leaseExpiresAt: held.leaseExpiresAt.toISOString(),
+          alreadyHeld: true,
+        };
       const verdict = claimability(item, facts.facts);
       if (
         !verdict.claimable &&
@@ -932,11 +956,14 @@ export async function releaseClaim(
       });
       await projectClaims(tx, input.organizationId, claim.projectId, before);
       await signalWork(tx, "factory");
+      // `note` is the note given; `returnNote` says why the item stayed
+      // where it was, as activity records it.
       return {
         claimId: claim.id,
         state: "released",
         returnedTo: returned.returnedTo,
-        note: returned.note,
+        note: input.note?.trim() ? input.note.trim() : null,
+        ...(returned.note ? { returnNote: returned.note } : {}),
       };
     },
   );
@@ -1537,6 +1564,35 @@ export async function codeReviewPolicy(
   };
 }
 
+// Whether any of these projects requires CI to pass in its Definition of
+// Done (the default does). The Code module's merge rule reads it: a merge
+// into work that is only Done with green CI waits for CI to report.
+export async function definitionRequiresCi(
+  tx: Tx | Database,
+  organizationId: string,
+  projectIds: readonly string[],
+) {
+  if (!projectIds.length) return false;
+  const stored = await tx
+    .select({
+      projectId: s.definitionOfDone.projectId,
+      checks: s.definitionOfDone.checks,
+    })
+    .from(s.definitionOfDone)
+    .where(
+      and(
+        eq(s.definitionOfDone.organizationId, organizationId),
+        inArray(s.definitionOfDone.projectId, [...projectIds]),
+      ),
+    );
+  const byProject = new Map(stored.map((d) => [d.projectId, d]));
+  return projectIds.some((id) =>
+    effectiveDoneChecks(byProject.get(id)).some(
+      (c) => c.kind === "checks_passed",
+    ),
+  );
+}
+
 export async function autonomyPolicyOf(
   db: Database,
   userId: string,
@@ -1848,8 +1904,9 @@ async function recordDoneDecision(
               : `Only people holding a discipline in this project can sign off “${check.label}”.`,
           );
       } else if (
-        !capabilitiesOf(roster.disciplines, actor.userId, projectId)
-          .changeProperties
+        !canOverrideDoneCheck(
+          capabilitiesOf(roster.disciplines, actor.userId, projectId),
+        )
       )
         throw new DomainError(
           "forbidden",
@@ -1946,6 +2003,45 @@ async function recordDoneDecision(
         },
         at: now,
       });
+      // Passing a check without evidence is what an auditor looks for
+      // across the organization, so overrides (not sign-offs, which are the
+      // evidence) are also in the audit log, in this transaction.
+      if (decision.kind === "override") {
+        const [item] = await tx
+          .select({ key: s.project.key, number: s.workItem.number })
+          .from(s.workItem)
+          .innerJoin(
+            s.project,
+            and(
+              eq(s.project.organizationId, s.workItem.organizationId),
+              eq(s.project.id, s.workItem.projectId),
+            ),
+          )
+          .where(
+            and(
+              eq(s.workItem.organizationId, organizationId),
+              eq(s.workItem.id, decision.workItemId),
+            ),
+          );
+        await recordAuditEvent(tx, {
+          organizationId,
+          actor: { id: actor.userId },
+          action: decision.on
+            ? "done_check.overridden"
+            : "done_check.override_withdrawn",
+          target: {
+            type: "work_item",
+            id: decision.workItemId,
+            label: item ? `${item.key}-${item.number}` : null,
+          },
+          detail: {
+            ...detail,
+            ...(decision.on ? { reason: decision.reason?.trim() } : {}),
+            ...(existing && !decision.on ? { by: existing.userId } : {}),
+            ...delegation(actor),
+          },
+        });
+      }
       const followed = await followDefinitionOfDone(
         tx,
         organizationId,
@@ -2000,12 +2096,22 @@ export async function followDefinitionOfDone(
             workItemId: entity.workItemId,
             actorId: evaluation.accountableId!,
             action: "definition_of_done_passed",
+            // The evidence Done rests on, kept on the item once its
+            // evaluation leaves the projection (the item is Done).
             detail: {
               checks: entity.checks.map((c) => ({
                 key: c.key,
                 label: c.label,
                 overridden: Boolean(c.override),
+                ...(c.detail ? { detail: c.detail } : {}),
               })),
+              pullRequests: entity.code.pullRequests.map((pr) => ({
+                title: pr.title,
+                url: pr.url,
+                state: pr.state,
+                headSha: pr.headSha,
+              })),
+              revisionId: entity.revisionId,
               claimId: evaluation.claimId,
               automation: "definition_of_done",
             },

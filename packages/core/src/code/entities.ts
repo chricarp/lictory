@@ -34,6 +34,10 @@ export type CodeConnectionEntity = {
   // Path of the webhook endpoint (append to the platform origin).
   webhookPath: string;
   lastWebhookAt: string | null;
+  // The latest delivery Lictory refused and why (recorded at most once a
+  // minute). Optional: projections written before it existed omit it.
+  lastWebhookRefusedAt?: string | null;
+  lastWebhookRefusal?: "signature" | "payload" | null;
   createdAt: string;
 };
 
@@ -54,6 +58,9 @@ export type CodeRepositoryEntity = {
   defaultForProjectIds: string[];
   lastSyncedAt: string | null;
   lastSyncError: string | null;
+  // Whether the host has reported any check for a commit here. Optional:
+  // projections written before it existed omit it.
+  reportsChecks?: boolean;
 };
 
 export type CodeLinkRef = {
@@ -160,6 +167,10 @@ export type CodeLinkSummary =
       headBranch: string;
       checks: CodeChecks["state"];
       reviewDecision: CodePullRequestEntity["reviewDecision"];
+      // The decision recorded in Lictory on the head commit (a reviewer
+      // agent's or a person's), null when none. Optional: rows written
+      // before it existed lack it until they are projected again.
+      reviewedHere?: CodeReviewRef["decision"] | null;
       webUrl: string;
     }
   | {

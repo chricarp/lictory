@@ -3,11 +3,12 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { memo } from "react";
 import { cn } from "@lictory/core/lib/utils";
 import {
+  absoluteTime,
   identifier,
   isTopLevel,
   relativeTime,
-  typeOf,
   type Project,
+  typeOf,
 } from "@lictory/core/lib/work-items";
 import { useDelivery } from "@lictory/platform/components/workspace/provider";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
@@ -175,7 +176,9 @@ export const IssueRow = memo(function IssueRow({
           )}
           <ReviewSignal item={item} compact className="ml-auto shrink-0" />
           {project?.deliveryMode !== "external" && item.assigneeId && (
-            <Actor userId={item.assigneeId} label="none" size={16} />
+            // Initials, not a bare dot: the owner is told apart by more
+            // than color.
+            <Actor userId={item.assigneeId} label="none" size={20} />
           )}
         </div>
       </li>
@@ -331,7 +334,7 @@ export const IssueRow = memo(function IssueRow({
       <time
         className="hidden w-14 text-right text-xs text-muted-foreground tabular-nums sm:block"
         dateTime={item.updatedAt}
-        title={new Date(item.updatedAt).toLocaleString()}
+        title={absoluteTime(item.updatedAt)}
       >
         {relativeTime(item.updatedAt)}
       </time>

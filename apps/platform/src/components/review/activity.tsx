@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
-  relativeTime,
+  absoluteTime,
   priorityMeta,
   refinementMeta,
+  relativeTime,
 } from "@lictory/core/lib/work-items";
 import type {
   EntityOf,
@@ -12,7 +13,9 @@ import type {
   WorkItemPriority,
 } from "@lictory/core/contracts/protocol";
 import { iterationLabel } from "@lictory/core/contracts/protocol";
+import { Cog } from "lucide-react";
 import { Avatar, SectionLabel } from "@lictory/ui/primitives";
+import { AgentAvatar } from "@lictory/platform/components/identity/actor";
 import {
   RefinementIcon,
   StatusIcon,
@@ -21,6 +24,10 @@ import { useDelivery } from "@lictory/platform/components/workspace/provider";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { cn } from "@lictory/core/lib/utils";
 import { claimActivity } from "@lictory/platform/components/claims/activity";
+import {
+  activitySubject,
+  foldActivity,
+} from "@lictory/platform/components/review/activity-subject";
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
@@ -40,7 +47,8 @@ const num = (v: unknown) => (typeof v === "number" ? v : undefined);
 
 // The story of how the requirement evolved: meaningful domain events only.
 export function Activity() {
-  const { activity } = useItem();
+  const { activity: all } = useItem();
+  const activity = useMemo(() => foldActivity(all), [all]);
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? activity : activity.slice(0, 12);
   return (
@@ -99,14 +107,9 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
   };
   const d = entry.detail ?? {};
   const auto = d.automatic === true;
-  const actor =
-    ((entry.action === "branch_deleted" ||
-      entry.action === "pull_request_ready_to_merge") &&
-      auto) ||
-    // Code linked because it names the item's key.
-    (entry.action === "code_linked" && d.source === "key")
-      ? "Lictory"
-      : memberName(entry.actorId);
+  const person = memberName(entry.actorId);
+  const subject = activitySubject(entry.action, d, person);
+  const actor = subject.name;
   let body: ReactNode;
   switch (entry.action) {
     case "created":
@@ -114,14 +117,39 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
         <>created this {(str(d.type) ?? str(d.kind) ?? "item").toLowerCase()}</>
       );
       break;
-    case "revised":
+    case "revised": {
+      // What the revision did to the approvals in force (recorded since
+      // round 3; older entries carry neither).
+      const outdated = Array.isArray(d.outdatedApprovals)
+        ? (d.outdatedApprovals as Record<string, unknown>[])
+        : [];
+      const carried = num(d.carriedApprovals) ?? 0;
       body = (
         <>
           saved <b>revision {num(d.number)}</b>
           {str(d.summary) ? <> — {str(d.summary)}</> : null}
+          {outdated.length > 0 && (
+            <span className="block text-xs text-muted-foreground">
+              Now outdated:{" "}
+              {outdated
+                .map(
+                  (a) =>
+                    `${str(a.responsibility) ?? "an"} approval by ${memberName(str(a.reviewerId))} (revision ${num(a.revision) ?? "?"})`,
+                )
+                .join(", ")}
+            </span>
+          )}
+          {carried > 0 && (
+            <span className="block text-xs text-muted-foreground">
+              The text did not change, so{" "}
+              {carried === 1 ? "its approval carries" : "its approvals carry"}{" "}
+              over to this revision.
+            </span>
+          )}
         </>
       );
       break;
+    }
     case "delivery_scope_committed":
       body = (
         <>
@@ -435,11 +463,39 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "suggestion_approved":
       body = (
         <>
-          <b className="text-success">approved</b> v{num(d.version)} of{" "}
+          <b className="text-success">approved</b>{" "}
           <b>{memberName(str(d.authorId))}</b>’s suggestion
+          {num(d.version) !== undefined && num(d.version)! > 1 && (
+            <> (version {num(d.version)})</>
+          )}
         </>
       );
       break;
+    case "delivery_breakdown_accepted": {
+      const count = num(d.count) ?? 0;
+      body = (
+        <>
+          created{" "}
+          <b>
+            {count} {count === 1 ? "item" : "items"}
+          </b>{" "}
+          from the approved breakdown
+        </>
+      );
+      break;
+    }
+    case "delivery_breakdown_changes_accepted": {
+      const count = num(d.count) ?? 0;
+      body = (
+        <>
+          applied the approved breakdown’s changes to{" "}
+          <b>
+            {count} {count === 1 ? "item" : "items"}
+          </b>
+        </>
+      );
+      break;
+    }
     case "suggestion_changes_requested":
       body = (
         <>
@@ -455,14 +511,14 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "suggestion_accepted":
       body = (
         <>
-          merged <b>{memberName(str(d.authorId))}</b>’s suggestion
+          accepted <b>{memberName(str(d.authorId))}</b>’s suggestion
         </>
       );
       break;
     case "suggestion_rejected":
       body = (
         <>
-          closed <b>{memberName(str(d.authorId))}</b>’s suggestion
+          rejected <b>{memberName(str(d.authorId))}</b>’s suggestion
         </>
       );
       break;
@@ -548,6 +604,40 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       );
       break;
     }
+    case "code_review_approved":
+    case "code_review_changes_requested":
+    case "code_pull_request_merged": {
+      const ref = <PullRequestRef url={str(d.url)} number={num(d.number)} />;
+      body =
+        entry.action === "code_pull_request_merged" ? (
+          <>
+            merged pull request {ref}
+            {str(d.login) && (
+              <span className="text-muted-foreground">
+                {" "}
+                as {str(d.login)} on the code host
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            {entry.action === "code_review_approved"
+              ? "approved"
+              : "requested changes on"}{" "}
+            pull request {ref}
+            {str(d.headSha) && (
+              <span className="text-muted-foreground">
+                {" "}
+                at{" "}
+                <code className="font-mono text-xs">
+                  {str(d.headSha)!.slice(0, 7)}
+                </code>
+              </span>
+            )}
+          </>
+        );
+      break;
+    }
     case "code_pull_request_refused":
       body = (
         <>
@@ -596,7 +686,7 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
           </>
         ) : d.source === "import" ? (
           <>imported this from issue {ref}</>
-        ) : d.source === "lictory" ? (
+        ) : d.source === "lictory" || d.source === "agent_session" ? (
           <>
             {what === "branch" ? "created" : "opened"} {what} {ref}
           </>
@@ -617,24 +707,24 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "branch_created":
       body = (
         <>
-          created branch <b>{str(d.branch)}</b> from {str(d.from)}
+          started the proposed change <b>{str(d.branch)}</b>
         </>
       );
       break;
     case "branch_committed":
       body = (
         <>
-          committed to <b>{str(d.branch)}</b> — {str(d.message)}
+          saved a version of <b>{str(d.branch)}</b> — {str(d.message)}
         </>
       );
       break;
     case "branch_deleted":
       body = (
         <>
-          {auto ? "automatically deleted branch" : "deleted branch"}{" "}
+          {auto ? "closed the change" : "deleted the change"}{" "}
           <b>{str(d.branch)}</b>
           {auto && d.reason === "pull_request_merged" && (
-            <> after its pull request was merged into main</>
+            <> after it was applied to the specification</>
           )}
         </>
       );
@@ -643,38 +733,45 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
       body = (
         <>
           {d.assigned ? "invited" : "removed"}{" "}
-          <b>{memberName(str(d.userId))}</b> {d.assigned ? "to" : "from"} branch{" "}
-          <b>{str(d.branch)}</b>
+          <b>{memberName(str(d.userId))}</b> {d.assigned ? "to" : "from"} the
+          change <b>{str(d.branch)}</b>
         </>
       );
       break;
     case "pull_request_created":
       body = (
         <>
-          opened {d.draft ? "draft " : ""}pull request <b>{str(d.title)}</b> ·{" "}
-          {str(d.source)} → {str(d.target)}
+          {d.draft ? "drafted a review of" : "sent for review"}{" "}
+          <b>{str(d.title)}</b>
+          {str(d.target) && str(d.target) !== "main" && (
+            <> · to apply to {str(d.target)}</>
+          )}
         </>
       );
       break;
     case "pull_request_ready_to_merge":
       body = (
         <>
-          found <b>{str(d.title)}</b> ready to merge: every merge requirement is
-          met
+          found <b>{str(d.title)}</b> ready to apply: every requirement is met
         </>
       );
       break;
     case "pull_request_deleted":
       body = (
         <>
-          deleted pull request <b>{str(d.title)}</b>
+          deleted the review <b>{str(d.title)}</b>
         </>
       );
       break;
     case "pull_request_merged":
       body = (
         <>
-          merged <b>{str(d.title)}</b> into {str(d.target)}
+          applied <b>{str(d.title)}</b>
+          {str(d.target) === "main" ? (
+            <> to the specification</>
+          ) : (
+            <> to {str(d.target)}</>
+          )}
         </>
       );
       break;
@@ -709,15 +806,14 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "pull_request_approval_invalidated":
       body = (
         <>
-          invalidated approvals of <b>{str(d.title)}</b> by changing the merge
-          result
+          outdated the approvals of <b>{str(d.title)}</b> by changing its result
         </>
       );
       break;
     case "revision_restored":
       body = (
         <>
-          restored revision <b>{num(d.revision)}</b> as a new main revision
+          restored revision <b>{num(d.revision)}</b> as a new revision
         </>
       );
       break;
@@ -741,27 +837,27 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
     case "ai_corrective_pr_created":
       body = (
         <>
-          opened a pull request proposing fixes for {num(d.findings)}{" "}
+          proposed a change that fixes {num(d.findings)}{" "}
           {num(d.findings) === 1 ? "concern" : "concerns"}
         </>
       );
       break;
     case "ai_action_requested":
-      body = (
-        <>re-ran the Lictory Intelligence review action on a pull request</>
-      );
+      body = <>re-ran the Lictory Intelligence review of a proposed change</>;
       break;
     case "ai_action_completed":
       body = (
         <>
-          reviewed commit <b>{str(d.commitId)?.slice(0, 7)}</b>:{" "}
-          <b>{num(d.score)}/100</b> with {num(d.findings)}{" "}
+          reviewed a version of a proposed change: <b>{num(d.score)}/100</b>{" "}
+          with {num(d.findings)}{" "}
           {num(d.findings) === 1 ? "finding" : "findings"}
         </>
       );
       break;
     case "ai_suggestion_applied":
-      body = <>committed a Lictory Intelligence suggestion</>;
+      body = (
+        <>applied a Lictory Intelligence suggestion to a proposed change</>
+      );
       break;
     default:
       body = claimActivity(entry.action, d) ?? (
@@ -770,40 +866,80 @@ export function ActivityEntry({ entry }: { entry: EntityOf<"activity"> }) {
   }
   return (
     <li className="flex items-start gap-2 text-[13px] leading-5">
-      <Avatar
-        userId={entry.actorId}
-        name={actor}
-        size="xs"
-        className="mt-0.5"
-      />
+      {subject.kind === "agent" ? (
+        <AgentAvatar
+          agent={{ id: str(d.agentId) ?? subject.agent, name: subject.agent }}
+          size={16}
+          className="mt-0.5"
+        />
+      ) : subject.kind === "system" ? (
+        <span
+          aria-hidden
+          className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"
+        >
+          <Cog className="size-2.5" />
+        </span>
+      ) : (
+        <Avatar
+          userId={entry.actorId}
+          name={actor}
+          size="xs"
+          className="mt-0.5"
+        />
+      )}
       <p className="min-w-0 flex-1">
         <span className="font-medium">{actor}</span> {body}
-        {(d.performedVia === "agent" ||
-          d.performedVia === "mcp" ||
-          d.performedVia === "runner") && (
-          <span
-            className="ml-1 text-xs text-muted-foreground"
-            title={
-              str(d.agentClient) ? `Client: ${str(d.agentClient)}` : undefined
-            }
-          >
-            via {agentLabel(d)}
+        {subject.after && (
+          <span className="ml-1 text-xs text-muted-foreground">
+            · {subject.after}
           </span>
         )}
+        {subject.kind === "person" &&
+          (d.performedVia === "agent" ||
+            d.performedVia === "mcp" ||
+            d.performedVia === "runner") && (
+            <span
+              className="ml-1 text-xs text-muted-foreground"
+              title={
+                str(d.agentClient) ? `Client: ${str(d.agentClient)}` : undefined
+              }
+            >
+              via {agentLabel(d)}
+            </span>
+          )}
         {/* Lictory acted by itself for the person (the dispatcher, the
             Definition of Done, an expired lease). */}
-        {str(d.automation) && (
-          <span className="ml-1 text-xs text-muted-foreground">
-            · automatically
-          </span>
-        )}
+        {str(d.automation) &&
+          subject.kind !== "system" &&
+          // "claimed this, dispatched by the Build policy" says it already.
+          entry.action !== "claimed" && (
+            <span className="ml-1 text-xs text-muted-foreground">
+              · automatically
+            </span>
+          )}
       </p>
       <time
         className="shrink-0 text-xs text-muted-foreground"
-        title={new Date(entry.createdAt).toLocaleString()}
+        title={absoluteTime(entry.createdAt)}
       >
         {relativeTime(entry.createdAt)}
       </time>
     </li>
+  );
+}
+
+function PullRequestRef({ url, number }: { url?: string; number?: number }) {
+  const label = number !== undefined ? `#${number}` : "";
+  return url ? (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium underline-offset-2 hover:underline"
+    >
+      {label}
+    </a>
+  ) : (
+    <b>{label}</b>
   );
 }

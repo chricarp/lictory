@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createServer } from "node:http";
@@ -48,7 +48,11 @@ const server = createServer((request, response) => {
   const files =
     tag === "v9.9.9" ? release : tag === "tampered" ? tampered : null;
   const body =
-    name === "SHA256SUMS" && files ? `${sums}\n` : name && files?.get(name);
+    name === "SHA256SUMS" && files
+      ? `${sums}\n`
+      : name === "release-manifest.json" && tag === "v9.9.9"
+        ? '{"schema":1,"tag":"v9.9.9","version":"9.9.9","baseline":{"tag":"v9.9.8"}}'
+        : name && files?.get(name);
   response.writeHead(body === undefined || body === null ? 404 : 200);
   response.end(body ?? "Not Found");
 });
@@ -123,6 +127,13 @@ void test("installs the binary for the system after checking SHA256SUMS", async 
       result.stdout,
       new RegExp(`Installed lictory-runner 9.9.9-${target}`),
     );
+    // It names the release "latest" resolved to.
+    assert.match(
+      result.stdout,
+      new RegExp(
+        `Downloading lictory-runner-${target} \\(v9\\.9\\.9, the latest release\\)`,
+      ),
+    );
     // Without a token it says how to register, with the full path when the
     // directory is not on PATH.
     assert.match(result.stdout, /not on your PATH/);
@@ -187,6 +198,42 @@ void test("a binary that does not match SHA256SUMS is never installed", async ()
   assert.equal(existsSync(join(result.home, "bin", "lictory-runner")), false);
 });
 
+void test("a release without runner files fails with what to do, installing nothing", async () => {
+  // As the documented command runs it: downloaded first, then run, so a
+  // missing installer fails too instead of piping nothing into sh.
+  const latest = await install(["--dir", "bin"], { tag: "v0.26.0" });
+  assert.equal(latest.status, 1);
+  assert.match(
+    latest.stderr,
+    /the latest release publishes no lictory-runner files.*Nothing was installed\..*--version/,
+  );
+  assert.equal(existsSync(join(latest.home, "bin")), false);
+});
+
+void test("a cut-off download of the installer runs nothing", async () => {
+  const source = await readFile(script, "utf8");
+  const cut = join(scratch, "cut.sh");
+  // Everything but the last line, which calls main.
+  await writeFile(cut, source.slice(0, source.lastIndexOf('main "$@"')));
+  const result = spawnSync("sh", [cut, "--help"], { encoding: "utf8" });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout, "");
+});
+
+void test("--help says what the installer does, its options and exit codes", () => {
+  const result = spawnSync("sh", [script, "--help"], { encoding: "utf8" });
+  assert.equal(result.status, 0);
+  for (const text of [
+    /installs lictory-runner/,
+    /SHA256SUMS/,
+    /--service[\s\S]*systemd or launchd/,
+    /LICTORY_RUNNER_DOWNLOAD_URL/,
+    /\/usr\/local\/bin when writable, else\s+~\/\.local\/bin/,
+    /Exit codes:[\s\S]*64 {2}wrong command line/,
+  ])
+    assert.match(result.stdout, text);
+});
+
 void test("refusals say what to do", async () => {
   const missing = await install(["--version", "1.2.3"], { tag: "v1.2.3" });
   assert.notEqual(missing.status, 0);
@@ -196,8 +243,16 @@ void test("refusals say what to do", async () => {
   assert.match(windows.stderr, /lictory-runner-install\.ps1/);
   const arch = await install([], { arch: "riscv64" });
   assert.match(arch.stderr, /riscv64 is not supported/);
+  // A wrong command line is a usage error (64), like every Lictory command
+  // line; a failure of the work itself is 1.
+  assert.equal(missing.status, 1);
   const half = await install(["--url", "https://lictory.example.com"]);
   assert.match(half.stderr, /--url and --token go together/);
+  assert.equal(half.status, 64);
   const service = await install(["--service"]);
   assert.match(service.stderr, /--service needs --url and --token/);
+  assert.equal(service.status, 64);
+  const unknown = await install(["--frobnicate"]);
+  assert.match(unknown.stderr, /unknown option --frobnicate/);
+  assert.equal(unknown.status, 64);
 });

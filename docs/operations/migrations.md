@@ -59,7 +59,10 @@ Local Docker, test databases, staging and production never share a database.
 1. **Change the schema** in `packages/core/src/db/*-schema.ts` (Better Auth tables:
    `bun run auth:generate`).
 2. **Generate** a migration: `bun run db:generate -- --name=add_work_item_rank`.
-   Answer rename prompts carefully; a wrong answer drops data.
+   Answer rename prompts carefully; a wrong answer drops data. It formats
+   `drizzle/meta` with Prettier afterwards, so the journal and snapshot pass
+   `bun run check` as generated (after renumbering a migration by hand, run
+   `bunx prettier --write drizzle/meta`).
 3. **Review the SQL** in `drizzle/NNNN_*.sql` as you would code. Look for table
    rewrites, `NOT NULL` without defaults on populated tables, dropped columns,
    locks on hot tables (`work_item`, `sync_entity`, `activity`), and changes

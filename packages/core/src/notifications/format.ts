@@ -29,18 +29,25 @@ function channelPlace(d: Record<string, unknown>) {
     : `in #${name}`;
 }
 
+// Quotes a title; quotation marks inside it become single ones, so a
+// suggestion titled “Change “up to”” never ends in two closing marks.
+function quote(text: string | null | undefined) {
+  const inner = (text ?? "").replace(/[“"](?=\S)/g, "‘").replace(/[”"]/g, "’");
+  return `“${inner}”`;
+}
+
 export function describeNotification(
   n: NotificationView,
   actor: string,
 ): { headline: string; body: string | null } {
   const d = n.detail;
   const item = str(d.itemKey) ?? "an item";
-  const page = str(d.pageTitle) ? `“${str(d.pageTitle)}”` : "a page";
+  const page = str(d.pageTitle) ? quote(str(d.pageTitle)) : "a page";
   const excerpt = str(d.excerpt);
   const count = typeof d.count === "number" ? d.count : 1;
   const responsibility = str(d.responsibility);
   const suggestion = str(d.suggestionTitle)
-    ? `“${str(d.suggestionTitle)}”`
+    ? quote(str(d.suggestionTitle))
     : "a suggestion";
   switch (n.kind as NotificationKind) {
     case "review_requested":
@@ -73,7 +80,7 @@ export function describeNotification(
       return {
         headline: `Your approval of ${item} needs review again`,
         body: str(d.pullRequestTitle)
-          ? `${actor} changed the merge result of “${str(d.pullRequestTitle)}”.`
+          ? `${actor} changed the proposed change ${quote(str(d.pullRequestTitle))}.`
           : `${actor} revised the specification to revision ${num(d.revision)}.`,
       };
     case "specification_revised":
@@ -114,25 +121,28 @@ export function describeNotification(
       };
     case "pull_request_review_requested":
       return {
-        headline: `${actor} requested ${responsibility ?? ""} review of pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        headline: `${actor} requested ${responsibility ?? ""} review of the proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item}`,
         body: null,
       };
     case "pull_request_decided":
       return {
-        headline: `${actor} ${d.decision === "approve" ? "approved" : d.decision === "revoke" ? "revoked their review of" : "requested changes on"} pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        headline: `${actor} ${d.decision === "approve" ? "approved" : d.decision === "revoke" ? "revoked their review of" : "requested changes on"} the proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item}`,
         body: responsibility,
       };
     case "pull_request_mergeable":
       return {
-        headline: `Pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item} is ready to merge`,
-        body: str(d.target)
-          ? `Every requirement to merge into ${str(d.target)} is met.`
-          : "Every merge requirement is met.",
+        headline: `The proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item} is ready to apply`,
+        body: "Every requirement to apply it is met.",
       };
     case "pull_request_merged":
       return {
-        headline: `${actor} merged pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
-        body: str(d.target) ? `Merged into ${str(d.target)}` : null,
+        headline: `${actor} applied the proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item}`,
+        body:
+          str(d.target) === "main"
+            ? "Applied to the specification"
+            : str(d.target)
+              ? `Applied to ${str(d.target)}`
+              : null,
       };
     case "suggestion_review_requested":
       return {
@@ -151,7 +161,7 @@ export function describeNotification(
       };
     case "suggestion_merged":
       return {
-        headline: `${actor} ${d.merged ? "merged" : "closed"} ${suggestion} on ${item}`,
+        headline: `${actor} ${d.merged ? "accepted" : "rejected"} ${suggestion} on ${item}`,
         body: null,
       };
     case "assigned":
@@ -192,8 +202,8 @@ export function describeNotification(
     case "export_failed": {
       const failures = (d.failures as { message: string | null }[]) ?? [];
       return {
-        headline: `Export ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} ${d.status === "partial" ? "partly failed" : "failed"}`,
-        body: `${num(d.failed)} of ${num(d.total)} items were not exported.${failures[0]?.message ? ` ${failures[0].message}` : ""}`,
+        headline: `Hand-off ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} ${d.status === "partial" ? "partly failed" : "failed"}`,
+        body: `${num(d.failed)} of ${num(d.total)} items were not handed off${d.status === "partial" ? "; the others were" : ""}.${failures[0]?.message ? ` ${failures[0].message}` : ""}`,
       };
     }
     case "code_write_failed":
@@ -203,8 +213,8 @@ export function describeNotification(
       };
     case "export_completed":
       return {
-        headline: `Export ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} completed`,
-        body: `${num(d.total)} items exported.`,
+        headline: `Hand-off ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} completed`,
+        body: `${num(d.total)} items handed off.`,
       };
     case "page_review_requested":
       return {
@@ -215,7 +225,7 @@ export function describeNotification(
       return {
         headline: `Your approval of a change to ${page} needs review again`,
         body: str(d.pullRequestTitle)
-          ? `${actor} changed “${str(d.pullRequestTitle)}” after you approved it.`
+          ? `${actor} changed ${quote(str(d.pullRequestTitle))} after you approved it.`
           : `${actor} changed it after you approved it.`,
       };
     case "page_mentioned":
@@ -234,11 +244,22 @@ export function describeNotification(
         headline: `${str(d.agentName) ?? "An agent"} asks: ${str(d.question) ?? "a decision"}`,
         body: titled(d.sessionTitle),
       };
-    case "agent_session_finished":
+    case "agent_session_finished": {
+      // Finished with no repository after changing files: the work was not
+      // kept, which is the news, not the agent's own summary.
+      const discarded =
+        typeof d.discardedFiles === "number" && d.discardedFiles > 0
+          ? d.discardedFiles
+          : 0;
       return {
-        headline: `${str(d.agentName) ?? "An agent"} ${d.status === "failed" ? "failed" : "finished"}: ${titled(d.sessionTitle) ?? "a session"}`,
-        body: str(d.error) ?? str(d.summary),
+        headline: `${str(d.agentName) ?? "An agent"} ${d.status === "failed" ? "failed" : discarded ? "finished, work not kept" : "finished"}: ${titled(d.sessionTitle) ?? "a session"}`,
+        body:
+          str(d.error) ??
+          (discarded
+            ? `${discarded === 1 ? "The file it changed was" : `The ${discarded} files it changed were`} discarded: no repository is linked to the session.`
+            : str(d.summary)),
       };
+    }
     case "channel_mentioned":
       return {
         headline: `${actor} mentioned you ${channelPlace(d)}`,

@@ -461,14 +461,25 @@ runs every five minutes and alerts on public route failures (the app's
 `/readyz`, and the marketing site when `SITE_HOST` is set), disk usage
 above 80 %, unhealthy or stopped containers, a lagging, lost or orphaned
 replication slot, `pg_wal` above 6 GB, failed or stuck AI runs, failed or
-overdue notification events and email, partial, failed or stuck delivery exports,
-automatic cycles overdue by two hours, and a backup older than 30 hours
+overdue notification events and email, partial, failed or stuck delivery exports
+and items whose failed hand-off was never retried, automatic cycles overdue by
+two hours, offline organization runners, agent sessions no online runner can
+take (or stuck in assigned), suspended or failing agent event subscriptions,
+refused Slack tokens and failed or stalled Slack events and mirrored messages,
+and a backup older than 30 hours
 (not checked with `BACKUP_TARGET=none`). It checks only what is configured
 and needs nothing but Docker, `bash` and `curl` on the host. It posts to `ALERT_WEBHOOK_URL` (Slack/Discord-compatible JSON) when the set of
 problems changes, every six hours while it persists, and once on recovery, and
 pings `MONITOR_PING_URL` (or `/fail`) so an external dead-man's switch notices
 a server that stopped reporting; both are optional. Logs rotate at 5 × 20 MB
 per container.
+
+Organization administrators see the monitor's database checks for their
+own organization on their Home, under **Needs an administrator**: work the
+worker has not reached for 15 minutes, failed email and AI runs, and
+hand-offs that failed and were not retried; instance administrators also see
+a lagging, lost or missing replication slot there. Backup age, disk and
+container health stay with the monitor, which reads them on the host.
 
 Existing monitoring can replace or complement it: point an uptime checker
 (Uptime Kuma, Pingdom, a load balancer health check) at

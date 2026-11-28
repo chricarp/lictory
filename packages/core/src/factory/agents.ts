@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { recordAuditEvent } from "@lictory/core/domain/audit";
 import { DomainError } from "@lictory/core/domain/errors";
@@ -396,6 +396,7 @@ async function ownedAgent(
   userId: string,
   organizationId: string,
   agentId: string,
+  refusal = "Only the agent's owner manages its access tokens.",
 ) {
   const [row] = await tx
     .select()
@@ -404,11 +405,7 @@ async function ownedAgent(
       and(eq(s.agent.organizationId, organizationId), eq(s.agent.id, agentId)),
     );
   const agent = requireAgent(row);
-  if (agent.ownerId !== userId)
-    throw new DomainError(
-      "forbidden",
-      "Only the agent's owner manages its access tokens.",
-    );
+  if (agent.ownerId !== userId) throw new DomainError("forbidden", refusal);
   return agent;
 }
 
@@ -497,6 +494,57 @@ export async function listAgentTokens(
     )
     .orderBy(desc(s.accessToken.createdAt));
   return rows.map(tokenSummary);
+}
+
+// What an agent did, as Lictory recorded it: every capability call made with
+// one of its tokens (its own or its sessions'), newest first, with the
+// outcome, the subject it named and, when refused, the refusal it got.
+// Inputs are never stored. Only its owner reads it here;
+// organization administrators see every agent's calls in the audit log.
+export async function listAgentActivity(
+  db: Database,
+  userId: string,
+  organizationId: string,
+  input: { agentId: string; limit?: number },
+) {
+  await authorize(db, userId, organizationId);
+  const agent = await ownedAgent(
+    db,
+    userId,
+    organizationId,
+    input.agentId,
+    "Only the agent's owner sees its activity here; organization administrators see every agent's calls in the audit log.",
+  );
+  const rows = await db
+    .select({
+      id: s.capabilityInvocation.id,
+      at: s.capabilityInvocation.createdAt,
+      capability: s.capabilityInvocation.capability,
+      outcome: s.capabilityInvocation.outcome,
+      durationMs: s.capabilityInvocation.durationMs,
+      tokenName: s.accessToken.name,
+      sessionId: s.accessToken.agentSessionId,
+      detail: s.capabilityInvocation.detail,
+    })
+    .from(s.capabilityInvocation)
+    .innerJoin(
+      s.accessToken,
+      eq(s.accessToken.id, s.capabilityInvocation.tokenId),
+    )
+    .where(
+      and(
+        eq(s.accessToken.agentId, agent.id),
+        // The agent's tokens belong to this organization; calls that name
+        // none (listOrganizations) are recorded without one.
+        or(
+          eq(s.capabilityInvocation.organizationId, organizationId),
+          isNull(s.capabilityInvocation.organizationId),
+        ),
+      ),
+    )
+    .orderBy(desc(s.capabilityInvocation.createdAt))
+    .limit(Math.min(Math.max(input.limit ?? 30, 1), 100));
+  return rows.map((row) => ({ ...row, at: row.at.toISOString() }));
 }
 
 export async function revokeAgentToken(

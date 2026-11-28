@@ -51,6 +51,9 @@ export type SessionCardPayload = {
   workItemId: string | null;
   workItemKey: string | null;
   summary: string | null;
+  // Files it changed with no repository linked, discarded as it ended.
+  // Absent on cards written before it existed.
+  discardedFiles?: number | null;
   error: string | null;
   path: string;
   // The code pull request its branch became: Lictory's page and the host's.
@@ -141,11 +144,16 @@ function threadOf(session: SessionRow) {
 // Lictory's own note in a session's thread (not the agent's words), once
 // per `key`: what happened that people must know, such as a pull request
 // Lictory could not open.
+//
+// `besideCard`: where the session's card is a channel message of its own (a
+// dispatched session's report), the note goes beside it in the channel, so
+// people following the channel read it without opening a thread.
 export async function postSessionNotice(
   tx: Tx,
   session: SessionRow,
   key: string,
   body: string,
+  options: { besideCard?: boolean } = {},
 ) {
   const thread = threadOf(session);
   if (!thread) return null;
@@ -154,10 +162,11 @@ export async function postSessionNotice(
   const message = await appendSystemMessage(tx, {
     organizationId: session.organizationId,
     channelId: thread.channelId,
-    actorId: session.requestedById,
+    // Lictory's own note, not the requester's act.
+    actorId: null,
     kind: "system",
     body,
-    threadRootId: thread.rootId,
+    threadRootId: options.besideCard && thread.topLevel ? null : thread.rootId,
     messageId: stableId("notice", session.id, key),
   });
   return message.id;
@@ -191,6 +200,7 @@ export async function syncSessionCard(
     workItemId: session.workItemId,
     workItemKey: item?.key ?? null,
     summary: session.resultSummary?.slice(0, 2000) ?? null,
+    discardedFiles: session.discardedFiles,
     error: session.error?.slice(0, 1000) ?? null,
     path,
     pullRequest: session.pullRequestId
@@ -202,7 +212,7 @@ export async function syncSessionCard(
       : null,
   };
   const body = [
-    `**${agent.name}** · ${sessionStatusLabels[session.status]}`,
+    `**${agent.name}** · ${sessionStatusLabels[session.status]}${session.discardedFiles ? `, work not kept (${session.discardedFiles === 1 ? "1 file" : `${session.discardedFiles} files`} discarded: no repository is linked)` : ""}`,
     item && session.workItemId
       ? ` · ${formatReference({ kind: "item", id: session.workItemId }, item.key)}`
       : "",

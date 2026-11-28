@@ -37,6 +37,7 @@ import {
   signOffDoneCheck,
 } from "@lictory/core/claims/service";
 import { runDispatcher } from "@lictory/core/claims/dispatcher";
+import { WORK_CHANNEL } from "@lictory/core/jobs/signal";
 import { defaultAutonomyPolicy } from "@lictory/core/claims/contracts";
 import { invoke } from "@lictory/core/capabilities/registry";
 import { noEffects } from "@lictory/core/capabilities/core";
@@ -139,7 +140,7 @@ async function fixture() {
       .filter((x) => x.projectId === projectId)
       .map((x) => [x.name, x.id]),
   ) as Record<
-    "Backlog" | "Todo" | "In Progress" | "In Review" | "Done" | "Canceled",
+    "Backlog" | "Todo" | "In Progress" | "Code review" | "Done" | "Canceled",
     string
   >;
   const latest = async (workItemId: string) =>
@@ -392,6 +393,15 @@ void test("claiming starts the item for the agent; people and external projects 
   });
   assert.equal(replay.claimId, claimed.claimId);
   assert.equal(replay.replayed, true);
+  // The holder asking again without its retry key (it lost the answer) gets
+  // its own claim back, not a conflict; nothing moves twice.
+  const again = await claimItem(db, f.agent(), {
+    organizationId: f.organizationId,
+    workItemId: spec,
+  });
+  assert.equal(again.claimId, claimed.claimId);
+  assert.equal(again.alreadyHeld, true);
+  assert.equal(again.status, "In Progress");
   assert.equal((await f.item(spec)).statusId, f.statuses["In Progress"]);
   const actions = await f.activity(spec);
   assert.ok(actions.includes("claimed"));
@@ -550,6 +560,8 @@ void test("release paths: agent, person, a moved item and closing the item", asy
     note: "Needs a database migration I cannot run.",
   });
   assert.equal(released.returnedTo, "Todo");
+  // The result echoes the note it was given.
+  assert.equal(released.note, "Needs a database migration I cannot run.");
   assert.equal((await f.claimRow(first.claimId)).endReason, "agent");
 
   // A person moved the item meanwhile: it stays where they put it.
@@ -560,7 +572,7 @@ void test("release paths: agent, person, a moved item and closing the item", asy
   await f.run({
     type: "updateWorkItem",
     workItemId: spec,
-    statusId: f.statuses["In Review"],
+    statusId: f.statuses["Code review"],
   });
   const kept = await releaseClaim(
     db,
@@ -571,7 +583,9 @@ void test("release paths: agent, person, a moved item and closing the item", asy
     },
   );
   assert.equal(kept.returnedTo, null);
-  assert.equal((await f.item(spec)).statusId, f.statuses["In Review"]);
+  assert.equal(kept.note, null);
+  assert.match(String(kept.returnNote), /stays where it is|moved/);
+  assert.equal((await f.item(spec)).statusId, f.statuses["Code review"]);
   assert.equal((await f.claimRow(second.claimId)).endReason, "person");
 
   // Moving claimed work back out of progress releases the claim.
@@ -1130,14 +1144,24 @@ void test("dispatcher: work with a person's linked pull request is not dispatche
   );
   assert.match(
     open?.reasons[0]?.message ?? "",
-    /^A pull request is already linked: #12 by Ada\./,
+    /^A person's pull request is linked: #12 by Ada \(open\)\./,
+  );
+  // The queue says what the board shows (the item has not moved to a
+  // started status), not that someone works on it.
+  assert.doesNotMatch(open?.reasons[0]?.message ?? "", /already doing/);
+  assert.match(
+    open?.reasons[0]?.message ?? "",
+    /It is still in \S+: move it when that work starts\./,
   );
   const done = await stageOf(f, merged);
   assert.deepEqual(
     done?.reasons.map((r) => r.code),
     ["pull_request_linked"],
   );
-  assert.match(done?.reasons[0]?.message ?? "", /#14 by octo-bo \(merged\)/);
+  assert.match(
+    done?.reasons[0]?.message ?? "",
+    /#14 by octo-bo \(merged\)\. octo-bo is a code host login no member has linked\./,
+  );
   assert.equal((await stageOf(f, retried))?.stage, "claimable");
   // An agent acting on its own is refused too.
   await assert.rejects(
@@ -1145,7 +1169,7 @@ void test("dispatcher: work with a person's linked pull request is not dispatche
       organizationId: f.organizationId,
       workItemId: human,
     }),
-    /already linked: #12 by Ada/,
+    /pull request is linked: #12 by Ada/,
   );
   // A person may still start an agent on it: its session claims.
   const agentId = crypto.randomUUID();
@@ -1185,7 +1209,7 @@ void test("dispatcher: work with a person's linked pull request is not dispatche
         workItemId: human,
       },
     ),
-    /already linked/,
+    /pull request is linked/,
   );
   await started("by-ada", human, false);
   const explicit = await claimItem(
@@ -1398,6 +1422,25 @@ void test("Definition of Done: acceptance sign-off by the chosen discipline and 
   const actions = await f.activity(spec);
   assert.ok(actions.includes("done_signed_off"));
   assert.ok(actions.includes("done_check_overridden"));
+  // An override stands in for evidence, so the organization's audit log
+  // records it too (a sign-off is evidence and stays in the item's history).
+  const audited = await db
+    .select()
+    .from(s.auditEvent)
+    .where(eq(s.auditEvent.organizationId, f.organizationId));
+  const override = audited.filter((e) => e.action === "done_check.overridden");
+  assert.equal(override.length, 1);
+  assert.equal(override[0]!.actorId, f.ada);
+  assert.equal(override[0]!.targetId, spec);
+  assert.match(override[0]!.targetLabel ?? "", /^[A-Z]+-\d+$/);
+  assert.deepEqual(
+    {
+      checkId: override[0]!.detail.checkId,
+      reason: override[0]!.detail.reason,
+    },
+    { checkId: "review", reason: "Reviewed together in the pairing session." },
+  );
+  assert.ok(!audited.some((e) => e.action.includes("sign")));
   assert.deepEqual(await f.drift(), []);
 });
 
@@ -1548,4 +1591,28 @@ void test("MCP agents claim through the capability layer; autonomy stays with pe
   assert.equal(done.checks.length, 2);
   assert.equal(done.evaluation?.passed, false);
   assert.deepEqual(await f.drift(), []);
+});
+
+void test("accepting a scope wakes the dispatcher on commit instead of its next round", async () => {
+  const f = await fixture();
+  const id = await f.create(f.types.Story);
+  await f.makeReady(id);
+  const signals: string[] = [];
+  const listener = postgres(url.toString(), {
+    max: 1,
+    onnotice: () => undefined,
+  });
+  const subscription = await listener.listen(WORK_CHANNEL, (kind) =>
+    signals.push(kind),
+  );
+  try {
+    await f.accept(id);
+    const deadline = Date.now() + 5_000;
+    while (!signals.includes("factory") && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.ok(signals.includes("factory"), JSON.stringify(signals));
+  } finally {
+    await subscription.unlisten();
+    await listener.end();
+  }
 });

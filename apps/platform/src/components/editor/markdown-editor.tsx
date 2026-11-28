@@ -169,7 +169,7 @@ const PlainMarkdownField = forwardRef<
   return (
     <div
       className={cn(
-        "rounded-lg border bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
+        "rounded-lg border border-input bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
         containerClassName,
       )}
     >
@@ -212,7 +212,7 @@ const PlainMarkdownField = forwardRef<
           maxHeight,
         }}
         className={cn(
-          "block w-full resize-none bg-transparent outline-none placeholder:text-muted-foreground/70 touch:text-base",
+          "block w-full resize-none bg-transparent outline-none placeholder:text-placeholder touch:text-base",
           compact
             ? "px-3 pt-2.5 pb-2 text-[13px] leading-6"
             : "px-4 py-3 text-[15px] leading-7",

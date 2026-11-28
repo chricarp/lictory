@@ -353,3 +353,45 @@ void test("Bitbucket events: pull requests and pushes per branch", () => {
     (e) => e instanceof CodeHostError,
   );
 });
+
+void test("Bitbucket: a refused OAuth consumer says what to fix", async () => {
+  const answer = (error: string, description: string) =>
+    scripted({
+      "POST /site/oauth2/access_token": () =>
+        Response.json(
+          { error, error_description: description },
+          { status: 400 },
+        ),
+    });
+  const connection = {
+    baseUrl: "https://bitbucket.org",
+    authKind: "oauth_consumer" as const,
+    credential: { key: "k", secret: "wrong" },
+  };
+  const verify = (host: ReturnType<typeof scripted>) =>
+    createBitbucketProvider({
+      fetch: host.fetch,
+      tokenUrl: "https://bitbucket.org/site/oauth2/access_token",
+      ...noSleep,
+    }).verify(connection);
+
+  await assert.rejects(
+    verify(answer("invalid_client", "Invalid OAuth client credentials")),
+    (e) =>
+      e instanceof CodeHostError &&
+      e.kind === "authentication" &&
+      e.message.includes("OAuth consumer key and secret"),
+  );
+  await assert.rejects(
+    verify(
+      answer(
+        "unauthorized_client",
+        "Client credentials grant is not allowed for this consumer",
+      ),
+    ),
+    (e) =>
+      e instanceof CodeHostError &&
+      e.kind === "validation" &&
+      e.message.includes("private consumer"),
+  );
+});

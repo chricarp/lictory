@@ -150,6 +150,13 @@ Piped or redirected output is always plain text.
 
 ## Exit codes
 
+Every Lictory command line uses `64` for a usage error and `1` for a
+failure: `lictory` and the host's helpers, `get.sh`, the laptop trial's
+`try.sh`, `lictory-runner` and its installer, `lictory admin` (and
+`bun run admin`) and `bun run verify`. The codes below are `lictory`'s;
+[`lictory-runner`](/factory/runners#exit-codes-and-logs) adds `2` for a
+machine a person must register again.
+
 | Code  | Meaning                                                                        |
 | ----- | ------------------------------------------------------------------------------ |
 | `0`   | Done (for `status`, the inspection worked; read `healthy` in its JSON)         |

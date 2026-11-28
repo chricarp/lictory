@@ -60,8 +60,16 @@ workspace (`.dockerignore`), so they do not grow.
   (`persist:server-<random id>`): cookies, storage and sign-in stay apart,
   exactly like separate browser profiles. Removing a server clears its
   partition, so adding it again starts signed out.
+- **Names.** A server is first named after its host. Once its page reports
+  the organization the person uses there (the bridge's
+  `setOrganizationName`, sent when they belong to exactly one), the
+  switcher, menus and notifications use that name and its initials ("HF"
+  for Harborline Freight) instead of "LO" for `localhost`. A name the person
+  chose is kept; without a single organization the name goes back to the
+  host.
 - **Stored files** (user data directory): `servers.json` (origins, names,
-  order, last path, zoom), `settings.json` and `window.json`. The shell
+  the reported organization, order, last path, zoom), `settings.json` and
+  `window.json`. The shell
   stores **no credentials**: sign-ins live in each partition's cookies,
   encrypted by Chromium with the operating system's key store (the
   cookie-encryption fuse is on).
@@ -71,6 +79,16 @@ workspace (`.dockerignore`), so they do not grow.
   view and is tried again after 5 seconds, then less and less often up to
   every minute, at once when the computer wakes up, and on **Try again** or
   Reload. Chromium's own error page never counts as the server answering.
+  The screen and the add-a-server form say what happened in plain words
+  with the next step (`src/shared/net-errors.ts`: offline, unknown name,
+  refused, no answer, certificate, proxy, blocked port); Chromium's code
+  (`ERR_CONNECTION_REFUSED`) appears only as a detail line.
+- **No network.** A server's page reports `navigator.onLine` through its
+  preload; while it is false the top bar shows **Offline** and a live region
+  says so, until the network is back. The page keeps what it shows and
+  reconnects by itself. A server that is down while the network works is
+  shown by the web app's own sync status, and by the error screen on the
+  next load.
 
 ## Security model
 
@@ -109,8 +127,9 @@ plus the bridge.
   clipboard, fullscreen, opening other applications. Frames and other
   origins get nothing.
 - **The shell page** is served from `lictory-app://shell/` with a strict
-  content security policy (scripts and styles from itself only, no
-  connections). Its preload exposes its API only on that origin, and the
+  content security policy (scripts, styles and its bundled Geist font from
+  itself only, no connections; without `font-src 'self'` Chromium silently
+  falls back to a system font). Its preload exposes its API only on that origin, and the
   main process answers only messages from that page.
 - **IPC.** Bridge messages are accepted only from a server view's main frame
   whose origin is that server's. Their content is validated (titles and
@@ -128,15 +147,21 @@ plus the bridge.
 
 The web app and the shell share one contract,
 `apps/platform/src/lib/desktop.ts` (`desktop()` returns it in the app, null
-in a browser): `platform`, `version`, `notify`, `setBadge` and `onNavigate`.
+in a browser): `platform`, `version`, `notify`, `setBadge`, `onNavigate` and
+the optional `setOrganizationName` (older apps lack it, so the page checks).
 The preload (`src/preload/web.ts`) implements exactly that shape.
 
 **In the shell:**
 
 - `notify` shows a native notification, unless notifications are turned off
-  in settings or the person is looking at that server (window focused and
-  the server active: its Inbox already shows it). With several servers the
-  notification names its server. Clicking it focuses the window, selects
+  in settings or the person is already looking at what it is about: the
+  window focused on that server's page that the notification opens (its
+  query and fragment aside). Working elsewhere in the app, even on the same
+  server, is when a review request or a mention should interrupt, so the
+  focused window alone does not suppress it. With several servers the
+  notification names its server. Linux shows notifications through
+  libnotify (a dependency of the `.deb`); where `Notification.isSupported()`
+  is false, settings say so instead of offering a switch that does nothing. Clicking it focuses the window, selects
   the server and opens the notification's path. Notifications with the same
   tag replace each other.
 - `setBadge` sets that server's count. The dock (macOS), taskbar overlay
@@ -146,6 +171,9 @@ The preload (`src/preload/web.ts`) implements exactly that shape.
 - `onNavigate` delivers paths from deep links, notification clicks and the
   tray. A page that has not registered a listener (signed out, an error
   page) is loaded at the path instead.
+- `setOrganizationName` names the server after the person's organization
+  (see Servers); the web app sends it once memberships have loaded, so the
+  name never flips to the host while they load.
 
 **In the web app** (`apps/platform/src/lib/desktop-bridge.ts`, mounted once
 in the signed-in layout by `components/app/desktop-connector.tsx`):
@@ -156,14 +184,17 @@ in the signed-in layout by `components/app/desktop-connector.tsx`):
   raise the badge or a native notification. It uses the same endpoint and
   realtime signals as the Inbox and adds no server events.
 - The badge is a **sum of sources**, and this module is the only caller of
-  `setBadge`. Notifications are one source; another feature adds its own
-  unread count with `useDesktopBadgeSource(source, count)`. The shell adds
-  its sidebar's `dock` badges (channel mentions and direct messages of the
-  open organization, from read state; see [the shell](shell.md#desktop-app)),
-  so notifications of the Channels category are left out of the
-  notification source: reading a conversation clears its mentions without
-  marking their notifications read. They are still forwarded as native
-  notifications.
+  `setBadge`. Another feature adds its own count with
+  `useDesktopBadgeSource(source, count)`. The shell adds its sidebar's
+  `dock` badges of the open organization (the Inbox's To do, channel
+  mentions and direct messages, from live state; see
+  [the shell](shell.md#desktop-app)), so the badge shows the sidebar's
+  numbers. Notifications are the other source, for the person's other
+  organizations only (`useDesktopOpenOrganization` names the open one):
+  the open organization's would count twice and outlive what they announced
+  (an answered review, a read conversation). Channel notifications and
+  agents' questions never count as notifications (read state and To do
+  count them). Everything is still forwarded as native notifications.
 - `onNavigate` paths go through the router only when they are pages of the
   app: other origins and the account flows are refused.
 - The page is a view under the window's top bar and beside the server
@@ -201,7 +232,18 @@ in-app path; anything else is refused.
 - **Title bar.** macOS uses the hidden-inset style: the traffic lights sit in
   the app's own top bar, which is the drag area. Windows draws its own
   window controls over the top bar (`titleBarOverlay`, colored to match the
-  theme). Linux keeps the native frame, which window managers expect.
+  theme). Linux keeps the native frame, which window managers expect. The
+  top bar names the page in front (its title, with the server's name only
+  when several servers are added and the title does not already say it);
+  a page without a title of its own, or one that failed to load, is named
+  after its server, never by its address.
+- **Scrollbars.** On Windows and Linux, Chromium gives web pages a browser's
+  classic scrollbars. The shell draws slim ones in its colors, and injects
+  the same colors and `scrollbar-width: thin` into servers' pages
+  (`src/main/scrollbars.ts`, standard properties only, so a page's own
+  `scrollbar-width` still wins). Like overlay scrollbars, a thumb shows only
+  on the scroller under the pointer or holding the focus, never as a
+  permanent bar. macOS keeps its own overlay scrollbars.
 - **Shortcuts** (Ctrl instead of ⌘ on Windows and Linux): ⌘1 to ⌘9 open the
   server at that position, ⌘K is left to the page (its command palette; the
   menu item types it when chosen with the mouse), ⌘, settings, ⌘⇧N add a
@@ -229,7 +271,8 @@ when the app quits or on **Restart to update**. Pre-releases (nightlies) are
 ignored.
 
 A build updates itself only when it can do so safely, and otherwise settings
-say why and link to the releases page:
+say why, per platform, and link to lictory.com/download
+(`src/shared/updates.ts`, with its tests):
 
 - not in development builds, and not with `LICTORY_DESKTOP_UPDATES=off`
   (for managed computers);
@@ -237,8 +280,14 @@ say why and link to the releases page:
   `package.mjs` records this in the packaged `package.json`
   (`lictory.updatable`). Squirrel.Mac refuses unsigned apps, and an unsigned
   Windows installer cannot be verified;
-- Linux: only the AppImage (checked against the release's SHA-512); a
-  `.deb` belongs to the package manager.
+- Linux: only the AppImage (checked against the release's SHA-512). A
+  `.deb` belongs to the package manager, and no apt repository serves
+  Lictory, so it never updates: settings say to install the newest `.deb`
+  over it, never that the package manager will.
+
+A release without this system's `latest*.yml` (or no stable release at all)
+reads as "the newest release has no update for this system yet", not as a
+failed check.
 
 **Releases.** Every release, nightly and stable, carries the installers,
 their `.blockmap` files and the `latest*.yml` files, built by
@@ -267,6 +316,25 @@ Signing certificates come from the **desktop-signing** environment
 packaging step. A platform whose certificates are missing is built unsigned
 and records that it does not update itself.
 
+## Managed computers
+
+Two existing mechanisms spare people typing the address:
+
+- **A link.** `lictory://lictory.example.com/` (in an onboarding email or
+  the intranet) asks once, in a native dialog, and adds the server.
+- **A servers file.** Before the first launch, an administrator's tooling
+  writes `servers.json` into the user data directory
+  (`~/Library/Application Support/Lictory`, `%APPDATA%\Lictory`,
+  `~/.config/Lictory`): `{"servers":[{"id":"managed-lictory","origin":"https://lictory.example.com"}]}`.
+  Only `id` (8 to 64 letters, digits or dashes; it names the session
+  partition) and `origin` are needed; the rest takes its default
+  (`normalizeServers`, covered by a unit test). Writing it later replaces
+  the person's own list.
+
+`LICTORY_DESKTOP_UPDATES=off` turns self-updating off for computers updated
+by their management tool. There is no policy file (locked server list,
+forced settings); that would be a new concept.
+
 ## Packaging
 
 `bun run --cwd apps/desktop package -- --linux` (or `--mac`, `--win`) builds
@@ -294,7 +362,11 @@ changes the app, with the same workflow releases use:
 The desktop app can run `lictory-runner` (`apps/runner`, the Factory
 stream) as a child process, so the person's agents can work on this
 computer. It is behind `LICTORY_DESKTOP_RUNNER=1` until the runner ships
-inside the package; with the flag, **Settings › Personal runner** shows it.
+inside the package; with the flag, **Settings › Personal runner (preview)**
+shows it. No package includes the binary yet, and the section says so: to
+run agents on the computer today, the person installs the runner from
+**Factory › Runners › Add runner**, which runs on its own; to drive that
+binary from the app, they start it with `LICTORY_RUNNER_PATH`.
 
 Implemented here, without depending on the runner:
 
@@ -343,12 +415,20 @@ flag into a setting.
   the web app's side (attention kinds, badge sources, what counts as new,
   refresh coalescing). Both run in `bun run test:domain`.
 - `tests/platform/desktop-bridge.spec.ts` runs the real web app with a
-  recording bridge: an assignment raises the badge and a native
-  notification, the shell navigates the page, reading clears the badge.
+  recording bridge: an assignment raises a native notification but not the
+  badge (it is news), a review request raises the badge with the sidebar's
+  Inbox count, the shell navigates the page, and the request going away
+  clears the badge.
 - `apps/desktop/tests/smoke.spec.ts` runs the built app with Playwright's
-  Electron support against a fake Lictory server: adding a server (and
-  refusing wrong ones), the bridge without Node.js, the badge, a deep link,
-  links that leave the app, settings, an unavailable server and reopening.
+  Electron support against a fake Lictory server: the bundled font, adding a
+  server (and refusing wrong ones in plain words), the bridge without
+  Node.js, the badge, the organization's name in the switcher, native
+  notifications (shown while working elsewhere, not repeated for the page in
+  front), a deep link, links that leave the app, the offline top bar
+  (network emulation), settings, an unavailable server and reopening, with
+  axe on each of the app's own screens, a Tab trail of the connect screen and
+  the shell (every stop named and showing its focus ring), Back drawn in the
+  text color when it can act, and the View menu listing each command once.
   It needs the Electron binary (`bun run setup`), a display
   (`xvfb-run -a bun run test:smoke` on Linux) and Electron's system
   libraries (GTK 3, NSS); containers without the setuid sandbox helper run it
@@ -366,4 +446,6 @@ flag into a setting.
   in the browser, where the person may need to sign in to finish.
 - Proxies that ask for a user name and password are not supported yet.
 - Linux badges show only on desktops that support the launcher API; the
-  tray needs a StatusNotifier host (GNOME needs an extension).
+  tray needs a StatusNotifier host (GNOME needs an extension); notifications
+  need libnotify and a notification service (the AppImage does not bundle
+  libnotify; settings say when it is missing).

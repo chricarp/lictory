@@ -131,7 +131,7 @@ export async function setupDatabase(
           report.done.push(`Granted rds_replication to ${zero.name}.`);
         } else {
           report.warnings.push(
-            `Could not give ${zero.name} replication (${(error as Error).message}). Do it as the provider's administrator: docs/operations/external-database.md#providers.`,
+            `Could not give ${zero.name} replication (${(error as Error).message}). Do it as the provider's administrator: https://docs.lictory.com/self-hosting/database#providers.`,
           );
         }
       }

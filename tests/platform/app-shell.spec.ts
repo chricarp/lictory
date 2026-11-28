@@ -131,9 +131,10 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
     page.getByRole("region", { name: "Ready to start" }),
   ).toBeHidden();
   // A factory without code, runners, agents or channels starts with its
-  // setup, derived from its data: two people already belong to it.
+  // setup, derived from its data: two people already belong to it and its
+  // work has started.
   const setup = page.getByRole("region", { name: "Set up Factory floor" });
-  await expect(setup).toContainText("1 of 5 done");
+  await expect(setup).toContainText("2 of 6 done");
   await expect(setup.getByRole("link", { name: "Add runner" })).toHaveAttribute(
     "href",
     `/${seeded.slug}/factory/runners`,
@@ -148,8 +149,9 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
     sidebar(page).getByRole("link", { name: "Home" }),
   ).toHaveAttribute("aria-current", "page");
 
-  // The sections keep their order: Home, Inbox, Channels, Direct messages,
-  // Factory, Code, Projects, Spaces.
+  // The sections keep their order: the single-row destinations (Home,
+  // Inbox, Factory, Code), the project's work, Spaces, then the
+  // conversations, whose lists grow.
   expect(
     await sidebar(page)
       .locator("[data-nav-section]")
@@ -159,13 +161,33 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
   ).toEqual([
     "home",
     "inbox",
-    "channels",
-    "direct-messages",
     "factory",
     "code",
     "projects",
     "spaces",
+    "channels",
+    "direct-messages",
   ]);
+  // Outside the project its pages fold under the switcher, so the
+  // conversations stay in view; unfolding is remembered.
+  const projectPages = sidebar(page).getByRole("button", {
+    name: /pages$/,
+  });
+  await expect(projectPages).toHaveAttribute("aria-expanded", "false");
+  await expect(
+    sidebar(page).getByRole("link", { name: "Board", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    sidebar(page).getByRole("link", { name: "All channels" }),
+  ).toBeInViewport();
+  await projectPages.click();
+  await expect(
+    sidebar(page).getByRole("link", { name: "Board", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(projectPages).toHaveAttribute("aria-expanded", "true");
+  await projectPages.click();
+  await expect(projectPages).toHaveAttribute("aria-expanded", "false");
 
   // Every organization I belong to is on the rail; the current one is marked.
   const rail = page.getByRole("navigation", { name: "Organizations" });
@@ -183,14 +205,25 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
   await expect(
     page.getByRole("heading", { name: "Channels", level: 1 }),
   ).toBeVisible();
-  await sidebar(page).getByRole("link", { name: "Overview" }).click();
+  await sidebar(page)
+    .getByRole("link", { name: "Factory", exact: true })
+    .click();
   await expect(page).toHaveURL(paths.factory(seeded.slug));
   await expect(
     page.getByRole("heading", { name: "Factory", level: 1, exact: true }),
   ).toBeVisible();
-  await sidebar(page).getByRole("link", { name: "Agents" }).click();
+  // Agents and runners are the Factory page's tabs; the sidebar row stays
+  // current on them.
+  await page
+    .getByRole("main")
+    .getByRole("link", { name: "Agents", exact: true })
+    .first()
+    .click();
   await expect(page).toHaveURL(`${paths.factory(seeded.slug)}/agents`);
-  await sidebar(page).getByRole("link", { name: "Pull requests" }).click();
+  await expect(
+    sidebar(page).getByRole("link", { name: "Factory", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await sidebar(page).getByRole("link", { name: "Code", exact: true }).click();
   await expect(page).toHaveURL(paths.code(seeded.slug));
   await expect(
     page.getByRole("heading", { name: "Code", level: 1 }),
@@ -213,6 +246,18 @@ test("Home, the rail, the sections and the palette form one shell @smoke", async
   await page.keyboard.press("Enter");
   await expect(palette).toBeHidden();
   await expect(page).toHaveURL(paths.org(seeded.slug));
+
+  // Settings and Factory pages are destinations of their own.
+  await page.keyboard.press("ControlOrMeta+k");
+  await search.fill("audit");
+  await palette
+    .getByRole("option", { name: "Organization settings · Audit log" })
+    .click();
+  await expect(page).toHaveURL(paths.settings(seeded.slug, "audit"));
+  await page.keyboard.press("ControlOrMeta+k");
+  await search.fill("runners");
+  await palette.getByRole("option", { name: "Factory · Runners" }).click();
+  await expect(page).toHaveURL(`/${seeded.slug}/factory/runners`);
 
   // Jump to a project by name.
   await page.keyboard.press("ControlOrMeta+k");
@@ -310,14 +355,7 @@ test("the sidebar resizes, folds to icons and returns", async ({ page }) => {
   await expect(
     page.getByRole("navigation", { name: "Organizations" }),
   ).toHaveCount(0);
-  for (const name of [
-    "Home",
-    "Inbox",
-    "All channels",
-    "Overview",
-    "Agents",
-    "Pull requests",
-  ])
+  for (const name of ["Home", "Inbox", "All channels", "Factory", "Code"])
     await expect(
       sidebar(page).getByRole("link", { name, exact: true }),
     ).toBeVisible();
@@ -326,14 +364,14 @@ test("the sidebar resizes, folds to icons and returns", async ({ page }) => {
 });
 
 test("the sidebar keeps its place across navigation", async ({ page }) => {
-  // Short enough that Spaces sits below the fold.
+  // Short enough that the lower sections sit below the fold.
   await page.setViewportSize({ width: 1440, height: 560 });
   await signIn(page, seeded.owner.email);
   await page.goto(paths.spaces(seeded.slug));
   const nav = sidebar(page);
   const top = () => nav.evaluate((el) => el.scrollTop);
   // A space and then one of its pages, opened from the page: the sidebar
-  // never scrolls by itself, so Channels stays in view.
+  // never scrolls by itself, so the destinations at its top stay in view.
   await page
     .getByRole("main")
     .getByRole("link", { name: /Runbooks/ })
@@ -348,7 +386,7 @@ test("the sidebar keeps its place across navigation", async ({ page }) => {
   ).toBeVisible();
   expect(await top()).toBe(0);
   await expect(
-    nav.getByRole("link", { name: "All channels" }),
+    nav.getByRole("link", { name: "Home", exact: true }),
   ).toBeInViewport();
 });
 

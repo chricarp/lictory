@@ -430,9 +430,20 @@ export function relativeTime(iso: string, now = Date.now()) {
     day: "numeric",
   });
 }
-export function absoluteTime(iso: string) {
+// The product's one absolute format ("Nov 27, 2026, 4:50 AM"), for tooltips
+// beside a relative time and for moments that must be exact. Dates without
+// a time use `formatDate` ("Nov 27, 2026").
+export function absoluteTime(iso: string | number | Date) {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
 }
 
 export function byType<T extends Entity["type"]>(entities: Entity[], type: T) {
@@ -513,7 +524,7 @@ export const milestoneStatusMeta: Record<MilestoneStatus, string> = {
   completed: "Completed",
   cancelled: "Cancelled",
 };
-export function formatDate(iso: string | null) {
+export function formatDate(iso: string | number | Date | null) {
   if (!iso) return "";
   const d = new Date(iso);
   return Number.isNaN(d.getTime())

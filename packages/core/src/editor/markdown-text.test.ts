@@ -6,6 +6,7 @@ import {
   occurrenceIn,
   parseMarkdownTree,
   placeQuote,
+  replaceQuote,
   textModel,
 } from "@lictory/core/editor/markdown-text";
 import { diffMarkdown } from "@lictory/core/editor/markdown-diff";
@@ -165,5 +166,46 @@ void test("blocks of another type are removed and added, not compared word by wo
   assert.deepEqual(
     changes.map((c) => c.kind),
     ["removed", "added", "unchanged"],
+  );
+});
+
+void test("a suggestion on selected text replaces exactly that passage, or defers to the editor", () => {
+  const source = `# Behavior
+
+Retries reuse the *original* transaction ID. Retries reuse it.
+
+## Failure
+
+Retries reuse a new ID.
+`;
+  // The selected copy under its heading is replaced; the rest keeps its bytes.
+  assert.equal(
+    replaceQuote(
+      source,
+      { quote: "Retries reuse it", section: "Behavior", occurrence: 0 },
+      "Each retry reuses it",
+    ),
+    source.replace("Retries reuse it.", "Each retry reuses it."),
+  );
+  assert.equal(
+    replaceQuote(
+      source,
+      { quote: "Retries reuse", section: "Failure", occurrence: 0 },
+      "Retries get",
+    ),
+    source.replace("Retries reuse a new ID.", "Retries get a new ID."),
+  );
+  // Across formatting, or a passage that is not there: the editor's job.
+  assert.equal(
+    replaceQuote(
+      source,
+      { quote: "the original transaction", section: "Behavior" },
+      "the first transaction",
+    ),
+    null,
+  );
+  assert.equal(
+    replaceQuote(source, { quote: "nowhere", section: "Behavior" }, "x"),
+    null,
   );
 });

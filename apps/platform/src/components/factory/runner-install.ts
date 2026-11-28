@@ -29,8 +29,61 @@ export function runnerInstallCommand(
       `& ([scriptblock]::Create((irm ${RUNNER_RELEASES}/lictory-runner-install.ps1))) \``,
       `  ${pinned ? `-Version ${pinned} ` : ""}-Url ${server} -Token ${token} -Service`,
     ].join("\n");
+  // Downloaded, then run: `curl … | sh` reports success when the download
+  // fails, because sh runs the empty script it receives.
   return [
-    `curl -fsSL ${RUNNER_RELEASES}/lictory-runner-install.sh | sh -s -- \\`,
-    `  ${pinned ? `--version ${pinned} ` : ""}--url ${server} --token ${token} --service`,
+    `curl -fsSLO ${RUNNER_RELEASES}/lictory-runner-install.sh &&`,
+    `  sh lictory-runner-install.sh ${pinned ? `--version ${pinned} ` : ""}--url ${server} --token ${token} --service`,
   ].join("\n");
+}
+
+const sourceTarget: Record<RunnerSystem, { target: string; other: string }> = {
+  linux: { target: "linux-x64", other: "linux-arm64 on arm64" },
+  macos: { target: "darwin-arm64", other: "darwin-x64 on Intel" },
+  windows: { target: "windows-x64", other: "windows-arm64 on arm64" },
+};
+
+/**
+ * The same runner built from source, for a release that carries no runner
+ * files (the installer's download then answers 404): the server's release
+ * tag when it has one, otherwise the default branch, built with Bun, then
+ * registered and kept running as the installer would.
+ */
+export function runnerFromSourceCommand(
+  system: RunnerSystem,
+  server: string,
+  token: string,
+  version: string | undefined,
+): string {
+  const pinned = version && releaseVersion.test(version) ? version : undefined;
+  const { target, other } = sourceTarget[system];
+  const clone = `git clone --depth 1 ${pinned ? `--branch v${pinned} ` : ""}https://github.com/chricarp/lictory.git`;
+  if (system === "windows")
+    return [
+      `${clone}; cd lictory`,
+      "bun install --frozen-lockfile",
+      `bun run --cwd apps/runner build ${target}   # ${other}`,
+      `.\\apps\\runner\\dist\\lictory-runner-${target}.exe register --url ${server} --token ${token}`,
+      `.\\apps\\runner\\dist\\lictory-runner-${target}.exe install-service`,
+    ].join("\n");
+  return [
+    `${clone} && cd lictory`,
+    "bun install --frozen-lockfile",
+    `bun run --cwd apps/runner build ${target}   # ${other}`,
+    // BSD install (macOS) has no -D.
+    `mkdir -p ~/.local/bin && cp apps/runner/dist/lictory-runner-${target} ~/.local/bin/lictory-runner`,
+    `~/.local/bin/lictory-runner register --url ${server} --token ${token}`,
+    "~/.local/bin/lictory-runner install-service --enable",
+  ].join("\n");
+}
+
+// "in 60 minutes (at 14:32)": when a one-time token stops working.
+export function expiresIn(iso: string, now = Date.now()) {
+  const minutes = Math.max(0, Math.round((Date.parse(iso) - now) / 60_000));
+  const at = new Date(iso).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  if (minutes < 1) return `in less than a minute (at ${at})`;
+  return `in ${minutes} minute${minutes === 1 ? "" : "s"} (at ${at})`;
 }

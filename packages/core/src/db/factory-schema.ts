@@ -45,6 +45,8 @@ export const agentApprovalStatus = pgEnum("agent_approval_status", [
   "approved",
   "denied",
   "expired",
+  // A question (a request naming no action) a person answered in words.
+  "answered",
 ]);
 
 // A named, non-human member of an organization. It acts with its owner's
@@ -120,9 +122,9 @@ export const runner = pgTable(
     arch: text("arch").notNull().default(""),
     version: text("version").notNull().default(""),
     hostname: text("hostname").notNull().default(""),
-    // Harnesses detected on the machine: [{ id, version }].
+    // Harnesses detected on the machine: [{ id, version, permissions? }].
     harnesses: jsonb("harnesses")
-      .$type<{ id: string; version: string | null }[]>()
+      .$type<{ id: string; version: string | null; permissions?: string }[]>()
       .notNull()
       .default([]),
     labels: text("labels").array().notNull().default([]),
@@ -130,6 +132,10 @@ export const runner = pgTable(
     // `host` or `container`.
     isolation: text("isolation").notNull().default("host"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    // The last problem the runner reported in a heartbeat, and when it met
+    // it (the runner's clock).
+    lastError: text("last_error"),
+    lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
     createdById: text("created_by_id")
       .notNull()
       .references(() => user.id),
@@ -241,6 +247,10 @@ export const agentSession = pgTable(
     channelId: text("channel_id"),
     threadRootMessageId: text("thread_root_message_id"),
     resultSummary: text("result_summary"),
+    // How many files a session with no repository changed: its scratch
+    // workspace was discarded as it ended, so that work was not kept.
+    // Null when it had a repository or changed nothing.
+    discardedFiles: integer("discarded_files"),
     // The code pull request the session opened (owned by Code).
     pullRequestId: text("pull_request_id"),
     pullRequestUrl: text("pull_request_url"),
@@ -343,7 +353,8 @@ export const agentSessionInput = pgTable(
 );
 
 // Something the agent asked a person to decide (a permission it lacks, a
-// command it wants to run). Answering is a person's decision.
+// command it wants to run: `detail.tool` and `detail.input`) or, when it
+// names no action, a question. Answering is a person's decision.
 export const agentApproval = pgTable(
   "agent_approval",
   {

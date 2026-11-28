@@ -96,10 +96,10 @@ export function OrganizationHandleField({
         disabled={disabled}
         aria-invalid={status.invalid || undefined}
         aria-describedby={`${id}-url ${id}-status`}
-        placeholder="acme"
+        placeholder="e.g. acme"
       />
       <p id={`${id}-url`} className="text-xs break-all text-muted-foreground">
-        Your workspace URL:{" "}
+        Your organization’s address:{" "}
         <span className="font-mono">/{status.handle || "your-handle"}</span>
       </p>
       <p

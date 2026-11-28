@@ -88,7 +88,9 @@ a review; holding a discipline never grants approval by itself.
 Suggestion reviewers are individuals chosen by the suggestion's author and must
 hold one active discipline of the item's project that grants **both**
 `editSpecifications` and `review` (`canReviewSuggestions`); the author cannot
-review their own suggestion.
+review their own suggestion. While nobody is asked, an eligible person may ask
+themselves (and only themselves), so a suggestion never waits on its author to
+choose; once someone is asked, only the author changes who.
 
 Every project is seeded with Product (all capabilities), Engineering (requests,
 reviews and changes properties) and QA (requests, reviews and changes
@@ -438,8 +440,20 @@ including PR review/discussion projections. Commits, decisions in activity,
 merged main revisions and approvals remain durable. Main cannot be deleted.
 There are no close/reopen or archive/restore branch/PR actions.
 
-The legacy suggestion tables and commands remain for existing history and
-compatibility tests; the user-facing workflow uses branches and PRs. Internal
+Suggestions are the short path for a small text change: someone selects a
+passage, writes its replacement (the browser applies it to main's Markdown
+only when the passage is plain text inside one text node,
+`replaceQuote` in `editor/markdown-text.ts`; anything else opens a branch),
+and asks one eligible reviewer to accept it. Accepting is the assigned
+reviewer's approval followed by `mergeSuggestion`, which creates the next
+revision like an edit (approvals stale, reviews re-requested) and is refused
+while main is protected: a ready specification changes only through a PR. On
+a protected main the browser's same "Suggest a change" composer sends the
+change for review instead, with the ordinary commands (`createBranch`,
+`commitBranch` of exactly that replacement, `createPullRequest` into main), so
+one action keeps one meaning for the person and the protection holds.
+Suggestions made through MCP appear beside the text the same way. Larger
+changes use branches and PRs. Internal
 list fields `openSuggestions` and `suggestionReviewerIds` include active PRs so
 existing filters continue working. Protocol version **9** adds commit, branch,
 PR and PR-review projections. All new commands preserve the shared organization

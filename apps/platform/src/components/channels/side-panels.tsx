@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Bell, BellOff, Search, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Bell, Search, X } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import { cn } from "@lictory/core/lib/utils";
 import { Input } from "@lictory/ui/input";
@@ -7,17 +7,12 @@ import { Spinner } from "@lictory/ui/spinner";
 import { useDebouncedCallback } from "@lictory/ui/use-debounced-callback";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useChannelThread } from "@lictory/platform/components/channels/store";
+import { useAnnounceMessages } from "@lictory/platform/components/channels/announce";
 import {
   formatTime,
-  sessionCardsIn,
-  shownReplyCount,
   type Channel,
   type MessageRow,
 } from "@lictory/platform/components/channels/data";
-import {
-  ApprovalRecordGate,
-  factoryCardOf,
-} from "@lictory/platform/components/channels/factory-cards";
 
 // The right-hand panels of a conversation: a thread (?thread=) or message
 // search. On phones they cover the conversation; Escape closes them.
@@ -70,9 +65,9 @@ export function ThreadPanel({
   channel,
   label,
   rootMessageId,
-  hiddenReplies = 0,
   participant,
   renderMessage,
+  speakerOf,
   composer,
   onClose,
   onRead,
@@ -81,10 +76,10 @@ export function ThreadPanel({
   channel: Channel;
   label: string;
   rootMessageId: string;
-  // Requests the session card shows, whose record lines step aside.
-  hiddenReplies?: number;
   participant: { following: boolean; readReplyCount: number } | undefined;
   renderMessage: (message: MessageRow, grouped: boolean) => ReactNode;
+  // Who said a reply, for the announcement of new ones.
+  speakerOf: (message: MessageRow) => string;
   composer: ReactNode;
   onClose: () => void;
   onRead: (rootMessageId: string) => void;
@@ -94,14 +89,19 @@ export function ThreadPanel({
     channel.id,
     rootMessageId,
   );
-  const end = useRef<HTMLDivElement>(null);
-  const shown = root ? shownReplyCount(root, hiddenReplies) : 0;
-  const following = participant?.following ?? false;
-  // Sessions whose card is in this thread answer their requests there.
-  const cards = useMemo(
-    () => sessionCardsIn(root ? [root, ...replies] : replies),
-    [root, replies],
+  const { userId } = useWorkspace();
+  // New replies in the open thread are announced; the list itself is not a
+  // live region (it would also read replies loaded with the thread).
+  useAnnounceMessages(
+    `${channel.id}:${rootMessageId}`,
+    replies,
+    complete,
+    userId,
+    speakerOf,
   );
+  const end = useRef<HTMLDivElement>(null);
+  const shown = root?.replyCount ?? 0;
+  const following = participant?.following ?? false;
   // Reading the open thread keeps it read as replies arrive.
   useEffect(() => {
     if (
@@ -131,11 +131,9 @@ export function ThreadPanel({
               following && "bg-primary/8 text-primary ring-primary/30",
             )}
           >
-            {following ? (
-              <Bell className="size-3.5" aria-hidden />
-            ) : (
-              <BellOff className="size-3.5" aria-hidden />
-            )}
+            {/* One control in two states: the same bell, tinted while
+                following. */}
+            <Bell className="size-3.5" aria-hidden />
             {following ? "Following" : "Follow"}
           </button>
         )
@@ -144,6 +142,8 @@ export function ThreadPanel({
       <div
         className="min-h-0 flex-1 overflow-y-auto py-2"
         role="log"
+        // Announced one by one through the workspace's announcer instead.
+        aria-live="off"
         aria-label="Thread replies"
       >
         {!root ? (
@@ -171,21 +171,7 @@ export function ThreadPanel({
                 previous.authorUserId === reply.authorUserId &&
                 previous.authorAgentId === reply.authorAgentId &&
                 reply.createdAt - previous.createdAt < 5 * 60_000;
-              const message = (
-                <div key={reply.id}>{renderMessage(reply, grouped)}</div>
-              );
-              const record =
-                reply.kind === "card"
-                  ? factoryCardOf(reply.payload)
-                  : undefined;
-              return record?.type === "agentApproval" &&
-                cards.has(record.sessionId) ? (
-                <ApprovalRecordGate key={reply.id} payload={record}>
-                  {message}
-                </ApprovalRecordGate>
-              ) : (
-                message
-              );
+              return <div key={reply.id}>{renderMessage(reply, grouped)}</div>;
             })}
             <div ref={end} />
           </>

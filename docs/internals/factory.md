@@ -51,6 +51,19 @@ audit name both: work item activity records `performedVia`, the agent's id,
 name and handle, and the UI reads "Forge via Ada"; `capability_invocation`
 records the token, which names the agent.
 
+The Factory's Sessions page (`/{org}/factory/sessions`) lists the recent
+sessions of the organization, newest started first, every row the same
+shape (agent, who started it, how long it ran, its outcome), narrowed by
+where they stand (active, failed, completed, canceled), by agent and by who
+started it. The overview shows what needs attention now, each session in
+one block: what needs me (the agents' rows of my To do, answered in place),
+what waits on a teammate and on whom (the team's view), what runs, what
+finished. A session's duration is its running time (`startedAt` to
+`completedAt`), never its time in the queue. The Runners page opens each
+runner's detail in place (what it reported: machine, version, harnesses,
+isolation, labels, capacity, latest sessions) and says which runners run an
+older release than the server (`runner-version.ts`); comparing needs a
+release version on both sides, so source builds are never flagged.
 An agent's page (`/{org}/factory/agents/{agent}`) is the one place for
 it: what it is, its recent sessions and, for its owner, its
 **Connection** (the tokens an external MCP client acts as it with) and
@@ -90,7 +103,10 @@ fails if the token's creator is no longer a member (or, for an organization
 runner, an administrator).
 
 The runner reports its operating system, architecture, version, detected
-harnesses, labels, capacity and isolation with every heartbeat. Online is
+harnesses, labels, capacity and isolation with every heartbeat, and the last
+problem it met while running (a failed heartbeat or claim, with the
+runner's time), which the runner's page shows; a runner that sends no
+`lastError` (older than the field) keeps what was stored. Online is
 derived from the last heartbeat; the projection records heartbeats at most
 every 45 seconds, and readers treat a runner as online for about two minutes
 after its last recorded one.
@@ -121,16 +137,82 @@ Commands refuse with `requireStep`, the browser offers with `allows`, and
 capability descriptions take their state sentences from `rule`. Runners take
 the automatic steps (assign, start, wait, resume, finish, requeue); people
 send messages, interrupt, cancel, retry and answer approvals. `waiting`
-means the agent asked a person something: the session keeps its lease (the
+means the agent waits on a person: an approval request it raised, or its
+next message. The runner reports the second as a status event: a harness
+that waits for a message longer than the short grace after a turn (the
+agent asked something in its own words, or a person interrupted it)
+reports `awaiting_message` (running → waiting), and `working` once it goes
+on (waiting → running, unless an approval request is still pending). Either
+way the session waits on the person who started it or the agent's owner,
+and counts in their "Agents need you" and To do. The session keeps its lease (the
 harness is alive, waiting) but does not take one of the runner's session
-slots. Cancel is immediate: the status becomes canceled and the lease is
-cleared, so the runner's next write fails and it stops. A retry starts the
-run over from the original prompt with fresh attempts; the earlier run's
-inputs stay behind (`input_cursor`), so its cancel is not replayed.
+slots.
+
+Interrupt stops the agent's current turn; the agent keeps its work and
+waits for the next message (so the session shows as waiting on the
+person). Only a running session can be interrupted: a waiting one already
+waits on a person and has no turn to stop. Cancel is immediate: the status becomes canceled and the lease is
+cleared, so the runner's next write fails and it stops. Because a cancel and
+an expired or reassigned lease fail the same way, the runner then asks one
+heartbeat for that session's status, so its log says "canceled" rather than
+"lost" when a person canceled it. A retry starts the
+run over from the original prompt with fresh attempts. The earlier run's
+inputs stay behind (`input_cursor`), so its cancel, interrupts and approval
+answers are not replayed, but the messages people sent it are its steering:
+they are added again, in order, after the cursor (marked `carried`, so a
+later retry sends each once), and nobody has to repeat them.
+
+A queued session that no online runner may take (none reports its agent's
+harness, none is online, or the only ones are other people's personal
+runners) would wait silently; the Factory, the session card, the item's
+claim and the project's queue say "No runner" instead, by the claim's own
+rule (`waitsForRunner` in `factory/entities.ts`).
+
+A failed session waits on the person who started it (a policy's session is
+requested by the agent's owner): it is in their To do and on Home for a
+week, until they retry it or a later session works on its item.
 
 "Completed" is the agent's claim. It moves nothing in delivery: items reach
 done through evidence (merged pull requests, checks, the Definition of
 Done), never because a session completed.
+
+A session with no repository works in a scratch workspace the runner
+discards as the run ends. When such a session finishes after changing files,
+the server counts the distinct files its log says it changed
+(`discarded_files`) as it records the outcome, and every surface reads the
+outcome from that fact, not from the agent's summary: the state is "Work not
+kept" (`workNotKept` in the platform's session state), the card, the session
+page and the finished notification say how many files were discarded, and
+the agent's summary reads as its report. The Start session dialog and an
+approval request to write a file or run a command say it before the session
+starts and before the action is approved (a command's effects outside the
+workspace are not undone). So that a scratch workspace is a choice, not the
+default, the dialog starts at the only repository linked in the
+organization when no work item is named, and a mention in a channel homed in
+a project with exactly one repository works there (below). A session whose
+work was not kept offers to start the same task again, in Start session with
+its agent, prompt and item; Retry stays for failed and canceled sessions.
+
+### Approval requests
+
+A runner raises an approval request (`approval_request`: a request id, a
+title and, for a permission, the `tool` and its `input`, as a harness's
+permission prompt states them). Text is never permission, so what a person
+can do with a request depends on whether it names its action
+(`asksPermission`):
+
+- **A permission** (a tool and its input: the command it would run, the
+  file it would write) is approved or denied. A denial can carry a message.
+- **A question** (no tool: only a title) has nothing to approve. A person
+  answers it in words (`answer`, with the note) or denies it; the server
+  refuses `approve`. The answer reaches the harness as a non-grant: Claude
+  Code hears it as a denial carrying the person's words.
+
+Harnesses that ask for a permission attach the action. Claude Code always
+does; the scripted test harness asks a question when its step has no
+`action`. Answering is a person's decision (`agentApproval` in the state
+machines: approved, denied or answered) that only the session's requester or
+the agent's owner may take.
 
 ### The event log
 
@@ -260,7 +342,9 @@ Code links it), pushes the branch and reports it; a failed push keeps the
 worktree and fails the session with the path.
 
 A runner registered with container isolation starts one Docker container per
-session (`containerImage`, `containerNetwork`) with the worktree mounted at
+session (`containerImage`, which the operator chooses and should pin by
+digest: Lictory publishes no sandbox image and has no default;
+`containerNetwork`) with the worktree mounted at
 `/workspace` and runs the harness and its commands inside it; the runner
 reports its isolation and the UI shows it. The built-in harness's file tools
 resolve every path inside the worktree (symbolic links included) and refuse
@@ -279,7 +363,10 @@ stream-json --verbose --permission-prompt-tool stdio` (verified against
   interrupt is a `control_request` of subtype `interrupt`. Steering messages
   are delivered when the current turn ends, so every message has its own
   turn. The runner's `claudePermissionMode` (default `acceptEdits`) decides
-  what it may do without asking.
+  what it may do without asking. Heartbeats report it (and Codex's sandbox)
+  per harness, and the agent page states it in plain words
+  (`withoutAsking` in `factory/entities.ts`); unknown for runners that do
+  not report it.
 - **Codex**: `codex exec --json` and `codex exec resume <thread> --json`
   for follow-up messages (verified against 0.171.0). `codex exec` asks
   nobody: commands run in its sandbox (`codexSandbox`), so Codex sessions
@@ -300,7 +387,10 @@ with `bun build --compile` for linux, darwin and windows on x64 and arm64
 (`apps/runner/dist/lictory-runner-<os>-<arch>`), all from one machine; the
 darwin binaries come out signed ad hoc. The binary reports the product
 version (`lictory-runner --version`, its user agent and heartbeats): the root
-`package.json` version, which release builds stamp before compiling.
+`package.json` version, which release builds stamp before compiling (Release
+clients checks that the built binary reports the release's version). In Git
+that version is `0.0.0-dev`, which no release has, so a build from source
+says it is one and its add-runner dialog pins no version.
 
 Every release, nightly and stable, attaches the six binaries, their
 installers (`lictory-runner-install.sh` from `apps/runner/install.sh`,
@@ -313,8 +403,10 @@ x64 emulation), refuse one that does not match `SHA256SUMS`, install it
 `PATH`) by renaming over the old file, so a running runner is never
 truncated, and optionally register it and install the service.
 
-The add-runner dialog shows one command: the installer of the latest release
-with the server's own version, its address and the one-time token
+The add-runner dialog shows one command: download the installer of the
+latest release, then run it (never `curl … | sh`, which succeeds with nothing
+installed when the download fails) with the server's own version, its
+address and the one-time token
 (`apps/platform/src/components/factory/runner-install.ts`). The runner is
 therefore the server's exact release. A build without a release version
 installs the latest stable runner; a nightly whose release was pruned fails
@@ -392,7 +484,9 @@ context as a folded "Context Forge received" event (`context`), so no text
 is attributed to someone who did not write it. A message linking exactly one
 work item in the agent's scope names it, and a repository it names
 (`acme/payments` or its address) that the Code module mirrors, for that
-item's project when there is one, is the session's repository
+item's project when there is one, is the session's repository; a message
+that names none works in the only repository of the item's project, else of
+the channel's home project when the agent's scope includes it
 (`SessionRepositoryNamer`; the workspace resolver still checks the owner's
 access). The session starts in the
 message's own transaction (`startSessionIn`, under the writer's shared
@@ -408,30 +502,47 @@ author wrote it themselves and is the session's requester or the agent's
 owner. Every other reply stays conversation and never reaches the agent.
 
 **What the thread shows.** The thread is the place people act, so it shows
-only what they need; the full log stays in the Factory:
+only what they need; the full log stays in the Factory. In the channel
+itself, a thread's root shows the state of the latest session the thread
+holds beside its reply count (`threadSessions`), so a mention whose agent
+waits on someone reads differently from a quiet thread:
 
 - the live **session card** (agent via owner, status, work item, Factory
   link), updated in place on every status change; the browser renders it
   from the session's synchronized projection when it has it, with the last
-  step the agent took, the files it changed, its pull request and, while
-  it waits, each pending request as the shared approval request (what is
-  asked, where, the evidence, then Approve and Deny for the people who may
-  decide). One card per session: the prompt is the message above it and is
-  not repeated;
-- an **approval card** per request, naming the people who may decide (the
-  requester and the owner); it shows the answer once given. While the
-  browser can read the session, it is a record that leads to the session
-  card, where the request is answered, and in a thread that holds that
-  card it stays hidden until answered, so one ask is one block; without the
-  session (for MCP readers and people who cannot read the Factory) it
-  carries Approve and Deny itself, calling `answerAgentApproval`;
+  step the agent took, the files it changed, its pull request, and
+  Interrupt and Cancel (asked once) for the people who may stop it. One
+  card per session: the prompt is the message above it and is not
+  repeated. In its thread and in the channel alike, the card shows each
+  pending request as the shared approval request, beside the state that
+  says it waits: one object holds the session's state and the decision it
+  waits for;
+- while the agent waits for a message rather than a decision, the card
+  says so ("Forge waits for your next message: reply in this thread"); a
+  reply from the person who started it or the agent's owner is that
+  message;
+- an **approval card** per request, where it was asked, so the thread reads
+  in order. It is one line naming the request. While it is pending and the
+  browser can read the session, the session's card holds the request (what
+  is asked, where, the evidence, then Approve and Deny for the requester
+  and the owner), and the line says where to answer instead of repeating
+  it; without the session (for MCP readers and people who cannot read the
+  Factory) the line carries Approve and Deny itself, calling
+  `answerAgentApproval`. Once answered it stays in place as the record of
+  who decided;
 - the agent's **first message after each steering message** (its answer to
   the person) and its **summary**, as messages authored by the agent on
   behalf of its owner (`postAgentMessage`); progress messages, tool calls
   and commands are not posted;
 - **question cards** for `askQuestion`, in the session's thread and at the
   top of the reporting channel, linking the anchored discussion, marked
-  resolved when a person resolves it.
+  resolved when a person resolves it;
+- a **delivered note** when the Definition of Done completes the session's
+  claim: the item is Done, the session's pull request merged (and by whom,
+  as the code host reported it) and the delivered revision, posted once by
+  Lictory beside a dispatched session's card in the channel, or in a
+  mention's thread, so the conversation that started the work hears how it
+  ended.
 
 Every write has a stable id (`factory/thread-ids.ts`), so a retried publish
 or a replayed hook changes a card in place and never adds a message. Card

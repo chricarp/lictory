@@ -23,10 +23,10 @@ export type NotificationCategory = (typeof notificationCategories)[number];
 export const categoryLabels: Record<NotificationCategory, string> = {
   review: "Reviews and approvals",
   discussion: "Discussions and mentions",
-  suggestions: "Branches and pull requests",
+  suggestions: "Suggestions and proposed changes",
   delivery: "Work items",
   iterations: "Iterations",
-  export: "Exports",
+  export: "Hand-offs",
   pages: "Pages",
   agents: "Agent sessions",
   channels: "Channels and direct messages",
@@ -135,30 +135,32 @@ export const notificationKinds = {
   },
   pull_request_review_requested: {
     category: "suggestions",
-    label: "Pull request review requested",
-    description: "You or one of your roles is asked to review a pull request.",
+    label: "Proposed change review requested",
+    description:
+      "You or one of your disciplines is asked to review a proposed change to a specification.",
     inApp: true,
     email: true,
   },
   pull_request_decided: {
     category: "suggestions",
-    label: "Pull request decision",
-    description: "A reviewer decides a review on your pull request.",
+    label: "Proposed change decision",
+    description: "A reviewer decides on your proposed change.",
     inApp: true,
     email: true,
   },
   pull_request_mergeable: {
     category: "suggestions",
-    label: "Pull request ready to merge",
+    label: "Proposed change ready to apply",
     description:
-      "Every merge requirement of your pull request is met: required approvals, no blocking discussions, no conflicts and passing actions.",
+      "Every requirement to apply your proposed change is met: required approvals, no blocking discussions, no conflicts and passing actions.",
     inApp: true,
     email: true,
   },
   pull_request_merged: {
     category: "suggestions",
-    label: "Pull request merged",
-    description: "A pull request you contribute to or review was merged.",
+    label: "Proposed change applied",
+    description:
+      "A proposed change you contribute to or review was applied to the specification.",
     inApp: true,
     email: false,
   },
@@ -185,8 +187,9 @@ export const notificationKinds = {
   },
   suggestion_merged: {
     category: "suggestions",
-    label: "Suggestion merged or closed",
-    description: "Your suggestion, or one you review, was merged or closed.",
+    label: "Suggestion accepted or rejected",
+    description:
+      "Your suggestion, or one you review, was accepted or rejected.",
     inApp: true,
     email: false,
   },
@@ -234,16 +237,16 @@ export const notificationKinds = {
   },
   export_failed: {
     category: "export",
-    label: "Export failed",
+    label: "Hand-off failed",
     description:
-      "An export you started finished with failures or conflicts that need attention.",
+      "A hand-off you started finished with failures or conflicts that need attention.",
     inApp: true,
     email: true,
   },
   export_completed: {
     category: "export",
-    label: "Export completed",
-    description: "An export you started finished successfully.",
+    label: "Hand-off completed",
+    description: "A hand-off you started finished successfully.",
     inApp: true,
     email: false,
   },
@@ -292,7 +295,7 @@ export const notificationKinds = {
     category: "agents",
     label: "An agent asks for your decision",
     description:
-      "An agent session you started, or whose agent you own, is waiting for you to approve or deny something. The question waits in the Inbox's To do until it is answered; this setting decides whether you are also emailed.",
+      "An agent session you started, or whose agent you own, is waiting for you to approve or deny something, or to answer its question. The request waits in the Inbox's To do until it is answered; this setting decides whether you are also emailed.",
     inApp: true,
     email: true,
   },

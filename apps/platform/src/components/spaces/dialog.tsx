@@ -44,8 +44,10 @@ export { RadioDot, radioClass };
 // The card around a radio or checkbox and its text: tinted while checked.
 // The checked outline steps aside for the focus ring, so the two never
 // compete for the same ring.
+// Selected: a 2px outline in the text colour with the filled radio, as in
+// onboarding and settings (never a grey fill, which reads as disabled).
 export const choiceCardClass =
-  "flex cursor-pointer gap-2.5 rounded-lg px-3 py-2 text-[13px] shadow-(--shadow-border) not-has-[[data-checked]]:hover:bg-muted/60 has-focus-visible:ring-2 has-focus-visible:ring-ring/60 has-[[data-checked]]:bg-primary/6 has-[button[data-checked]:not(:focus-visible)]:ring-1 has-[button[data-checked]:not(:focus-visible)]:ring-primary/40 has-[[data-disabled]]:cursor-default";
+  "flex cursor-pointer gap-2.5 rounded-lg px-3 py-2 text-[13px] shadow-(--shadow-border) not-has-[[data-checked]]:hover:bg-muted/60 has-focus-visible:ring-2 has-focus-visible:ring-ring/60 has-[button[data-checked]:not(:focus-visible)]:ring-2 has-[button[data-checked]:not(:focus-visible)]:ring-foreground has-[[data-disabled]]:cursor-default";
 
 // Radios drawn as cards: arrow keys move between them and the group is
 // named by its legend.

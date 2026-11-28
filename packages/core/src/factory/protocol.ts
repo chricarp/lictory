@@ -91,6 +91,14 @@ export const runnerEventTypes = [
   "status",
 ] as const satisfies readonly SessionEventType[];
 
+// Status phases a runner reports that move the session: the harness waits
+// on a person's next message (running → waiting), and works again
+// (waiting → running, once no approval request is pending).
+export const runnerPhases = {
+  awaitingMessage: "awaiting_message",
+  working: "working",
+} as const;
+
 const text = (max: number) => z.string().max(max * 2);
 const shortText = z.string().max(400);
 
@@ -224,6 +232,10 @@ const harnessReport = z
     z.object({
       id: z.enum(harnessIds),
       version: z.string().max(80).nullable(),
+      // What the harness does without asking a person, as the runner's
+      // configuration sets it: Claude Code's permission mode, Codex's
+      // sandbox. Older runners do not report it.
+      permissions: z.string().max(40).optional(),
     }),
   )
   .max(harnessIds.length);
@@ -257,6 +269,17 @@ export const heartbeatRequest = machineReport.extend({
   sessions: z
     .array(z.object({ sessionId: z.string(), leaseToken: z.string() }))
     .max(64),
+  // The last problem the runner met while it runs (the server unreachable,
+  // asking for work refused), with when, so the runner's page can say why
+  // it went offline or what failed, not only that it did. Optional: older
+  // runners do not send it. Null once the runner started and met none.
+  lastError: z
+    .object({
+      message: z.string().max(1000),
+      at: z.string().datetime(),
+    })
+    .nullable()
+    .optional(),
 });
 export const heartbeatResponse = z.object({
   serverTime: z.string(),
@@ -305,6 +328,9 @@ export const assignment = z.object({
   // A session-scoped Lictory access token for Lictory's MCP tools; it acts
   // as the agent and stops working when the session ends.
   lictory: z.object({ url: z.string(), mcpUrl: z.string(), token: z.string() }),
+  // The session's page, so the runner's log links to it (absent from older
+  // servers).
+  sessionUrl: z.string().optional(),
   // Steering inputs after this sequence belong to this attempt.
   inputCursor: z.number().int().nonnegative(),
   // Lictory Intelligence is available to the built-in harness.

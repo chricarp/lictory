@@ -449,12 +449,25 @@ async function planRelease(
     );
 }
 
+const usage = `Usage: bun run release <command> <plan.json> [source-directory|client-directory]
+
+Commands: plan-nightly, plan-release, build, assemble, clients, publish.
+
+The release workflows run these steps with GitHub credentials
+(GITHUB_REPOSITORY, GH_TOKEN, GITHUB_RUN_ID); they are not meant to be run by
+hand. See docs/operations/releases.md.`;
+
+if (process.argv.slice(2).some((a) => a === "--help" || a === "-h")) {
+  console.log(usage);
+  process.exit(0);
+}
+
 try {
   const [command, planPath, sourcePath, ...extra] = process.argv.slice(2);
-  if (!command || !planPath || extra.length)
-    throw new Error(
-      "Usage: bun run release <plan-nightly|plan-release|build|assemble|clients|publish> <plan.json> [source-directory|client-directory]",
-    );
+  if (!command || !planPath || extra.length) {
+    console.error(usage);
+    process.exit(64);
+  }
   const graphRoot = resolve(import.meta.dirname, "..");
   const github = new GitHub(
     required("GITHUB_REPOSITORY"),

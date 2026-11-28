@@ -10,6 +10,7 @@ import {
 import {
   assertHumanOnlyMetadata,
   humanOnlyOperations,
+  personDecisions,
 } from "@lictory/core/capabilities/human-only";
 import {
   capabilities,
@@ -74,8 +75,16 @@ void test("calling a human-only operation names the reason and the place", () =>
   assert.ok(error instanceof CapabilityError);
   assert.equal(error.category, "forbidden");
   assert.equal(error.details.kind, "human_only");
-  assert.match(error.message, /Personal access tokens/);
+  assert.match(error.message, /Account settings → Access tokens/);
   assert.match(humanOnlyError("syncDirectory")!.message, /getWorkspace/);
   assert.equal(humanOnlyError("getWorkItem"), undefined);
   assert.equal(humanOnlyError("noSuchOperation"), undefined);
+});
+
+void test("every decision agents can see says where the person makes it", () => {
+  const byName = new Map(capabilities.map((c) => [c.name, c]));
+  for (const name of Object.keys(personDecisions))
+    assert.equal(byName.get(name)?.decision, true, name);
+  for (const c of listCapabilities("mcp"))
+    if (c.decision) assert.ok(personDecisions[c.name]?.where, c.name);
 });

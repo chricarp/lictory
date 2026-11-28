@@ -92,7 +92,10 @@ const listClaims = defineCapability({
   input: z.object({
     organizationId,
     projectId: id.optional(),
-    mine: z.boolean().optional(),
+    mine: z
+      .boolean()
+      .optional()
+      .describe("true lists only claims held by the calling agent."),
   }),
   run: (ctx, input) => listLiveClaims(ctx.db, actor(ctx), input),
 });
@@ -100,7 +103,7 @@ const listClaims = defineCapability({
 const claimItemCapability = defineCapability({
   name: "claimItem",
   title: "Claim work item",
-  description: `Agents: take a lease on one claimable work item (see listClaimableItems) and start it: the item moves to the project's first started status, attributed to you acting for your person. The lease lasts 15 minutes; keep it with renewClaim or reportProgress. Refused with kind \`not_claimable\` and the reasons when the item cannot be claimed, and \`external_delivery\` in projects delivered by an external tool. Exactly one live claim holds an item. Done follows from the Definition of Done (merged pull request, passing checks, sign-offs), never from your report.`,
+  description: `Agents: take a lease on one claimable work item (see listClaimableItems) and start it: the item moves to the project's first started status, attributed to you acting for your person. The lease lasts 15 minutes; keep it with renewClaim or reportProgress. Refused with kind \`not_claimable\` and the reasons when the item cannot be claimed, and \`external_delivery\` in projects delivered by an external tool. Exactly one live claim holds an item; claiming one you already hold returns your claim with \`alreadyHeld\`. Done follows from the Definition of Done (merged pull request, passing checks, sign-offs), never from your report.`,
   kind: "command",
   surfaces: everywhere,
   idempotent: true,
@@ -118,7 +121,13 @@ const renewClaimCapability = defineCapability({
   input: z.object({
     organizationId,
     claimId,
-    leaseSeconds: z.number().int().min(60).max(3600).optional(),
+    leaseSeconds: z
+      .number()
+      .int()
+      .min(60)
+      .max(3600)
+      .optional()
+      .describe("New lease length in seconds (default 900, 15 minutes)."),
   }),
   run: (ctx, input) => renewClaim(ctx.db, actor(ctx), input),
 });
@@ -133,7 +142,12 @@ const releaseClaimCapability = defineCapability({
   input: z.object({
     organizationId,
     claimId,
-    note: z.string().trim().max(2000).optional(),
+    note: z
+      .string()
+      .trim()
+      .max(2000)
+      .optional()
+      .describe("Why the work is given back, kept in the item's activity."),
     mutationId,
   }),
   run: (ctx, input) => releaseClaim(ctx.db, actor(ctx), input),
@@ -149,7 +163,12 @@ const reportProgressCapability = defineCapability({
   input: z.object({
     organizationId,
     claimId,
-    note: z.string().trim().min(1).max(2000),
+    note: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2000)
+      .describe("What is done and what is next, added to the item's activity."),
     mutationId,
   }),
   run: (ctx, input) => reportProgress(ctx.db, actor(ctx), input),
@@ -165,7 +184,12 @@ const askQuestionCapability = defineCapability({
   input: z.object({
     organizationId,
     claimId,
-    question: z.string().trim().min(1).max(10_000),
+    question: z
+      .string()
+      .trim()
+      .min(1)
+      .max(10_000)
+      .describe("The question for people, in Markdown."),
     section: z
       .string()
       .max(200)
@@ -177,7 +201,15 @@ const askQuestionCapability = defineCapability({
       .max(2000)
       .optional()
       .describe("The exact specification text the question is about."),
-    occurrence: z.number().int().min(0).max(10_000).optional(),
+    occurrence: z
+      .number()
+      .int()
+      .min(0)
+      .max(10_000)
+      .optional()
+      .describe(
+        "When the quote appears more than once under its section: which appearance (0 is the first).",
+      ),
     mutationId,
   }),
   run: (ctx, input) => askQuestion(ctx.db, actor(ctx), input),

@@ -1,3 +1,4 @@
+import { useId } from "react";
 import {
   Collapsible,
   CollapsiblePanel,
@@ -8,12 +9,12 @@ import {
   Bot,
   ChevronRight,
   CircleCheckBig,
-  ChevronsUpDown,
   FilePenLine,
   FolderKanban,
   FolderOpen,
   History,
   KanbanSquare,
+  Layers,
   Lightbulb,
   ListOrdered,
   MessageSquareMore,
@@ -32,6 +33,7 @@ import {
 import { Popover, Picker } from "@lictory/ui/popover";
 import {
   Link,
+  useParams,
   usePathname,
   useRouter,
   useSearchParams,
@@ -40,7 +42,6 @@ import { usePanelCollapsed } from "@lictory/platform/lib/panel-preference";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useShell } from "@lictory/platform/components/workspace/shell";
 import { itemOrigin } from "@lictory/platform/components/items/queues";
-import { TypeIcon, storyGlyph } from "@lictory/platform/components/items/icons";
 import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import {
   SidebarGroup,
@@ -54,23 +55,45 @@ import type { NavSection } from "@lictory/platform/components/shell/nav-registry
 // Work: the project in context (named by the route, or the last one
 // visited) with its queues, delivery, teams and saved views; its spaces are
 // listed under Spaces. The project is a clear switcher, with its settings
-// one click away.
+// one click away. Outside the project's pages (Home, a channel, a space) its
+// pages fold under the switcher so the conversations below stay in view; a
+// person who wants them listed everywhere unfolds them once, and this
+// browser remembers it like the other folding groups.
 function ProjectsSection() {
   const { projects, organization } = useWorkspace();
   const { project } = useShell();
+  const params = useParams<{ project?: string }>();
   const router = useRouter();
   const compact = useCompactSidebar();
+  const [unfolded, toggle] = usePanelCollapsed(
+    organization.id,
+    "sidebar-section:project-pages",
+  );
+  const inProject =
+    !!project && params.project?.toUpperCase() === project.key.toUpperCase();
+  const open = compact || inProject || unfolded;
+  const navId = useId();
   return (
     <SidebarGroup id="projects" label="Projects">
       <ProjectSwitcher
         project={project}
         projects={projects}
         onSelect={(key) => router.push(paths.project(organization.slug, key))}
+        fold={
+          project && !compact && !inProject
+            ? { open, onToggle: toggle, controls: navId }
+            : undefined
+        }
       />
       {project ? (
-        <div className={cn(!compact && "ml-[15px] border-l pl-1.5")}>
-          <ProjectNav project={project} />
-        </div>
+        open && (
+          <div
+            id={navId}
+            className={cn(!compact && "ml-[15px] border-l pl-1.5")}
+          >
+            <ProjectNav project={project} />
+          </div>
+        )
       ) : (
         <SidebarNote>
           {projects.length ? "Choose a project." : "No projects yet."}
@@ -84,10 +107,13 @@ function ProjectSwitcher({
   project,
   projects,
   onSelect,
+  fold,
 }: {
   project?: Project;
   projects: Project[];
   onSelect: (key: string) => void;
+  // Outside the project's pages: shows or hides them under the switcher.
+  fold?: { open: boolean; onToggle: () => void; controls: string };
 }) {
   const { organization } = useWorkspace();
   const compact = useCompactSidebar();
@@ -107,7 +133,9 @@ function ProjectSwitcher({
             title={compact ? (project?.name ?? "Choose project") : undefined}
             className={cn(
               "flex min-w-0 items-center gap-2 rounded-lg text-left text-[13px] focus-ring outline-none hover:bg-sidebar-accent/70",
-              compact ? "size-8 justify-center" : "h-[30px] flex-1 px-1.5",
+              compact
+                ? "size-8 justify-center"
+                : "h-7 flex-1 px-1.5 [@media(pointer:coarse)]:h-8",
             )}
           >
             {project ? (
@@ -127,10 +155,10 @@ function ProjectSwitcher({
             )}
             {!compact && (
               <>
+                {/* The whole row switches projects; the name gets the room. */}
                 <span className="min-w-0 flex-1 truncate font-medium">
                   {project?.name ?? "Choose project"}
                 </span>
-                <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground" />
               </>
             )}
           </button>
@@ -147,6 +175,25 @@ function ProjectSwitcher({
           onSelect={onSelect}
         />
       </Popover>
+      {fold && project && (
+        <button
+          type="button"
+          aria-expanded={fold.open}
+          aria-controls={fold.open ? fold.controls : undefined}
+          aria-label={`${project.name} pages`}
+          title={fold.open ? "Hide project pages" : "Show project pages"}
+          onClick={fold.onToggle}
+          className="grid h-[30px] w-6 shrink-0 place-items-center rounded-lg text-muted-foreground focus-ring outline-none hover:bg-sidebar-accent hover:text-foreground"
+        >
+          <ChevronRight
+            aria-hidden
+            className={cn(
+              "size-4 transition-transform duration-150 motion-reduce:transition-none",
+              fold.open && "rotate-90",
+            )}
+          />
+        </button>
+      )}
       {settings && !compact && (
         <Link
           href={settings}
@@ -203,87 +250,96 @@ function ProjectNav({ project }: { project: Project }) {
   const tool = external
     ? (projectDeliveryTool(directory, project.id).product ?? "External")
     : null;
+  // Two stages, named: agreeing on what to build, then building it (or
+  // handing it off). Everything and saved views follow.
   return (
     <div className="space-y-0.5 pt-0.5">
-      <SidebarLink
-        href={paths.proposals(org, key)}
-        active={active(paths.proposals(org, key)) || origin === "proposals"}
-        icon={<Lightbulb />}
-      >
-        Proposals
-      </SidebarLink>
-      <SidebarLink
-        href={paths.refinement(org, key)}
-        active={
-          active(paths.refinement(org, key)) ||
-          active(paths.view(org, key, "all")) ||
-          origin === "refinement"
-        }
-        icon={<FilePenLine />}
-      >
-        Refinement
-      </SidebarLink>
-      <SidebarLink
-        href={paths.reviews(org, key)}
-        active={active(paths.reviews(org, key)) || origin === "reviews"}
-        icon={<BookOpenCheck />}
-      >
-        Reviews
-      </SidebarLink>
-      {external ? (
+      <SidebarGroup label="Refine" className="pt-1">
         <SidebarLink
-          href={paths.handoff(org, key)}
-          active={active(paths.handoff(org, key))}
-          icon={<Send />}
-          trailing={
-            // The link is named Hand-off; the tool is a visual hint.
-            <span
-              aria-hidden
-              className="shrink-0 text-[11px] text-muted-foreground"
-            >
-              {tool}
-            </span>
-          }
+          href={paths.proposals(org, key)}
+          active={active(paths.proposals(org, key)) || origin === "proposals"}
+          icon={<Lightbulb />}
         >
-          Hand-off
+          Proposals
         </SidebarLink>
-      ) : (
-        <>
+        <SidebarLink
+          href={paths.refinement(org, key)}
+          active={
+            active(paths.refinement(org, key)) ||
+            active(paths.view(org, key, "all")) ||
+            origin === "refinement"
+          }
+          icon={<FilePenLine />}
+        >
+          Refinement
+        </SidebarLink>
+        <SidebarLink
+          href={paths.reviews(org, key)}
+          active={active(paths.reviews(org, key)) || origin === "reviews"}
+          icon={<BookOpenCheck />}
+        >
+          {/* Reviews asked of you, not every review in the project (those
+              are under Refinement → In review). */}
+          My reviews
+        </SidebarLink>
+      </SidebarGroup>
+      <SidebarGroup label="Deliver" className="pt-2">
+        {external ? (
           <SidebarLink
-            href={board}
-            active={pathname === board && !teamParam}
-            icon={<KanbanSquare />}
-          >
-            Board
-          </SidebarLink>
-          <SidebarLink
-            href={backlog}
-            active={
-              (pathname === backlog && !teamParam) ||
-              active(`/${org}/${key.toLowerCase()}/iterations`)
+            href={paths.handoff(org, key)}
+            active={active(paths.handoff(org, key))}
+            icon={<Send />}
+            trailing={
+              // The link is named Hand-off; the tool is a visual hint.
+              <span
+                aria-hidden
+                className="shrink-0 text-[11px] text-muted-foreground"
+              >
+                {tool}
+              </span>
             }
-            icon={<ListOrdered />}
           >
-            {project.iterationMode === "manual"
-              ? "Backlog & sprints"
-              : project.iterationMode === "automatic"
-                ? "Backlog & cycles"
-                : "Backlog"}
+            Hand-off
           </SidebarLink>
-          {/* The project's claimable work (docs/internals/claims.md). */}
-          <SidebarLink
-            href={paths.factoryQueue(org, key)}
-            active={active(paths.factoryQueue(org, key))}
-            icon={<Bot />}
-          >
-            Factory queue
-          </SidebarLink>
-        </>
-      )}
+        ) : (
+          <>
+            <SidebarLink
+              href={board}
+              active={pathname === board && !teamParam}
+              icon={<KanbanSquare />}
+            >
+              Board
+            </SidebarLink>
+            <SidebarLink
+              href={backlog}
+              active={
+                (pathname === backlog && !teamParam) ||
+                active(`/${org}/${key.toLowerCase()}/iterations`)
+              }
+              icon={<ListOrdered />}
+            >
+              {project.iterationMode === "manual"
+                ? "Backlog & sprints"
+                : project.iterationMode === "automatic"
+                  ? "Backlog & cycles"
+                  : "Backlog"}
+            </SidebarLink>
+            {/* The project's claimable work (docs/internals/claims.md). */}
+            <SidebarLink
+              href={paths.factoryQueue(org, key)}
+              active={active(paths.factoryQueue(org, key))}
+              icon={<Bot />}
+            >
+              Factory queue
+            </SidebarLink>
+          </>
+        )}
+      </SidebarGroup>
+      <div className="pt-2" />
       <SidebarLink
         href={catalog}
         active={active(catalog) && !origin}
-        icon={<TypeIcon type={storyGlyph} />}
+        icon={<Layers />}
       >
         All items
       </SidebarLink>

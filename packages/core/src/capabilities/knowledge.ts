@@ -64,7 +64,12 @@ const listContextPagesCapability = defineCapability({
       projectId: id,
       teamId: id.optional(),
       iterationId: id.optional(),
-      all: z.boolean().default(false),
+      all: z
+        .boolean()
+        .default(false)
+        .describe(
+          "true lists every context list of the project (its own, its teams' and its iterations').",
+        ),
     })
     .refine((q) => !(q.teamId && q.iterationId), {
       message: "Name a team or an iteration, not both.",
@@ -83,8 +88,10 @@ const listReferencesToCapability = defineCapability({
   surfaces: everywhere,
   input: z.object({
     organizationId,
-    kind: z.enum(["item", "page", "decision"]),
-    id,
+    kind: z
+      .enum(["item", "page", "decision"])
+      .describe("What is referenced: a work item, a page or a decision."),
+    id: id.describe("Its id: a work item, page or decision id."),
   }),
   run: (ctx, q) =>
     listReferencesTo(ctx.db, ctx.principal.userId, q.organizationId, {
@@ -107,13 +114,34 @@ const describePageLinksCapability = defineCapability({
         z.object({
           pageId: id,
           blocks: z
-            .object({ commitId: id, blockIds: z.array(z.string()).max(20) })
-            .optional(),
-          pinned: z.object({ commitId: id }).optional(),
-          versions: z.array(id).max(20).optional(),
+            .object({
+              commitId: id,
+              blockIds: z
+                .array(z.string())
+                .max(20)
+                .describe("Top-level block ids of that commit."),
+            })
+            .optional()
+            .describe(
+              "Blocks to excerpt: a commit of the page and block ids, as in getWorkItemKnowledge's referencedIn.",
+            ),
+          pinned: z
+            .object({ commitId: id })
+            .optional()
+            .describe(
+              "Another commit of the page, such as a pinned version, to show the same blocks as it has them.",
+            ),
+          versions: z
+            .array(id)
+            .max(20)
+            .optional()
+            .describe(
+              "Commit ids of the page whose version numbers to return.",
+            ),
         }),
       )
-      .max(50),
+      .max(50)
+      .describe("The pages to describe (at most 50)."),
   }),
   run: (ctx, q) =>
     describePageLinks(ctx.db, ctx.principal.userId, q.organizationId, q.pages),

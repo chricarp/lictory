@@ -1,3 +1,4 @@
+import { formatDate } from "@lictory/core/lib/work-items";
 import { Copy, KeyRound } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { AccessTokenSummary } from "@lictory/core/capabilities/access-tokens";
@@ -27,12 +28,7 @@ const expiries = [
   { value: "never", label: "No expiry" },
 ];
 
-const date = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+const date = formatDate;
 
 function stateOf(token: AccessTokenSummary) {
   if (token.revokedAt) return "Revoked";
@@ -56,7 +52,10 @@ function ConnectAgentLinks() {
     "inline-flex items-center gap-1 rounded-sm font-medium text-foreground focus-ring outline-none hover:underline";
   return (
     <p className="text-xs text-muted-foreground">
-      Connecting an AI agent? Give it a name, a scope and wake-ups of its own:{" "}
+      Connecting an AI agent? A personal token can also make your decisions
+      (approve, merge, hand off), and Lictory cannot tell the agent from you.
+      Give it an agent instead: a name, a scope, wake-ups of its own, and
+      decisions left to you:{" "}
       {organizations.length === 1 ? (
         <Link
           href={factoryPaths.agents(organizations[0]!.slug)}
@@ -234,7 +233,7 @@ export function AgentAccessSection() {
                 maxLength={80}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Release notes script"
+                placeholder="e.g. Release notes script"
                 className="mt-1.5 h-8 rounded-md text-sm"
               />
             </label>

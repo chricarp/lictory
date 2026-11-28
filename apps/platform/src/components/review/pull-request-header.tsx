@@ -9,6 +9,7 @@ import { TabsList, TabsTab } from "@ui-sdk/react/tabs";
 import { cn } from "@lictory/core/lib/utils";
 import { StatusChip, type StatusTone } from "@lictory/ui/status-chip";
 import { BranchChip } from "@lictory/platform/components/review/flow-ui";
+import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
 
 // The head of a pull request, the same for code (a code host's pull
 // request) and specifications (a branch of a specification): its title, a
@@ -28,15 +29,21 @@ const states: Record<
 > = {
   draft: { label: "Draft", tone: "neutral", icon: <GitPullRequestDraft /> },
   open: { label: "Open", tone: "success", icon: <GitPullRequest /> },
-  merged: { label: "Merged", tone: "info", icon: <GitMerge /> },
+  merged: { label: "Merged", tone: "merged", icon: <GitMerge /> },
   closed: { label: "Closed", tone: "neutral", icon: <GitPullRequestClosed /> },
 };
 
-export function PullRequestStateChip({ state }: { state: PullRequestState }) {
+export function PullRequestStateChip({
+  state,
+  label,
+}: {
+  state: PullRequestState;
+  label?: string;
+}) {
   const s = states[state];
   return (
     <StatusChip tone={s.tone} icon={s.icon}>
-      {s.label}
+      {label ?? s.label}
     </StatusChip>
   );
 }
@@ -47,8 +54,11 @@ export function PullRequestHeader({
   title,
   number,
   state,
+  stateLabel,
   author,
+  mergedBy,
   commits,
+  summary,
   base,
   head,
   onHeadClick,
@@ -62,10 +72,19 @@ export function PullRequestHeader({
   // The host's number ("#3"), shown after the title.
   number?: number;
   state: PullRequestState;
+  // The state in the subject's words ("Applied" for a specification's
+  // change); the code host's words by default.
+  stateLabel?: string;
   // Who opened it: an `Actor`, or an `AgentActor` for agent-authored work.
   author: ReactNode;
+  // Who merged it, when not the author (a person merging an agent's work,
+  // Autopilot): the sentence names them and says who opened it after.
+  mergedBy?: ReactNode;
   // How many commits it merges, when known.
   commits?: number;
+  // Says what it does in the words of its subject instead of "wants to
+  // merge N commits into base from head" (a specification's breakdown).
+  summary?: ReactNode;
   // The branch it merges into, and the branch it merges from.
   base: string;
   head: string;
@@ -85,6 +104,7 @@ export function PullRequestHeader({
   className?: string;
 }) {
   const Heading = ({ 1: "h1", 2: "h2", 3: "h3" } as const)[headingLevel];
+  const merger = state === "merged" ? mergedBy : undefined;
   return (
     <header data-pull-request-header className={cn("min-w-0", className)}>
       <Heading className="text-xl leading-7 font-semibold tracking-[-0.01em] wrap-break-word">
@@ -96,17 +116,32 @@ export function PullRequestHeader({
         )}
       </Heading>
       <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1.5 text-[13px] text-muted-foreground [--actor-ring:var(--background)]">
-        <PullRequestStateChip state={state} />
+        <PullRequestStateChip state={state} label={stateLabel} />
         <span className="inline-flex min-w-0 items-center font-medium text-foreground">
-          {author}
+          {merger ?? author}
         </span>
-        <span>
-          {state === "merged" ? "merged" : "wants to merge"}
-          {commits !== undefined && ` ${plural(commits, "commit")}`} into
-        </span>
-        <BranchChip name={base} />
-        <span>from</span>
-        <BranchChip name={head} muted={headGone} onClick={onHeadClick} />
+        {summary ? (
+          <span>{summary}</span>
+        ) : (
+          <>
+            <span>
+              {state === "merged" ? "merged" : "wants to merge"}
+              {commits !== undefined && ` ${plural(commits, "commit")}`} into
+            </span>
+            <BranchChip name={base} />
+            <span>from</span>
+            <BranchChip name={head} muted={headGone} onClick={onHeadClick} />
+          </>
+        )}
+        {merger && (
+          <>
+            <span aria-hidden>·</span>
+            <span>opened by</span>
+            <span className="inline-flex min-w-0 items-center font-medium text-foreground">
+              {author}
+            </span>
+          </>
+        )}
         {meta}
       </p>
       {tabs && <div className="mt-4">{tabs}</div>}
@@ -130,25 +165,27 @@ export function PullRequestTabs({
   }[];
 }) {
   return (
-    <TabsList
-      aria-label={label}
-      className="flex [scrollbar-width:none] gap-1 overflow-x-auto border-b"
-    >
-      {tabs.map((t) => (
-        <TabsTab
-          key={t.value}
-          value={t.value}
-          className="relative -mb-px inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset transition-colors outline-none hover:text-foreground data-selected:border-foreground data-selected:font-medium data-selected:text-foreground [&_svg]:size-3.5"
-        >
-          {t.icon}
-          {t.label}
-          {t.count !== undefined && t.count > 0 && (
-            <span className="rounded-full bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums">
-              {t.count}
-            </span>
-          )}
-        </TabsTab>
-      ))}
-    </TabsList>
+    <ScrollStrip>
+      <TabsList
+        aria-label={label}
+        className="flex [scrollbar-width:none] gap-1 overflow-x-auto border-b"
+      >
+        {tabs.map((t) => (
+          <TabsTab
+            key={t.value}
+            value={t.value}
+            className="relative -mb-px inline-flex h-9 shrink-0 items-center gap-1.5 border-b-2 border-transparent px-2.5 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset transition-colors outline-none hover:text-foreground data-selected:border-foreground data-selected:font-medium data-selected:text-foreground [&_svg]:size-3.5"
+          >
+            {t.icon}
+            {t.label}
+            {t.count !== undefined && t.count > 0 && (
+              <span className="rounded-full bg-foreground/8 px-1.5 text-[11px] text-muted-foreground tabular-nums">
+                {t.count}
+              </span>
+            )}
+          </TabsTab>
+        ))}
+      </TabsList>
+    </ScrollStrip>
   );
 }

@@ -6,6 +6,8 @@ import {
 } from "@lictory/platform/components/workspace/settings-navigation";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { cn } from "@lictory/core/lib/utils";
+import { docsUrl, type DocsPage } from "@lictory/core/lib/docs-links";
+import { Heading, HeadingScope } from "@lictory/ui/heading";
 
 // Shared surfaces for settings pages. A group names a context ("Workspace",
 // "People & access"); a section is one card inside it with a stable anchor id
@@ -23,14 +25,18 @@ export function SettingsGroup({
   return (
     <div className="space-y-4">
       <div className="px-1">
-        <h2 className="text-xs font-semibold text-muted-foreground">{title}</h2>
+        <Heading className="text-xs font-semibold text-muted-foreground">
+          {title}
+        </Heading>
         {description && (
           <p className="mt-1 text-[13px] text-muted-foreground">
             {description}
           </p>
         )}
       </div>
-      <div className="space-y-4">{children}</div>
+      <HeadingScope>
+        <div className="space-y-4">{children}</div>
+      </HeadingScope>
     </div>
   );
 }
@@ -44,11 +50,15 @@ export function SettingsSection({
   children,
   footer,
   className,
+  learnMore,
 }: {
   id: string;
   icon: ReactNode;
   title: string;
   description?: ReactNode;
+  // The documentation page that explains what the one-line description
+  // leaves out.
+  learnMore?: DocsPage;
   action?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
@@ -66,22 +76,32 @@ export function SettingsSection({
       {/* Wraps the actions below the title when both don't fit, so a narrow
           screen never squeezes the description to one word per line. */}
       <div className="flex flex-wrap items-start gap-3 px-5 py-4">
-        <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground [&>svg]:size-4">
+        {/* On phones the icon would keep a 44px gutter beside every line
+            of the description: the title carries the section alone. */}
+        <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground max-sm:hidden [&>svg]:size-4">
           {icon}
         </div>
         <div className="min-w-0 flex-1 basis-48">
-          <h3 id={`${id}-title`} className="text-sm font-semibold">
+          <Heading id={`${id}-title`} className="text-sm font-semibold">
             {title}
-          </h3>
+          </Heading>
           {description && (
             <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">
               {description}
+              {learnMore && (
+                <>
+                  {" "}
+                  <LearnMore page={learnMore} />
+                </>
+              )}
             </p>
           )}
         </div>
         {action && <div className="flex shrink-0 items-center">{action}</div>}
       </div>
-      <div className="border-t border-border">{children}</div>
+      <HeadingScope>
+        <div className="border-t border-border">{children}</div>
+      </HeadingScope>
       {footer && (
         <div className="border-t border-border px-5 py-3 text-xs leading-5 text-muted-foreground">
           {footer}
@@ -132,16 +152,23 @@ export function SettingsSubheading({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-2">
-      <h4 className="text-[13px] font-medium">{children}</h4>
+      <Heading className="text-[13px] font-medium">{children}</Heading>
       {action}
     </div>
   );
 }
 
-export function InlineError({ children }: { children?: string }) {
+export function InlineError({
+  children,
+  id,
+}: {
+  children?: string;
+  // Referenced by the fields it is about (`aria-describedby`).
+  id?: string;
+}) {
   if (!children) return null;
   return (
-    <p role="alert" className="text-xs text-destructive">
+    <p id={id} role="alert" className="text-xs text-destructive">
       {children}
     </p>
   );
@@ -197,5 +224,27 @@ export function ReadOnlyNotice({ children }: { children: ReactNode }) {
     <p className="rounded-lg border border-dashed px-4 py-3 text-[13px] text-muted-foreground">
       {children}
     </p>
+  );
+}
+
+// A link to the documentation after a one-sentence explanation. It opens in
+// a new tab, so the settings being read stay where they are.
+export function LearnMore({
+  page,
+  children = "Learn more",
+}: {
+  page: DocsPage;
+  children?: string;
+}) {
+  return (
+    <a
+      href={docsUrl(page)}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium whitespace-nowrap text-foreground underline decoration-foreground/30 underline-offset-2 hover:decoration-foreground"
+    >
+      {children}
+      <span className="sr-only"> (opens in a new tab)</span>
+    </a>
   );
 }

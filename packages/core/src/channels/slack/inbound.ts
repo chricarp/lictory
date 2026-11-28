@@ -85,14 +85,23 @@ export async function receiveSlackRequest(
   },
 ): Promise<SlackHttpAnswer> {
   const installation = await installationOf(db, input.organizationId);
-  if (!installation) return answer(404, "Not found.");
+  // The request is unauthenticated until its signature is checked, so an
+  // organization without a saved app (or no such organization) answers
+  // exactly like a bad signature: nothing about the configuration leaks.
+  // Slack shows "URL not verified" until the signing secret is saved; the
+  // answer says what to do for whoever reads it.
+  const refused = answer(
+    401,
+    "The request's signature could not be verified. If the Slack app was just created, save its signing secret in Lictory's Slack settings, then choose Retry in the app's Event Subscriptions.",
+  );
+  if (!installation) return refused;
   const check = verifySlackSignature(
     signingSecret(installation),
     input.headers,
     input.body,
     input.now,
   );
-  if (!check.ok) return answer(401, `Signature ${check.reason}.`);
+  if (!check.ok) return refused;
   // Buttons on Lictory's cards only open links: acknowledged, nothing runs.
   if (input.kind === "interactivity") return answer(200);
   let payload: Record<string, unknown>;

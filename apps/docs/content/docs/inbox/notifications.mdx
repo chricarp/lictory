@@ -19,30 +19,30 @@ The defaults follow one rule:
   discussion was resolved, an iteration started.
 - **Noisy**: off until you turn it on. Every new revision of a specification.
 
-| Type                           | Notification                                                                                                        | Default         |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------- | --------------- |
-| **Reviews and approvals**      | **Review requested**                                                                                                | Inbox and email |
-|                                | **Review decision** (approved, changes requested, revoked)                                                          | Inbox and email |
-|                                | **Your approval went stale**                                                                                        | Inbox and email |
-|                                | **Ready for delivery**                                                                                              | Inbox and email |
-|                                | **Review cancelled**, **No longer ready**                                                                           | Inbox           |
-|                                | **Specification revised**                                                                                           | Off             |
-| **Discussions and mentions**   | **Mentioned**, **Blocking discussion**                                                                              | Inbox and email |
-|                                | **New discussion**, **Reply**, **Discussion resolved or reopened**                                                  | Inbox           |
-| **Branches and pull requests** | **Pull request review requested**, **Pull request decision**, **Pull request ready to merge**                       | Inbox and email |
-|                                | **Pull request merged**                                                                                             | Inbox           |
-|                                | **Suggestion review requested**, **Suggestion decision**                                                            | Inbox and email |
-|                                | **Suggestion updated**, **Suggestion merged or closed**                                                             | Inbox           |
-| **Work items**                 | **Assigned to you**                                                                                                 | Inbox and email |
-|                                | **Status changed**, **Archived or restored**, **Blocked by another item**                                           | Inbox           |
-| **Iterations**                 | **Iteration started**, **Iteration completed**                                                                      | Inbox           |
-| **Exports**                    | **Export failed**                                                                                                   | Inbox and email |
-|                                | **Export completed**                                                                                                | Inbox           |
-| **Pages**                      | **Page review requested**, **Your page approval went stale**, **Mentioned on a page**, **Blocking page discussion** | Inbox and email |
-|                                | **Page discussion reply**                                                                                           | Inbox           |
-| **Channels**                   | **Mentioned in a channel**                                                                                          | Inbox and email |
-|                                | **Direct message**, **Thread reply**                                                                                | Inbox           |
-|                                | **Channel message** (only for channels set to all messages)                                                         | Inbox           |
+| Type                                 | Notification                                                                                                        | Default         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | --------------- |
+| **Reviews and approvals**            | **Review requested**                                                                                                | Inbox and email |
+|                                      | **Review decision** (approved, changes requested, revoked)                                                          | Inbox and email |
+|                                      | **Your approval went stale**                                                                                        | Inbox and email |
+|                                      | **Ready for delivery**                                                                                              | Inbox and email |
+|                                      | **Review cancelled**, **No longer ready**                                                                           | Inbox           |
+|                                      | **Specification revised**                                                                                           | Off             |
+| **Discussions and mentions**         | **Mentioned**, **Blocking discussion**                                                                              | Inbox and email |
+|                                      | **New discussion**, **Reply**, **Discussion resolved or reopened**                                                  | Inbox           |
+| **Suggestions and proposed changes** | **Proposed change review requested**, **Proposed change decision**, **Proposed change ready to apply**              | Inbox and email |
+|                                      | **Proposed change applied**                                                                                         | Inbox           |
+|                                      | **Suggestion review requested**, **Suggestion decision**                                                            | Inbox and email |
+|                                      | **Suggestion updated**, **Suggestion accepted or rejected**                                                         | Inbox           |
+| **Work items**                       | **Assigned to you**                                                                                                 | Inbox and email |
+|                                      | **Status changed**, **Archived or restored**, **Blocked by another item**                                           | Inbox           |
+| **Iterations**                       | **Iteration started**, **Iteration completed**                                                                      | Inbox           |
+| **Hand-offs**                        | **Hand-off failed**                                                                                                 | Inbox and email |
+|                                      | **Hand-off completed**                                                                                              | Inbox           |
+| **Pages**                            | **Page review requested**, **Your page approval went stale**, **Mentioned on a page**, **Blocking page discussion** | Inbox and email |
+|                                      | **Page discussion reply**                                                                                           | Inbox           |
+| **Channels**                         | **Mentioned in a channel**                                                                                          | Inbox and email |
+|                                      | **Direct message**, **Thread reply**                                                                                | Inbox           |
+|                                      | **Channel message** (only for channels set to all messages)                                                         | Inbox           |
 
 Notices about your organization being scheduled for deletion, or that
 deletion being cancelled, always reach every member in the Inbox and by
@@ -53,11 +53,13 @@ email. They cannot be turned off.
 - **Your approval went stale.** The specification changed after you
   approved it, so your approval no longer covers the current revision. Review
   it again ([approvals](/review/approvals)).
-- **Export failed.** An export to Jira or another delivery tool finished with
-  failures or conflicts. The export shows which items were not published and
-  why; fix the cause and retry them ([Jira](/integrations/jira)).
-- **Pull request ready to merge.** Every merge requirement is met. The author
-  and the branch's collaborators are told once each time it becomes ready. A
+- **Hand-off failed.** A hand-off to Jira or another delivery tool finished
+  with failures or conflicts. The Hand-off view lists the items that did not
+  reach Jira and why; fix the cause and retry them. Retrying an item brings
+  its children along ([Jira](/integrations/jira)).
+- **Proposed change ready to apply.** Every requirement to apply it is met.
+  The author and the change's collaborators are told once each time it
+  becomes ready. A
   project can turn this off with **Ready to merge notice** in **Project
   settings → Delivery**.
 

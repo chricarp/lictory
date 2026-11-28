@@ -299,7 +299,7 @@ export function createJiraCloudProvider(
       if (!current)
         throw new DeliveryError(
           "not_found",
-          `Jira issue ${ref.key} no longer exists. Unlink it to export a new one.`,
+          `Jira issue ${ref.key} no longer exists. Unlink it to hand off a new one.`,
         );
       const previous = readProperty(current.properties?.[JIRA_PROPERTY]);
       if (previous && previous.itemId !== payload.lictoryItemId)

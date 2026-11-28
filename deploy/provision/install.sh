@@ -28,15 +28,15 @@ cli_path="${LICTORY_CLI_PATH:-/usr/local/bin/lictory}"
 [ "$(id -u)" = 0 ] || { echo "Run as root." >&2; exit 1; }
 if ! [[ "$root" =~ ^/[A-Za-z0-9._/-]+$ ]] || [[ "$root" == *..* ]]; then
   echo "LICTORY_ROOT must be an absolute path without spaces or '..'." >&2
-  exit 1
+  exit 64
 fi
 root="${root%/}"
-[[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "Invalid DEPLOY_USER: $user" >&2; exit 1; }
+[[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "Invalid DEPLOY_USER: $user" >&2; exit 64; }
 for environment in $environments; do
   if ! [[ "$environment" =~ ^[a-z][a-z0-9-]{0,31}$ ]] ||
     case "$environment" in local | test | preview) true ;; *) false ;; esac; then
     echo "Unknown environment $environment (lowercase letters, digits and hyphens; local, test and preview are reserved)" >&2
-    exit 1
+    exit 64
   fi
 done
 if ! command -v docker >/dev/null || ! docker compose version >/dev/null 2>&1; then

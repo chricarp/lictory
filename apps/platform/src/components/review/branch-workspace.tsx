@@ -1,4 +1,5 @@
 import { ItemScreenTitle } from "@lictory/platform/components/items/screen-title";
+import { MissingState } from "@lictory/ui/status-page";
 import { Tabs as TabsRoot } from "@ui-sdk/react/tabs";
 import { Actor } from "@lictory/platform/components/identity/actor";
 import {
@@ -55,10 +56,13 @@ import {
   ArrowLeft,
   ArrowRight,
   Trash2,
+  Undo2,
   Plus,
   LockKeyhole,
   ChevronRight,
   MessageSquare,
+  ListTree,
+  Send,
   Users,
 } from "lucide-react";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
@@ -80,6 +84,7 @@ import {
   reviewResultValue,
   pendingEntries,
   sameProposedChildren,
+  isNewChild,
 } from "@lictory/core/contracts/decomposition";
 import { BreakdownProposal } from "@lictory/platform/components/review/breakdown-proposal";
 import {
@@ -164,7 +169,7 @@ export function useProposeBreakdown(
   const { branches, userId, base, mutateConfirmed } = useBranchData();
   return async () => {
     const mine = branches.find(
-      (b) => b.authorId === userId && /^breakdown(-\d+)?$/.test(b.name),
+      (b) => b.authorId === userId && isBreakdownBranch(b),
     );
     if (mine) {
       breakdownFocus = mine.id;
@@ -187,7 +192,7 @@ export function useProposeBreakdown(
     } catch (error) {
       // Say why, then offer the branch list to start one by hand.
       toast({
-        title: "Could not start a breakdown branch",
+        title: "Could not start a breakdown",
         type: "error",
         description:
           error instanceof Error ? error.message : "The server refused it.",
@@ -262,6 +267,15 @@ function ErrorMessage({ message }: { message: string }) {
   ) : null;
 }
 const isMain = (b: Branch | undefined) => b?.name === "main";
+// Specification people read a line of work in requirements words, not Git
+// ones: main is the specification itself, any other branch a proposed
+// change (by its name), a commit a saved version, a pull request a review,
+// and a merge applies it (AGENTS.md, "Git-style semantics"). Agent
+// tools keep the Git names.
+const lineName = (b: Branch | undefined) =>
+  !b ? "a deleted change" : isMain(b) ? "the specification" : b.name;
+const lineLabel = (b: Branch | undefined) =>
+  !b ? "Deleted change" : isMain(b) ? "Current specification" : b.name;
 // The pull request currently carrying a branch's work, if any.
 const activePrFor = (prs: PullRequest[], branchId: string) =>
   prs
@@ -295,12 +309,10 @@ export function BranchEntry({
     <div className="my-6 overflow-hidden rounded-lg border text-[13px]">
       <div className="flex flex-wrap items-center gap-2 bg-muted/20 px-3 py-2">
         <GitBranch className="size-4 text-muted-foreground" />
-        <span className="font-medium">main</span>
-        <span className="text-muted-foreground">
-          Revision {item.revisionNumber}
-        </span>
+        <span className="font-medium">Revision {item.revisionNumber}</span>
+        <span className="text-muted-foreground">current specification</span>
         {item.mainProtected && (
-          <span title="This specification is ready. Changes go through a reviewed pull request.">
+          <span title="This specification is ready. Changes are proposed and reviewed before they apply.">
             <Badge>
               <LockKeyhole className="size-3" />
               Protected
@@ -314,7 +326,7 @@ export function BranchEntry({
           onClick={() => onNavigate({ kind: "branches" })}
         >
           <GitPullRequest className="size-3.5" />
-          Branches & pull requests
+          Proposed changes
           {active.length ? ` (${active.length})` : ""}
         </Button>
       </div>
@@ -330,7 +342,7 @@ export function BranchEntry({
                 <PrStatusIcon status={p.status} />
                 <span className="min-w-0 flex-1 truncate">{p.title}</span>
                 <span className="text-xs text-muted-foreground">
-                  {prStatusMeta[p.status].label} pull request
+                  {prStatusMeta[p.status].label}
                 </span>
                 <ChevronRight className="size-3.5 text-muted-foreground" />
               </button>
@@ -348,7 +360,7 @@ export function BranchEntry({
                   {b.name}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                  Your branch · continue editing
+                  Your change · continue editing
                 </span>
                 <ChevronRight className="size-3.5 text-muted-foreground" />
               </button>
@@ -383,59 +395,51 @@ export function BranchWorkspace({
   return (
     <div className="space-y-6">
       {screen.kind === "branches" && nav}
-      <div className="flex flex-wrap items-center gap-1.5 border-b pb-3 text-[13px]">
-        <Button variant="ghost" size="sm" onClick={onMain}>
+      {/* One line at every width: on phones the current change's name,
+          which the heading below repeats, gives way rather than wrapping
+          the trail into two rows. */}
+      <div className="flex min-w-0 items-center gap-1.5 border-b pb-3 text-[13px]">
+        <Button variant="ghost" size="sm" className="shrink-0" onClick={onMain}>
           <ArrowLeft className="size-3.5" />
-          Main · revision {data.item.revisionNumber}
+          Revision {data.item.revisionNumber}
         </Button>
-        <ChevronRight aria-hidden className="size-3.5 text-muted-foreground" />
+        <ChevronRight
+          aria-hidden
+          className="size-3.5 shrink-0 text-muted-foreground"
+        />
+        {/* Inside the item's page, whose header holds the page's own
+            breadcrumb: this one is named for what it walks. */}
         <nav
-          aria-label="Breadcrumb"
+          aria-label="Specification changes"
           className="flex min-w-0 items-center gap-1.5"
         >
           <Button
             variant="ghost"
             size="sm"
             aria-current={screen.kind === "branches" ? "page" : undefined}
-            className={cn(screen.kind === "branches" && "text-foreground")}
+            className={cn(
+              "shrink-0",
+              screen.kind === "branches" && "text-foreground",
+            )}
             onClick={() => onNavigate({ kind: "branches" })}
           >
-            Branches & pull requests
+            Proposed changes
           </Button>
           {current && (
             <>
               <ChevronRight
                 aria-hidden
-                className="size-3.5 text-muted-foreground"
+                className="hidden size-3.5 shrink-0 text-muted-foreground sm:block"
               />
               <span
                 aria-current="page"
-                className="max-w-64 truncate px-1 font-medium"
+                className="hidden max-w-64 min-w-0 truncate px-1 font-medium sm:block"
               >
                 {current}
               </span>
             </>
           )}
         </nav>
-        <span className="ml-auto" />
-        <DropdownSelect
-          aria-label="Switch branch"
-          variant="secondary"
-          className="max-w-48 min-w-32"
-          value={screen.kind === "branch" ? screen.id : ""}
-          onValueChange={(value) =>
-            value ? onNavigate({ kind: "branch", id: value }) : onMain()
-          }
-        >
-          <DropdownSelectOption value="">main</DropdownSelectOption>
-          {data.branches
-            .filter((b) => !isMain(b))
-            .map((b) => (
-              <DropdownSelectOption key={b.id} value={b.id}>
-                {b.name}
-              </DropdownSelectOption>
-            ))}
-        </DropdownSelect>
       </div>
       {screen.kind === "branches" ? (
         <BranchOverview onNavigate={onNavigate} />
@@ -473,7 +477,7 @@ function BranchOverview({
   const nameProblem = name
     ? (branchNameProblem(finalName) ??
       (branches.some((b) => b.name === finalName)
-        ? "That branch name is already in use."
+        ? "That name is already in use."
         : null))
     : null;
   const main = branches.find(isMain);
@@ -483,15 +487,16 @@ function BranchOverview({
     )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const branchName = (id: string) =>
-    branches.find((b) => b.id === id)?.name ?? "deleted branch";
+    lineName(branches.find((b) => b.id === id));
   return (
     <>
       <div>
-        <ItemScreenTitle>Branches & pull requests</ItemScreenTitle>
+        <ItemScreenTitle>Proposed changes</ItemScreenTitle>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Propose changes to this specification without touching main. Edit on a
-          branch, commit checkpoints, then open a pull request so the right
-          people can review and merge it.
+          Propose changes to this specification without touching its current
+          revision. Edit a change with the people you invite, save versions,
+          then send it for review: once the required reviewers approve, it
+          applies as the next revision.
         </p>
       </div>
       <ErrorMessage message={error} />
@@ -520,17 +525,17 @@ function BranchOverview({
               <Plus className="size-4" /> Start a change
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              A branch is a separate draft of the specification: you and the
-              collaborators you invite edit it while main stays unchanged.
-              Everyone who can open this item can see its branches; nobody is
-              asked to review anything until you open a pull request.
+              A change is a separate draft of the specification: you and the
+              collaborators you invite edit it while the current revision stays
+              as it is. Everyone who can open this item can see it; nobody is
+              asked to review anything until you send it for review.
             </p>
           </div>
           <div className="flex flex-wrap items-start gap-2">
             <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs font-medium">
-              New branch name
+              Name of the change
               <Input
-                aria-label="New branch name"
+                aria-label="Name of the change"
                 className={`${field} h-8`}
                 value={name}
                 onValueChange={(value) =>
@@ -558,14 +563,16 @@ function BranchOverview({
               )}
             </label>
             <label className="flex w-44 min-w-0 flex-col gap-1 text-xs font-medium">
-              Branch from
+              Start from
               <DropdownSelect
-                aria-label="Branch from"
+                aria-label="Start from"
                 className="w-full"
                 value={from}
                 onValueChange={(value) => setFrom(value)}
               >
-                <DropdownSelectOption value="">main</DropdownSelectOption>
+                <DropdownSelectOption value="">
+                  Current specification
+                </DropdownSelectOption>
                 {branches
                   .filter((b) => !isMain(b))
                   .map((b) => (
@@ -580,16 +587,16 @@ function BranchOverview({
               className="mt-5"
               disabled={pending || !name || !!nameProblem}
             >
-              Create branch
+              Start change
             </Button>
           </div>
         </form>
       )}
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <SectionLabel>Pull requests</SectionLabel>
+          <SectionLabel>Reviews</SectionLabel>
           <ToggleGroup<"active" | "merged">
-            aria-label="Pull request filter"
+            aria-label="Review filter"
             value={[filter]}
             onValueChange={([next]) => {
               if (next) setFilter(next);
@@ -600,7 +607,7 @@ function BranchOverview({
             {(
               [
                 ["active", "Open", prs.filter((p) => p.status !== "merged")],
-                ["merged", "Merged", prs.filter((p) => p.status === "merged")],
+                ["merged", "Applied", prs.filter((p) => p.status === "merged")],
               ] as const
             ).map(([id, label, list]) => (
               <Toggle
@@ -630,7 +637,7 @@ function BranchOverview({
                   <span className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
                     <span className="font-mono">{branchName(p.sourceId)}</span>
                     <ArrowRight className="size-3" />
-                    <span className="font-mono">{branchName(p.targetId)}</span>
+                    <span>{branchName(p.targetId)}</span>
                     <span>
                       · {memberName(p.authorId)} · {relativeTime(p.createdAt)}
                     </span>
@@ -644,19 +651,18 @@ function BranchOverview({
           ) : (
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">
               {filter === "merged"
-                ? "Nothing merged yet."
-                : "No open pull requests. Commit changes on a branch, then open one for review."}
+                ? "Nothing applied yet."
+                : "Nothing in review. Save a version of a change, then send it for review."}
             </p>
           )}
         </div>
       </section>
       <section className="space-y-2">
-        <SectionLabel>Branches</SectionLabel>
+        <SectionLabel>Changes</SectionLabel>
         <div className="divide-y rounded-lg border">
           <div className="flex items-center gap-2 px-4 py-3 text-sm">
             <GitBranch className="size-4" />
-            <b>main</b>
-            <Badge>Default</Badge>
+            <b>Current specification</b>
             {item.mainProtected && (
               <Badge>
                 <LockKeyhole className="size-3" />
@@ -687,7 +693,7 @@ function BranchOverview({
                     <span className="text-xs text-muted-foreground">
                       {memberName(b.authorId)} ·{" "}
                       {ahead
-                        ? `${plural(ahead, "commit")} ahead of main`
+                        ? `${plural(ahead, "version")} not in the specification yet`
                         : "no changes yet"}{" "}
                       · {plural(b.collaboratorIds.length, "collaborator")}
                     </span>
@@ -695,11 +701,11 @@ function BranchOverview({
                   {pr ? (
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                       <PrStatusIcon status={pr.status} className="size-3.5" />
-                      {prStatusMeta[pr.status].label} PR
+                      {prStatusMeta[pr.status].label}
                     </span>
                   ) : ahead ? (
                     <span className="text-xs text-muted-foreground">
-                      Ready to open a PR
+                      Ready to send for review
                     </span>
                   ) : null}
                 </button>
@@ -707,7 +713,7 @@ function BranchOverview({
             })}
           {branches.length <= 1 && (
             <p className="px-4 py-3 text-sm text-muted-foreground">
-              No branches yet. Start a change to propose your first edit.
+              No proposed changes yet. Start one to propose your first edit.
             </p>
           )}
         </div>
@@ -793,10 +799,11 @@ function BranchEditor({
   if (!branch || !head)
     return (
       <div className="rounded-lg border border-dashed px-6 py-10 text-center">
-        <p className="text-sm font-medium">This branch is unavailable.</p>
+        <p className="text-sm font-medium">
+          This proposed change is unavailable.
+        </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          It was deleted, or merged and cleaned up. Its commits remain in
-          history.
+          It was deleted, or applied and closed. Its versions remain in history.
         </p>
         <Button
           className="mt-3"
@@ -804,7 +811,7 @@ function BranchEditor({
           size="sm"
           onClick={() => onNavigate({ kind: "branches" })}
         >
-          See all branches
+          See all proposed changes
         </Button>
       </div>
     );
@@ -852,9 +859,13 @@ function BranchEditorBody({
   memberName: (id: string) => string;
   onNavigate: (screen: BranchScreen) => void;
 }) {
-  const { directory } = useWorkspace();
-  const { branches, prs } = useBranchData();
+  const { directory, items: workItems } = useWorkspace();
+  const { branches, prs, item, mutateConfirmed } = useBranchData();
   const { run, error, pending } = useAction();
+  // A breakdown proposal ("Propose breakdown") speaks the language of the
+  // work it proposes: items sent for review, then created. The branch,
+  // commit and pull request underneath keep the reviewed-breakdown rule.
+  const isBreakdown = isBreakdownBranch(branch);
   // The breakdown sits below the live editor, which loads on its own: focus
   // moves there once it has mounted.
   const [focusBreakdown, setFocusBreakdown] = useState(false);
@@ -921,9 +932,12 @@ function BranchEditorBody({
     }));
   // "Commit": seals the shared draft's stored cut, with this person's
   // breakdown edits when they made any.
-  const commit = (controls: LiveControls) => {
+  const commit = (
+    controls: LiveControls,
+    then?: (outcome: "saved" | "nothing") => Promise<void>,
+    message = draft.message.trim(),
+  ) => {
     if (!liveDraft || sealing) return;
-    const message = draft.message.trim();
     setSealing(true);
     setSealError("");
     void controls
@@ -941,14 +955,15 @@ function BranchEditorBody({
             }
           : {}),
       }))
-      .then((outcome) => {
+      .then(async (outcome) => {
         setDraft((d) => ({ ...d, message: "" }));
         if (outcome === "saved") setCommitted(message);
         setTab("document");
+        await then?.(outcome);
       })
       .catch((e: unknown) =>
         setSealError(
-          e instanceof Error ? e.message : "The commit could not be saved.",
+          e instanceof Error ? e.message : "The version could not be saved.",
         ),
       )
       .finally(() => setSealing(false));
@@ -979,33 +994,87 @@ function BranchEditorBody({
   const ahead = aheadOf(commits, head.id, (prTarget ?? main)?.headId).length;
   // Where this branch is in its lifecycle.
   const stage = pr ? (changed ? 1 : 3) : changed ? 1 : ahead > 0 ? 2 : 0;
-  const steps: Step[] = [
-    "Edit",
-    "Commit",
-    "Open pull request",
-    "Review & merge",
-  ].map((label, i) => ({
-    label,
-    state:
-      i === stage
-        ? "current"
-        : i < stage || (pr && i === 2)
-          ? "done"
-          : "upcoming",
-  }));
+  // A breakdown has three: propose the items, send them for review, and
+  // the reviewed items are created.
+  const breakdownStage = pr && !changed ? 2 : changed || ahead > 0 ? 1 : 0;
+  const steps: Step[] = isBreakdown
+    ? ["Propose items", "Send for review", "Reviewed, then created"].map(
+        (label, i) => ({
+          label,
+          state:
+            i === breakdownStage
+              ? "current"
+              : i < breakdownStage
+                ? "done"
+                : "upcoming",
+        }),
+      )
+    : ["Edit", "Save a version", "Send for review", "Review & apply"].map(
+        (label, i) => ({
+          label,
+          state:
+            i === stage
+              ? "current"
+              : i < stage || (pr && i === 2)
+                ? "done"
+                : "upcoming",
+        }),
+      );
+  // Sends the proposed items for review in one step: saves the edits, if
+  // any, and opens the review against main (the specification's reviewers
+  // are asked). Later edits update the open review.
+  const proposed = (draft.proposedChildren ?? [])
+    .filter(isNewChild)
+    .filter((child) => !workItems.some((w) => w.id === child.workItemId));
+  const openReview = async () => {
+    const main = branches.find(isMain);
+    if (!main) throw new Error("The specification is still loading.");
+    const id = crypto.randomUUID();
+    await mutateConfirmed({
+      type: "createPullRequest",
+      workItemId: itemId,
+      pullRequestId: id,
+      sourceId: branch.id,
+      targetId: main.id,
+      title: `Breakdown: ${item.title}`.slice(0, 120),
+      // The items themselves are listed under it; the description says
+      // what is asked, not the list again.
+      description: proposed.length
+        ? `Proposes ${plural(proposed.length, "new item")} to deliver ${item.title}.`
+        : "Changes to the delivery breakdown.",
+      draft: false,
+    });
+    onNavigate({ kind: "pr", id });
+  };
+  const sendForReview = (controls: LiveControls) => {
+    if (changed)
+      return commit(
+        controls,
+        async () => {
+          if (!pr) await openReview();
+        },
+        pr ? "Update the proposed breakdown" : "Propose breakdown",
+      );
+    if (!pr && ahead > 0)
+      void openReview().catch((e: unknown) =>
+        setSealError(
+          e instanceof Error ? e.message : "The review could not be opened.",
+        ),
+      );
+  };
   const openPrButton = (
     <Button
       variant={stage === 2 ? "primary" : "secondary"}
       disabled={!canEdit || pending || changed}
       title={
         changed
-          ? "Commit or discard your edits first. A pull request reviews committed changes."
+          ? "Save or discard your edits first. A review covers saved versions only."
           : undefined
       }
       onClick={() => setOpening(true)}
     >
       <GitPullRequestCreate className="size-3.5" />
-      Open pull request
+      Send for review
     </Button>
   );
   const viewPrButton = pr && (
@@ -1017,54 +1086,74 @@ function BranchEditorBody({
         status={pr.status}
         className={stage === 3 ? "text-current" : undefined}
       />
-      View pull request
+      View review
     </Button>
   );
-  const targetName = prTarget?.name ?? "main";
-  const guidance = !canEdit ? (
-    <NextStep title="You're viewing someone else's branch.">
-      Ask {memberName(branch.authorId)} to invite you as a collaborator to
-      commit changes.
+  const targetName = lineName(prTarget ?? main);
+  const breakdownGuidance = !canEdit ? (
+    <NextStep title="You're viewing someone else's breakdown proposal.">
+      Ask {memberName(branch.authorId)} to invite you to edit it.
+    </NextStep>
+  ) : pr && !changed ? (
+    <NextStep
+      title={`The breakdown is ${pr.status === "draft" ? "a draft" : "waiting for review"}.`}
+      action={viewPrButton}
+    >
+      The items are created once the specification&apos;s reviewers approve it.
+      Changes you make here update the review and ask them again.
+    </NextStep>
+  ) : (
+    <NextStep title="Propose the items that deliver this specification.">
+      Edits are saved as you type and shared with the people you invite. Nothing
+      is created until the specification&apos;s reviewers approve the breakdown.
+    </NextStep>
+  );
+  const guidance = isBreakdown ? (
+    breakdownGuidance
+  ) : !canEdit ? (
+    <NextStep title="You're viewing someone else's proposed change.">
+      Ask {memberName(branch.authorId)} to invite you as a collaborator to edit
+      it.
     </NextStep>
   ) : committed && !changed ? (
     <NextStep
       tone="success"
-      title={`Committed “${committed}” to ${branch.name}.`}
+      title={`Saved version “${committed}”.`}
       action={pr ? viewPrButton : openPrButton}
     >
       {pr
-        ? `Pull request “${pr.title}” now includes this commit. Reviewers will be asked to approve again.`
-        : `${targetName} is unchanged. Open a pull request when you want this reviewed.`}
+        ? `Review “${pr.title}” now includes this version. Reviewers will be asked to approve again.`
+        : `Nothing changed in ${targetName}. Send this change for review when you want it approved.`}
     </NextStep>
   ) : stage === 0 ? (
     <NextStep title="Edit the specification below.">
-      Edits are saved as you type and shared with this branch&apos;s
-      collaborators. Commit them to record a checkpoint on this branch; main
-      stays untouched.
+      Edits are saved as you type and shared with this change&apos;s
+      collaborators. Save a version to record a checkpoint; the current
+      specification stays untouched.
     </NextStep>
   ) : stage === 1 ? (
-    <NextStep tone="warning" title="You have uncommitted edits.">
+    <NextStep tone="warning" title="Your edits are not in a version yet.">
       {pr
-        ? `Commit them to update pull request “${pr.title}”. Reviewers will be asked to approve again.`
-        : "Commit them to save a checkpoint on this branch. Only committed changes can be proposed in a pull request."}
+        ? `Save a version to update review “${pr.title}”. Reviewers will be asked to approve again.`
+        : "Save a version to record a checkpoint. Only saved versions can be sent for review."}
     </NextStep>
   ) : stage === 2 ? (
     <NextStep
-      title={`${plural(ahead, "commit")} on this branch ${ahead === 1 ? "isn't" : "aren't"} in main yet.`}
+      title={`${plural(ahead, "saved version")} ${ahead === 1 ? "isn't" : "aren't"} in ${targetName} yet.`}
       action={openPrButton}
     >
-      Open a pull request to ask for review. Nothing changes in main until it is
-      approved and merged.
+      Send it for review. Nothing changes in {targetName} until the required
+      reviewers approve and someone applies it.
     </NextStep>
   ) : (
     pr && (
       <NextStep
-        title={`Pull request “${pr.title}” is ${pr.status === "draft" ? "a draft" : "open for review"}.`}
+        title={`Review “${pr.title}” is ${pr.status === "draft" ? "a draft" : "open"}.`}
         action={viewPrButton}
       >
         {pr.status === "draft"
-          ? "Mark it ready for review when you're done. New commits are added to it automatically."
-          : "New commits you make here are added to it automatically and ask reviewers to approve again."}
+          ? "Mark it ready for review when you're done. New versions are added to it automatically."
+          : "New versions you save here are added to it automatically and ask reviewers to approve again."}
       </NextStep>
     )
   );
@@ -1072,29 +1161,44 @@ function BranchEditorBody({
     <>
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1 space-y-2">
-          <ItemScreenTitle className="flex items-center gap-2 font-mono text-lg">
-            <GitBranch aria-hidden className="size-5 shrink-0" />
-            <span className="truncate">{branch.name}</span>
-          </ItemScreenTitle>
-          <p className="text-xs text-muted-foreground">
-            {memberName(branch.authorId)}&apos;s branch ·{" "}
-            {ahead
-              ? `${plural(ahead, "commit")} ahead of ${targetName}`
-              : `matches ${targetName}`}{" "}
-            · last commit {relativeTime(head.createdAt)}
-          </p>
+          {isBreakdown ? (
+            <>
+              <ItemScreenTitle className="flex items-center gap-2 text-lg">
+                <ListTree aria-hidden className="size-5 shrink-0" />
+                <span className="truncate">Breakdown of {item.title}</span>
+              </ItemScreenTitle>
+              <p className="text-xs text-muted-foreground">
+                Proposed by {memberName(branch.authorId)} · saved{" "}
+                {relativeTime(head.createdAt)}
+              </p>
+            </>
+          ) : (
+            <>
+              <ItemScreenTitle className="flex items-center gap-2 font-mono text-lg">
+                <GitBranch aria-hidden className="size-5 shrink-0" />
+                <span className="truncate">{branch.name}</span>
+              </ItemScreenTitle>
+              <p className="text-xs text-muted-foreground">
+                {memberName(branch.authorId)}&apos;s proposed change ·{" "}
+                {ahead
+                  ? `${plural(ahead, "version")} not in ${targetName} yet`
+                  : `matches ${targetName}`}{" "}
+                · last saved {relativeTime(head.createdAt)}
+              </p>
+            </>
+          )}
           <FlowSteps steps={steps} />
         </div>
         <div className="flex items-center gap-1.5">
-          {pr ? viewPrButton : stage !== 2 && openPrButton}
+          {pr ? viewPrButton : !isBreakdown && stage !== 2 && openPrButton}
           {canDelete && (
             <DeletePrompt
-              name={`branch ${branch.name}`}
+              name={`change ${branch.name}`}
               detail={
                 pr
-                  ? "It has an active pull request; delete or merge that first."
+                  ? "It is in review; apply or delete the review first."
                   : changed
-                    ? "Your uncommitted edits will be lost."
+                    ? "Edits not in a version yet will be lost."
                     : undefined
               }
               onDelete={() =>
@@ -1115,8 +1219,8 @@ function BranchEditorBody({
                   variant="ghost"
                   size="icon"
                   className="size-8"
-                  aria-label="Delete branch"
-                  title="Delete branch"
+                  aria-label="Delete change"
+                  title="Delete change"
                 >
                   <Trash2 className="size-3.5" />
                 </Button>
@@ -1138,13 +1242,13 @@ function BranchEditorBody({
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_240px]">
             <Tabs
               className="min-w-0 space-y-4"
-              label="Branch views"
+              label="Change views"
               value={tab}
               onChange={setTab}
               tabs={[
                 { id: "document", label: "Document" },
-                { id: "changes", label: "Uncommitted", dot: changed },
-                { id: "commits", label: "Commits", count: history.length },
+                { id: "changes", label: "New edits", dot: changed },
+                { id: "commits", label: "Versions", count: history.length },
               ]}
             >
               {canEdit ? (
@@ -1161,12 +1265,12 @@ function BranchEditorBody({
                     line={{
                       headTitle: head.title,
                       headMarkdown: head.content,
-                      basedOn: "the latest commit",
+                      basedOn: "the latest version",
                       isMain: false,
                       branchName: branch.name,
                     }}
-                    label="Branch specification"
-                    titleLabel="Branch work item title"
+                    label="Proposed specification"
+                    titleLabel="Proposed work item title"
                     legacyText={legacy}
                     onLegacyKept={() => setLegacy(null)}
                     fileContext={{ organizationId, workItemId: itemId }}
@@ -1197,8 +1301,8 @@ function BranchEditorBody({
                         </div>
                         {tab === "changes" && breakdownChanged && (
                           <p className="text-sm text-muted-foreground">
-                            The proposed breakdown changed too; it is committed
-                            with the text.
+                            The proposed breakdown changed too; it is saved with
+                            the text.
                           </p>
                         )}
                         {confirmDiscard && (
@@ -1207,8 +1311,9 @@ function BranchEditorBody({
                             className="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/5 p-3 text-sm"
                           >
                             <p className="min-w-0 flex-1 basis-60">
-                              Discard the uncommitted changes of this branch for
-                              everyone editing it? Commits are kept.
+                              Discard the edits not in a version yet, for
+                              everyone editing this change? Saved versions are
+                              kept.
                             </p>
                             <Button
                               variant="secondary"
@@ -1240,21 +1345,40 @@ function BranchEditorBody({
                             </Button>
                           </div>
                         )}
-                        <CommitBox
-                          branchName={branch.name}
-                          changed={changed}
-                          message={draft.message}
-                          onMessage={(message) =>
-                            setDraft((d) => ({ ...d, message }))
-                          }
-                          conflicted={false}
-                          disabled={
-                            pending || sealing || !changed || !controls.editable
-                          }
-                          onDiscard={() => setConfirmDiscard(true)}
-                          onCommit={() => commit(controls)}
-                          updatesPr={pr?.title}
-                        />
+                        {isBreakdown ? (
+                          <SendBreakdown
+                            changed={changed}
+                            inReview={Boolean(pr)}
+                            items={proposed.length}
+                            disabled={
+                              pending ||
+                              sealing ||
+                              !controls.editable ||
+                              (pr ? !changed : !changed && ahead === 0)
+                            }
+                            onDiscard={() => setConfirmDiscard(true)}
+                            onSend={() => sendForReview(controls)}
+                          />
+                        ) : (
+                          <CommitBox
+                            branchName={branch.name}
+                            changed={changed}
+                            message={draft.message}
+                            onMessage={(message) =>
+                              setDraft((d) => ({ ...d, message }))
+                            }
+                            conflicted={false}
+                            disabled={
+                              pending ||
+                              sealing ||
+                              !changed ||
+                              !controls.editable
+                            }
+                            onDiscard={() => setConfirmDiscard(true)}
+                            onCommit={() => commit(controls)}
+                            updatesPr={pr?.title}
+                          />
+                        )}
                       </>
                     )}
                   />
@@ -1271,8 +1395,8 @@ function BranchEditorBody({
                   </TabPanel>
                   <TabPanel value="changes">
                     <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                      No uncommitted edits. Everything on this branch is
-                      committed.
+                      No new edits. Everything in this change is in a saved
+                      version.
                     </p>
                   </TabPanel>
                 </>
@@ -1283,7 +1407,7 @@ function BranchEditorBody({
             </Tabs>
             <aside className="space-y-5 text-sm">
               <section className="space-y-2">
-                <SectionLabel>Latest commit</SectionLabel>
+                <SectionLabel>Latest version</SectionLabel>
                 <p className="flex gap-2 font-medium">
                   <GitCommitHorizontal className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <span className="min-w-0 wrap-break-word">
@@ -1360,13 +1484,14 @@ function BranchEditorBody({
                   </DropdownSelect>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Collaborators can commit to this branch.
+                  Collaborators can edit this change.
                 </p>
               </section>
               <section className="space-y-2">
-                <SectionLabel>Update from another branch</SectionLabel>
+                <SectionLabel>Bring in newer text</SectionLabel>
                 <p className="text-xs text-muted-foreground">
-                  Bring newer changes into this branch as a merge commit.
+                  Bring what changed in the specification, or in another change,
+                  into this one.
                 </p>
                 <SyncBranch
                   source={branch}
@@ -1382,7 +1507,56 @@ function BranchEditorBody({
   );
 }
 
-// The explicit "save a checkpoint" step, separated from editing.
+// The breakdown's one action: send the proposed items for review (or
+// update the review already open), without commit messages.
+function SendBreakdown({
+  changed,
+  inReview,
+  items,
+  disabled,
+  onDiscard,
+  onSend,
+}: {
+  changed: boolean;
+  inReview: boolean;
+  items: number;
+  disabled: boolean;
+  onDiscard: () => void;
+  onSend: () => void;
+}) {
+  return (
+    <form
+      aria-label="Send breakdown for review"
+      className={cn(
+        "sticky bottom-3 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 shadow-(--shadow-panel) max-sm:static max-sm:shadow-none",
+        !changed && "shadow-none",
+      )}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!disabled) onSend();
+      }}
+    >
+      <p className="min-w-0 flex-1 basis-60 text-xs text-muted-foreground">
+        {inReview
+          ? changed
+            ? "Your changes are not in the review yet."
+            : "The review has every change."
+          : `${plural(items, "proposed item")}. The specification's reviewers approve the breakdown before the items are created.`}
+      </p>
+      <Button variant="ghost" size="sm" disabled={!changed} onClick={onDiscard}>
+        Discard changes
+      </Button>
+      <Button type="submit" size="sm" disabled={disabled}>
+        <Send aria-hidden className="size-3.5" />
+        {inReview ? "Update the review" : "Send for review"}
+      </Button>
+    </form>
+  );
+}
+
+export const isBreakdownBranch = (branch: { name: string } | undefined) =>
+  Boolean(branch && /^breakdown(-\d+)?$/.test(branch.name));
+
 function CommitBox({
   branchName,
   changed,
@@ -1407,9 +1581,11 @@ function CommitBox({
   const ready = !disabled && message.trim().length > 0;
   return (
     <form
-      aria-label="Commit changes"
+      aria-label="Save a version"
       className={cn(
-        "sticky bottom-3 z-10 space-y-2 rounded-lg border bg-card p-3 shadow-(--shadow-panel)",
+        // Sticky where there is room beside the fields; on phones the bar
+        // would cover the field being edited, so it ends the form instead.
+        "sticky bottom-3 z-10 space-y-2 rounded-lg border bg-card p-3 shadow-(--shadow-panel) max-sm:static max-sm:shadow-none",
         !changed && "shadow-none",
       )}
       onSubmit={(e) => {
@@ -1420,21 +1596,21 @@ function CommitBox({
       <div className="flex items-center gap-2 text-xs">
         <GitCommitHorizontal className="size-4 text-muted-foreground" />
         <span className="font-medium">
-          Commit to <span className="font-mono">{branchName}</span>
+          Save a version of <span className="font-mono">{branchName}</span>
         </span>
         <span className="ml-auto text-muted-foreground">
           {changed ? (
             <span className="inline-flex items-center gap-1.5">
               <span className="size-1.5 rounded-full bg-warning" />
-              Uncommitted edits
+              Not in a version yet
             </span>
           ) : (
-            "No uncommitted edits"
+            "Nothing new to save"
           )}
         </span>
       </div>
       <Input
-        aria-label="Commit message"
+        aria-label="What changed?"
         className={`${field} h-8`}
         value={message}
         onValueChange={(value) => onMessage(value)}
@@ -1442,10 +1618,10 @@ function CommitBox({
         maxLength={500}
       />
       <div className="flex flex-wrap items-center gap-2">
-        <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">
+        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
           {updatesPr
-            ? `Updates pull request “${updatesPr}”.`
-            : "Main is not affected."}
+            ? `Updates review “${updatesPr}”.`
+            : "The specification is not affected."}
         </p>
         <Button
           variant="ghost"
@@ -1457,7 +1633,7 @@ function CommitBox({
         </Button>
         <Button type="submit" size="sm" disabled={!ready}>
           <GitCommitHorizontal className="size-3.5" />
-          {conflicted ? "Resolve & commit" : "Commit changes"}
+          {conflicted ? "Resolve & save" : "Save version"}
         </Button>
       </div>
     </form>
@@ -1487,7 +1663,7 @@ function CommitHistory({
   if (!commits.length)
     return (
       <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-        No commits.
+        No versions.
       </p>
     );
   return (
@@ -1505,7 +1681,7 @@ function CommitHistory({
           <p className="text-sm font-medium">{c.message}</p>
           <p className="text-xs text-muted-foreground">
             {memberName(c.authorId)} · {relativeTime(c.createdAt)}
-            {c.parentIds.length > 1 ? " · Merge commit" : ""}
+            {c.parentIds.length > 1 ? " · Brought in newer text" : ""}
           </p>
         </li>
       ))}
@@ -1513,7 +1689,7 @@ function CommitHistory({
   );
 }
 
-// ─── Open a pull request: a compare view, not an inline form ───────────────
+// ─── Send for review (a pull request): a compare view, not an inline form ──
 function CreatePR({
   source,
   onCreated,
@@ -1576,12 +1752,11 @@ function CreatePR({
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <h2 id="open-pr-heading" className="text-lg font-semibold">
-            Open a pull request
+            Send for review
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Ask reviewers to approve these changes. Nothing changes in{" "}
-            {targetBranch?.name ?? "the target"} until the pull request is
-            merged.
+            Ask reviewers to approve this change. Nothing changes in{" "}
+            {lineName(targetBranch)} until the review is approved and applied.
           </p>
         </div>
         <Button variant="ghost" onClick={onCancel}>
@@ -1590,9 +1765,9 @@ function CreatePR({
       </div>
       <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-[13px]">
         <GitMerge className="size-4 text-muted-foreground" />
-        <span className="text-muted-foreground">Merge into</span>
+        <span className="text-muted-foreground">Apply to</span>
         <DropdownSelect
-          aria-label="PR target branch"
+          aria-label="Apply to"
           className="w-48"
           value={target}
           onValueChange={(value) => setTarget(value)}
@@ -1601,7 +1776,7 @@ function CreatePR({
             .filter((b) => b.id !== source.id)
             .map((b) => (
               <DropdownSelectOption key={b.id} value={b.id}>
-                {b.name}
+                {lineLabel(b)}
               </DropdownSelectOption>
             ))}
         </DropdownSelect>
@@ -1613,18 +1788,18 @@ function CreatePR({
             <span className="text-muted-foreground">Nothing to compare</span>
           ) : preview?.conflicted ? (
             <span className="text-warning">
-              Has conflicts — you can resolve them after opening
+              Conflicts with newer text — resolve them after sending
             </span>
           ) : (
-            <span className="text-success">Can be merged cleanly</span>
+            <span className="text-success">Applies cleanly</span>
           )}
         </span>
       </div>
       {noChanges ? (
         <NextStep
-          title={`${source.name} has no changes compared to ${targetBranch?.name}.`}
+          title={`${source.name} has no changes compared to ${lineName(targetBranch)}.`}
         >
-          Commit changes on this branch, or choose a different target.
+          Save a version of this change, or choose a different target.
         </NextStep>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
@@ -1633,7 +1808,7 @@ function CreatePR({
             <label className="block space-y-1 text-xs font-medium">
               Title
               <Input
-                aria-label="Pull request title"
+                aria-label="Review title"
                 className={`${field} h-9 text-sm`}
                 value={title}
                 onValueChange={(value) => setTitle(value)}
@@ -1648,7 +1823,7 @@ function CreatePR({
                 (required)
               </span>
               <Textarea
-                aria-label="Pull request description"
+                aria-label="Review description"
                 required
                 className={`${field} py-2`}
                 rows={5}
@@ -1659,8 +1834,8 @@ function CreatePR({
               />
             </label>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <p className="mr-auto text-[11px] text-muted-foreground">
-                Drafts can&apos;t be approved or merged until you mark them
+              <p className="mr-auto text-xs text-muted-foreground">
+                Drafts can&apos;t be approved or applied until you mark them
                 ready.
               </p>
               <Button
@@ -1668,11 +1843,11 @@ function CreatePR({
                 disabled={disabled}
                 onClick={() => submit(true)}
               >
-                Create draft PR
+                Save as draft
               </Button>
               <Button disabled={disabled} onClick={() => submit(false)}>
                 <GitPullRequestCreate className="size-3.5" />
-                Create pull request
+                Send for review
               </Button>
             </div>
             {preview && theirs && (
@@ -1693,7 +1868,7 @@ function CreatePR({
                   <SpecDiff
                     before={theirs.content}
                     after={preview.content}
-                    beforeLabel={targetBranch?.name ?? "main"}
+                    beforeLabel={lineLabel(targetBranch)}
                     afterLabel="This change"
                   />
                   <BreakdownProposal
@@ -1709,7 +1884,7 @@ function CreatePR({
           </div>
           <aside className="space-y-2">
             <SectionLabel>
-              {plural(included.length, "commit")} included
+              {plural(included.length, "version")} included
             </SectionLabel>
             <CommitHistory commits={included} memberName={memberName} />
           </aside>
@@ -1724,11 +1899,14 @@ function CreatePR({
 function DeletePrompt({
   name,
   detail,
+  verb = "Delete",
   onDelete,
   trigger,
 }: {
   name: string;
   detail?: string;
+  // "Withdraw" for a review: the change itself stays.
+  verb?: "Delete" | "Withdraw";
   onDelete: () => Promise<void>;
   // The button that asks.
   trigger: ReactElement<Record<string, unknown>>;
@@ -1741,12 +1919,14 @@ function DeletePrompt({
         className={cn(dialogPanelClass, "max-w-md gap-0 p-5")}
       >
         <AlertDialogTitle className="m-0 text-sm font-semibold">
-          Delete {name}
+          {verb} {name}
           <span aria-hidden>?</span>
         </AlertDialogTitle>
         <AlertDialogDescription className="mt-1 mb-0 text-[13px] leading-5 text-muted-foreground">
-          It will disappear from the workspace. Commits and activity remain in
-          history.{detail && ` ${detail}`}
+          {verb === "Withdraw"
+            ? "Reviewers are no longer asked and its open discussions are resolved. Its activity stays in history."
+            : "It will disappear from the workspace. Saved versions and activity remain in history."}
+          {detail && ` ${detail}`}
         </AlertDialogDescription>
         <div className="mt-4 flex flex-wrap justify-end gap-2">
           <AlertDialogClose className={buttonClass({ variant: "ghost" })}>
@@ -1757,7 +1937,7 @@ function DeletePrompt({
             action={onDelete}
             className={buttonClass({ variant: "danger" })}
           >
-            Delete
+            {verb}
           </AlertDialogClose>
         </div>
       </AlertDialogContent>
@@ -2044,7 +2224,7 @@ function SyncBranch({
     <div className="mt-2 space-y-2">
       <ErrorMessage message={error} />
       <DropdownSelect
-        aria-label="Update branch from"
+        aria-label="Bring in text from"
         className="w-full"
         value={targetId}
         disabled={disabled}
@@ -2052,7 +2232,7 @@ function SyncBranch({
       >
         {targets.map((b) => (
           <DropdownSelectOption key={b.id} value={b.id}>
-            {b.name}
+            {lineLabel(b)}
           </DropdownSelectOption>
         ))}
       </DropdownSelect>
@@ -2067,11 +2247,11 @@ function SyncBranch({
           }
           render={<Button size="sm" variant="secondary" />}
         >
-          Compare & update branch
+          Compare & update
         </DialogTrigger>
         <DialogContent className="fixed inset-0 z-50 block h-auto max-h-none w-auto overflow-y-auto rounded-none bg-background/95 p-4 text-sm text-foreground shadow-none outline-none md:p-12">
           <DialogTitle className="sr-only">
-            Update {source.name} from {target?.name ?? "another branch"}
+            Update {source.name} from {lineName(target)}
           </DialogTitle>
           <div className="mx-auto max-w-5xl">
             {/* The page behind is inert while this is open: a refused update
@@ -2086,9 +2266,9 @@ function SyncBranch({
                 ours={ours}
                 theirs={theirs}
                 pending={pending}
-                action="Commit branch update"
+                action="Save the update"
                 oursLabel={source.name}
-                theirsLabel={target?.name ?? "Other branch"}
+                theirsLabel={lineLabel(target)}
                 onCancel={() => setResolving(false)}
                 onResolve={sync}
               />
@@ -2181,17 +2361,21 @@ function PullRequestView({
   const actionRuns = useAiRuns("pr_action", id);
   if (!p)
     return (
-      <div className="rounded-lg border border-dashed px-6 py-10 text-center">
-        <p className="text-sm font-medium">This pull request is unavailable.</p>
-        <Button
-          className="mt-3"
-          variant="secondary"
-          size="sm"
-          onClick={() => onNavigate({ kind: "branches" })}
-        >
-          See all pull requests
-        </Button>
-      </div>
+      <MissingState
+        illustration="search"
+        headingLevel={2}
+        title="This review is unavailable"
+        action={
+          <Button
+            variant="secondary"
+            onClick={() => onNavigate({ kind: "branches" })}
+          >
+            See all proposed changes
+          </Button>
+        }
+      >
+        The link may be wrong, or the review belongs to another item.
+      </MissingState>
     );
   const mergeActivity = activity.find(
     (a) =>
@@ -2201,8 +2385,12 @@ function PullRequestView({
     source?.name ??
     (typeof mergeActivity?.detail?.source === "string"
       ? mergeActivity.detail.source
-      : "Deleted branch");
-  const targetName = target?.name ?? "Deleted branch";
+      : "a deleted change");
+  const targetName = lineName(target);
+  const targetLabel = lineLabel(target);
+  // A breakdown into main reads as one: items proposed, reviewed, created.
+  const breakdown =
+    isBreakdownBranch({ name: sourceName }) && (!target || isMain(target));
   const automaticallyDeleted = activity.some(
     (a) =>
       a.action === "branch_deleted" &&
@@ -2245,9 +2433,9 @@ function PullRequestView({
   );
   const pendingRequired = required.filter((r) => !valid(r));
   const blockers = [
-    ...(p.status === "draft" ? ["This pull request is a draft."] : []),
-    ...(conflicted ? ["The branches have merge conflicts."] : []),
-    ...(noChanges ? ["This branch has no changes to merge."] : []),
+    ...(p.status === "draft" ? ["This review is a draft."] : []),
+    ...(conflicted ? ["This change conflicts with newer text."] : []),
+    ...(noChanges ? ["This change has nothing left to apply."] : []),
     ...(!required.length ? ["Request at least one required review."] : []),
     ...pendingRequired.map(
       (r) =>
@@ -2329,8 +2517,8 @@ function PullRequestView({
       state: "pending",
       text: `${roleName(r.disciplineId)} approval ${stale ? "is stale" : "is pending"}${who ? ` · ${who}` : ""}`,
       detail: stale
-        ? "The merge result changed since the approval. Ask for another review."
-        : "Waiting for a decision on this exact merge result.",
+        ? "The change or the specification moved since the approval. Ask for another review."
+        : "Waiting for a decision on the specification as it would read after this change.",
     });
   }
   if (changesRequested)
@@ -2338,13 +2526,13 @@ function PullRequestView({
       key: "changes",
       state: "failure",
       text: "A reviewer requested changes.",
-      detail: "Address the feedback with a new commit, then ask again.",
+      detail: "Address the feedback in a new version, then ask again.",
     });
   if (required.length && !pendingRequired.length && !changesRequested)
     rows.push({
       key: "reviews-ok",
       state: "success",
-      text: `${plural(required.length, "required review")} approved this exact result.`,
+      text: `${plural(required.length, "required review")} approved the specification as it would read after this change.`,
     });
   if (actionGate)
     rows.push({
@@ -2376,8 +2564,8 @@ function PullRequestView({
       ? {
           key: "conflicts",
           state: "failure",
-          text: "The branches have merge conflicts.",
-          detail: `${sourceName} and ${targetName} changed the same text. Resolving adds a commit to ${sourceName}, so reviewers approve again.`,
+          text: "This change conflicts with newer text.",
+          detail: `${sourceName} and ${targetName} changed the same text. Resolving saves a new version of ${sourceName}, so reviewers approve again.`,
           action: source && ours && theirs && manage && (
             <Button
               size="sm"
@@ -2393,7 +2581,7 @@ function PullRequestView({
         ? {
             key: "empty",
             state: "neutral",
-            text: "This branch has no changes to merge.",
+            text: "This change has nothing left to apply.",
           }
         : {
             key: "clean",
@@ -2405,8 +2593,8 @@ function PullRequestView({
     rows.unshift({
       key: "draft",
       state: "neutral",
-      text: "This pull request is a draft.",
-      detail: "Reviewers can comment, but it can't be approved or merged yet.",
+      text: "This review is a draft.",
+      detail: "Reviewers can comment, but it can't be approved or applied yet.",
       action: manage && (
         <Button
           size="sm"
@@ -2418,21 +2606,26 @@ function PullRequestView({
         </Button>
       ),
     });
-  const mergeEffect = isMain(target) ? (
+  const mergeEffect = breakdown ? (
     <>
-      Merging publishes this result as revision {item.revisionNumber + 1} of the
+      Creating them records this breakdown as revision {item.revisionNumber + 1}{" "}
+      of the specification. Approvals carry over to that revision.
+    </>
+  ) : isMain(target) ? (
+    <>
+      Applying makes this result revision {item.revisionNumber + 1} of the
       specification. Approvals carry over to that revision
       {willDeleteSource && (
         <>
-          , and the branch <BranchName>{sourceName}</BranchName> is deleted
+          , and the change <BranchName>{sourceName}</BranchName> is closed
         </>
       )}
       .
     </>
   ) : (
     <>
-      Merging adds this result to <BranchName>{targetName}</BranchName> as a
-      merge commit. Main is not affected.
+      Applying adds this result to <BranchName>{targetName}</BranchName> as a
+      new version. The specification is not affected.
     </>
   );
 
@@ -2447,8 +2640,37 @@ function PullRequestView({
         headingLevel={1}
         title={p.title}
         state={p.status}
+        stateLabel={prStatusMeta[p.status].label}
         author={<Actor userId={p.authorId} size={20} />}
+        mergedBy={
+          mergeActivity && mergeActivity.actorId !== p.authorId ? (
+            <Actor userId={mergeActivity.actorId} size={20} />
+          ) : undefined
+        }
         commits={sourceHistory.length || shownHistory.length}
+        summary={
+          breakdown ? (
+            p.status === "merged" ? (
+              `created the breakdown of ${item.title}`
+            ) : (
+              `proposes a breakdown of ${item.title}`
+            )
+          ) : (
+            <>
+              {p.status === "merged" ? "applied" : "proposes"}{" "}
+              <BranchChip
+                name={sourceName}
+                muted={!source}
+                onClick={
+                  source
+                    ? () => onNavigate({ kind: "branch", id: source.id })
+                    : undefined
+                }
+              />{" "}
+              {p.status === "merged" ? "to" : "for"} {targetName}
+            </>
+          )
+        }
         base={targetName}
         head={sourceName}
         headGone={!source}
@@ -2459,7 +2681,7 @@ function PullRequestView({
         }
         tabs={
           <PullRequestTabs
-            label="Pull request views"
+            label="Review views"
             tabs={[
               {
                 value: "conversation",
@@ -2469,19 +2691,23 @@ function PullRequestView({
               },
               {
                 value: "commits",
-                label: "Commits",
+                label: "Versions",
                 icon: <GitCommitHorizontal />,
                 count: shownHistory.length,
               },
-              {
-                value: "checks",
-                label: "Actions",
-                icon: actionRuns.length ? (
-                  <CheckIcon state={checkState} />
-                ) : (
-                  <IntelligenceMark />
-                ),
-              },
+              ...(p.status !== "merged" || actionRuns.length > 0
+                ? [
+                    {
+                      value: "checks" as const,
+                      label: "Actions",
+                      icon: actionRuns.length ? (
+                        <CheckIcon state={checkState} />
+                      ) : (
+                        <IntelligenceMark />
+                      ),
+                    },
+                  ]
+                : []),
               { value: "changes", label: "Changes" },
             ]}
           />
@@ -2504,9 +2730,10 @@ function PullRequestView({
             {p.status !== "merged" ? (
               <MergeBox
                 target={targetName}
+                verb={breakdown ? "create" : "apply"}
                 requirements={rows}
                 blocked={blockers.length > 0}
-                readySummary="Required reviews approve this merge result. No conflicts or blocking discussions remain."
+                readySummary="Required reviewers approved the specification as it would read after this change. No conflicts or blocking discussions remain."
                 before={
                   actionRuns.length > 0 &&
                   !actionGate && (
@@ -2526,13 +2753,14 @@ function PullRequestView({
                           {blockers.length === 1
                             ? "requirement"
                             : `${blockers.length} requirements`}{" "}
-                          above to merge.
+                          above to {breakdown ? "create the items" : "apply it"}
+                          .
                         </span>
                       )}
                       {mergeEffect}
                     </>
                   ) : (
-                    `You can't merge into ${targetName}. ${isMain(target) ? "Merging into main needs permission to edit specifications." : `Only collaborators on ${targetName} can merge.`}`
+                    `You can't ${breakdown ? "create the items" : "apply this change"}. ${isMain(target) ? "It needs permission to edit specifications." : `Only collaborators on ${targetName} can apply it.`}`
                   )
                 }
                 action={
@@ -2551,8 +2779,12 @@ function PullRequestView({
                         }))
                     }
                   >
-                    <GitMerge className="size-3.5" aria-hidden />
-                    Merge pull request
+                    {breakdown ? (
+                      <ListTree className="size-3.5" aria-hidden />
+                    ) : (
+                      <GitMerge className="size-3.5" aria-hidden />
+                    )}
+                    {breakdown ? "Create the items" : "Apply change"}
                   </Button>
                 }
               >
@@ -2563,9 +2795,9 @@ function PullRequestView({
                     ours={ours}
                     theirs={theirs}
                     pending={pending}
-                    action={`Commit resolution to ${sourceName}`}
-                    oursLabel={`${sourceName} (this pull request)`}
-                    theirsLabel={targetName}
+                    action={`Save the resolution to ${sourceName}`}
+                    oursLabel={`${sourceName} (this change)`}
+                    theirsLabel={targetLabel}
                     onCancel={() => setResolving(false)}
                     onResolve={(snapshot) =>
                       void run(
@@ -2585,25 +2817,35 @@ function PullRequestView({
                 )}
               </MergeBox>
             ) : (
-              <MergedNotice>
-                <p>
-                  Merged. The reviewed content is recorded in the target branch
-                  history.
-                  {automaticallyDeleted && (
-                    <>
-                      {" "}
-                      Lictory automatically deleted the branch{" "}
-                      <BranchName>{sourceName}</BranchName>.
-                    </>
-                  )}
-                  {source && isMain(target) && !willDeleteSource && (
-                    <>
-                      {" "}
-                      The source branch is retained because another active pull
-                      request uses it.
-                    </>
-                  )}
-                </p>
+              <MergedNotice label="Applied">
+                {breakdown ? (
+                  <p>
+                    Created. The reviewed breakdown is part of the
+                    specification&apos;s history, and its items are below the
+                    specification.
+                  </p>
+                ) : (
+                  <p>
+                    Applied. The reviewed text is part of{" "}
+                    {isMain(target)
+                      ? "the specification's history"
+                      : `${targetName}'s versions`}
+                    .
+                    {automaticallyDeleted && (
+                      <>
+                        {" "}
+                        Lictory closed the change{" "}
+                        <BranchName>{sourceName}</BranchName>.
+                      </>
+                    )}
+                    {source && isMain(target) && !willDeleteSource && (
+                      <>
+                        {" "}
+                        The change is kept because another open review uses it.
+                      </>
+                    )}
+                  </p>
+                )}
               </MergedNotice>
             )}
             <TabPanel value="commits">
@@ -2629,7 +2871,7 @@ function PullRequestView({
                         variant="secondary"
                         size="sm"
                         onClick={() => {
-                          setDraft({ section: "Merge result" });
+                          setDraft({ section: "Proposed result" });
                           setTab("conversation");
                         }}
                       >
@@ -2643,13 +2885,14 @@ function PullRequestView({
                   <SpecDiff
                     before={before.content}
                     after={display.content}
-                    beforeLabel={targetName}
+                    beforeLabel={targetLabel}
                     afterLabel={
-                      p.status === "merged" ? "Merged" : "This change"
+                      p.status === "merged" ? "Applied" : "This change"
                     }
                   />
                   <BreakdownProposal
                     includeApplied
+                    created={p.status === "merged"}
                     proposals={pendingEntries(
                       display.proposedChildren,
                       before.proposedChildren,
@@ -2658,8 +2901,7 @@ function PullRequestView({
                 </>
               ) : (
                 <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                  The merge result is unavailable until the conflicts are
-                  resolved.
+                  The result is unavailable until the conflicts are resolved.
                 </p>
               )}
             </TabPanel>
@@ -2679,6 +2921,7 @@ function PullRequestView({
               {display && (
                 <BreakdownProposal
                   includeApplied
+                  created={p.status === "merged"}
                   proposals={pendingEntries(
                     display.proposedChildren,
                     before?.proposedChildren,
@@ -2828,6 +3071,23 @@ function PullRequestView({
                             ))}
                           </div>
                         )}
+                      {/* Approving here approves the whole merged text,
+                          which main keeps as this discipline's approval of
+                          the new revision: say so before the click. */}
+                      {assigned &&
+                        !readOnly &&
+                        specificationPullRequest.allows(p.status, "review") &&
+                        heads &&
+                        !contributed &&
+                        !r.decision &&
+                        isMain(target) && (
+                          <p className="pl-6 text-xs text-muted-foreground">
+                            Approving approves the whole specification as it
+                            reads once this change applies, not only the change:
+                            it becomes {role?.name ?? "this discipline"}&apos;s
+                            approval of revision {item.revisionNumber + 1}.
+                          </p>
+                        )}
                       {assigned &&
                         !readOnly &&
                         specificationPullRequest.allows(p.status, "review") &&
@@ -2886,31 +3146,40 @@ function PullRequestView({
                   </div>
                 )}
               {p.status === "open" && (
-                <p className="text-[11px] text-muted-foreground">
-                  Approvals apply to the exact merge result. Any new commit on
-                  either branch asks reviewers again.
+                <p className="text-xs text-muted-foreground">
+                  Approvals cover the whole specification as it would read after
+                  this change
+                  {isMain(target)
+                    ? `; ${breakdown ? "creating the items" : "applying"} records them as approvals of revision ${item.revisionNumber + 1}`
+                    : ""}
+                  . A new version of this change, or a new revision of the
+                  specification, asks reviewers again.
                 </p>
               )}
             </section>
-            <section className="space-y-2">
-              <SectionLabel>Lictory Actions</SectionLabel>
-              {actionRuns.length || policy !== "off" ? (
-                <ActionCheckRow
-                  pullRequestId={p.id}
-                  sourceHeadId={source?.headId}
-                  onDetails={() => setTab("checks")}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-                  onClick={() => setTab("checks")}
-                >
-                  No Lictory Actions have run on this pull request.
-                </button>
-              )}
-            </section>
-            <section className="space-y-2 border-t pt-4">
+            {/* Automated checks matter while the change is decided; an
+                applied review that never ran any has nothing to show. */}
+            {(p.status !== "merged" || actionRuns.length > 0) && (
+              <section className="space-y-2">
+                <SectionLabel>Lictory Actions</SectionLabel>
+                {actionRuns.length || policy !== "off" ? (
+                  <ActionCheckRow
+                    pullRequestId={p.id}
+                    sourceHeadId={source?.headId}
+                    onDetails={() => setTab("checks")}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                    onClick={() => setTab("checks")}
+                  >
+                    No Lictory Actions have run on this review.
+                  </button>
+                )}
+              </section>
+            )}
+            <section className="space-y-2 border-t pt-4 empty:hidden">
               {manage &&
                 specificationPullRequest.allows(p.status, "markDraft") && (
                   <Button
@@ -2924,15 +3193,15 @@ function PullRequestView({
                     Convert to draft
                   </Button>
                 )}
+              {/* An applied review is the record of who approved which
+                  result: it is never deleted. */}
               {!readOnly &&
+                specificationPullRequest.allows(p.status, "close") &&
                 (p.authorId === userId || capabilities.editSpecifications) && (
                   <DeletePrompt
-                    name={`pull request “${p.title}”`}
-                    detail={
-                      p.status === "merged"
-                        ? "The merged content stays in the specification."
-                        : "The branch is kept."
-                    }
+                    verb="Withdraw"
+                    name={`“${p.title}” from review`}
+                    detail="The change and its versions are kept; you can send it for review again."
                     onDelete={() =>
                       run(
                         {
@@ -2949,8 +3218,8 @@ function PullRequestView({
                         size="sm"
                         className="w-full justify-start hover:text-destructive"
                       >
-                        <Trash2 className="size-3.5" />
-                        Delete pull request
+                        <Undo2 className="size-3.5" />
+                        Withdraw from review
                       </Button>
                     }
                   />

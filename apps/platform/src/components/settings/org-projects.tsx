@@ -54,7 +54,7 @@ export function OrganizationProjects() {
         id="projects"
         icon={<FolderKanban />}
         title="Projects"
-        description="A project is a product area with its own key, workflow, delivery and people. Configure each one in its settings. Archiving hides a project and keeps its work; restore it at any time."
+        description="Product areas, each with its own key, workflow and people. Archiving hides a project and keeps its work."
         action={
           isAdmin && !creating ? (
             <Button

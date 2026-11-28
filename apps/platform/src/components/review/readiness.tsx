@@ -19,7 +19,7 @@ export function Readiness() {
   const passed = checks.filter((c) => c.passed).length;
   const latest = directory.readiness.find((r) => r.projectId === project.id);
   return (
-    <section>
+    <section data-rail-section="readiness" className="scroll-mt-4">
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>Readiness</SectionLabel>
         {checks.length > 0 && (
@@ -36,9 +36,14 @@ export function Readiness() {
         )}
       </div>
       {checks.length > 0 && (
-        // One segment per check, so progress reads at a glance.
+        // One segment per check, filled from the left (passing, then
+        // blocking, then waiting), so it reads as progress at a glance.
         <div aria-hidden className="mb-3 flex gap-1">
-          {checks.map((c) => (
+          {[
+            ...checks.filter((c) => c.passed),
+            ...checks.filter(blocks),
+            ...checks.filter((c) => !c.passed && !blocks(c)),
+          ].map((c) => (
             <span
               key={c.key}
               className={cn(
@@ -47,7 +52,9 @@ export function Readiness() {
                   ? "bg-success"
                   : blocks(c)
                     ? "bg-destructive"
-                    : "bg-foreground/10",
+                    : // An unmet check is an empty slot whose outline
+                      // keeps 3:1 against the card (WCAG 1.4.11).
+                      "inset-ring inset-ring-input",
               )}
             />
           ))}
@@ -67,13 +74,27 @@ export function Readiness() {
           ))}
         </ul>
       )}
-      <p className="mt-2 text-[11px] text-muted-foreground">
+      <p className="mt-2 text-xs text-muted-foreground">
         {item.refinementState === "ready"
-          ? "All checks pass for this revision. The specification is ready for delivery; readiness does not accept, schedule or start the work."
-          : "The specification becomes Ready automatically when every check passes."}
+          ? "All checks pass for this revision."
+          : "The specification becomes Ready automatically when every check passes."}{" "}
+        {/* One concept, one name: these checks are the project's
+            Definition of Ready, as its settings page calls them. */}
+        The checks come from the project’s{" "}
+        <Link
+          href={paths.projectSettings(
+            organization.slug,
+            project.key,
+            "readiness",
+          )}
+          className="underline underline-offset-2 hover:text-foreground"
+        >
+          Definition of Ready
+        </Link>
+        .
       </p>
       {readiness?.pinned && latest && (
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           Kept on Definition of Ready{" "}
           {readiness.policyRevisionNumber
             ? `version ${readiness.policyRevisionNumber}`

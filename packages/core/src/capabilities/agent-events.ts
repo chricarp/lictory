@@ -111,7 +111,15 @@ const waitForEvents = defineCapability({
       .min(1)
       .max(64)
       .describe("Cursor from listEvents or a previous wait."),
-    timeoutSeconds: z.number().int().min(0).max(MAX_WAIT_SECONDS).optional(),
+    timeoutSeconds: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_WAIT_SECONDS)
+      .optional()
+      .describe(
+        `How long to wait for an event, in seconds (default and most ${MAX_WAIT_SECONDS}).`,
+      ),
     limit: z.number().int().min(1).max(100).optional(),
     ...feedInput,
   }),
@@ -159,7 +167,7 @@ const setAgentEventPolicyCapability = defineCapability({
 // ---------------------------------------------------------------- webhooks
 
 const where =
-  "Factory → Agents → the agent's Wake-ups, or Account settings → Integrations → Event webhooks";
+  "Factory → Agents → the agent's Wake-ups, or Account settings → Event webhooks";
 const credentials = { reason: "credentials" as const, where };
 
 const listEventSubscriptions = defineCapability({

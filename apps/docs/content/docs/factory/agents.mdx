@@ -69,9 +69,31 @@ its client need not ask over and over. Choose **New webhook** for a client
 that starts from a URL and a key (Claude routines, Grok, OpenClaw hooks):
 its name, the URL, the bearer secret and the event types, then **Test** it.
 Each wake-up shows whether it is active, what it delivered and the last
-problem; **Pause**, **Resume** and **Remove** it there. Clients that support
+problem; while a receiver fails it also shows how many attempts failed and
+when it tries again. **Pause**, **Resume** and **Remove** it there. Clients that support
 MCP Events subscribe themselves with the agent's token and appear here too.
 See [AI agents and MCP](/integrations/agents#wake-your-agent-when-something-waits-on-you).
+
+## Claimed work
+
+**Claimed work** lists the work items the agent holds now, with each
+claim's state ("Running", "Waiting on Ada"): the same claim the item, the
+board and the Factory queue show, whether the agent took it with its token
+or the Build policy's dispatcher took it for one of its sessions.
+
+## Recent activity
+
+Its owner sees what the agent did under **Recent activity**: every tool it
+called with one of its tokens (its own or its sessions'), what it named (a
+work item key, a session), when, and whether it worked or was refused, with
+the refusal it got ("Agents never answer approval requests…"). What it sent
+is never recorded. For an agent that runs on a runner the panel is named
+**Actions in Lictory**: it lists what the agent called in Lictory itself
+with its tokens (comments, claims it took, branches), while claims the
+dispatcher took for its sessions are under **Claimed work** and its work in
+each session is in that session's transcript. Organization
+administrators see every agent's calls in the
+[audit log](/organization/audit).
 
 ## Archive an agent
 

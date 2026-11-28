@@ -1,21 +1,44 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Archive, History, Info, Pencil, Play, RotateCcw } from "lucide-react";
-import type { AgentEntity } from "@lictory/core/factory/entities";
+import {
+  Activity,
+  Archive,
+  Hand,
+  History,
+  Info,
+  MoreHorizontal,
+  Pencil,
+  Play,
+  RotateCcw,
+} from "lucide-react";
+import {
+  withoutAsking,
+  type AgentEntity,
+} from "@lictory/core/factory/entities";
+import { harnessLabels } from "@lictory/core/factory/protocol";
 import { Button } from "@lictory/ui/button";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@lictory/ui/menu";
 import { EmptyState } from "@lictory/ui/primitives";
 import { LoadingState } from "@lictory/ui/spinner";
 import { StatusChip } from "@lictory/ui/status-chip";
 import { Link, useParams } from "@lictory/platform/lib/navigation";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { identifier } from "@lictory/core/lib/work-items";
+import { paths } from "@lictory/core/lib/paths";
 import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { Panel } from "@lictory/platform/components/shell/panel";
+import { ListRow } from "@lictory/platform/components/shell/list-row";
+import { callCapability } from "@lictory/core/capabilities/client";
 import {
   Actor,
   AgentAvatar,
 } from "@lictory/platform/components/identity/actor";
 import { SessionRow } from "@lictory/platform/components/factory/parts";
+import { useLiveClaims } from "@lictory/platform/components/claims/claims";
+import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
 import { factoryPaths } from "@lictory/platform/components/factory/paths";
 import { useFactory } from "@lictory/platform/components/factory/store";
+import { useChannels } from "@lictory/platform/components/channels/store";
+import { channelLabel } from "@lictory/platform/components/channels/data";
 import { StartSessionDialog } from "@lictory/platform/components/factory/start-session";
 import {
   AgentDialog,
@@ -107,10 +130,11 @@ export function AgentPage() {
               <Button
                 variant="ghost"
                 aria-label={`Edit ${agent.name}`}
+                className="max-sm:hidden"
                 onClick={() => setEditing(true)}
               >
                 <Pencil className="size-3.5" aria-hidden />
-                <span className="max-sm:hidden">Edit</span>
+                Edit
               </Button>
             )}
             {canArchive && (
@@ -119,6 +143,7 @@ export function AgentPage() {
                 aria-label={
                   archived ? `Restore ${agent.name}` : `Archive ${agent.name}`
                 }
+                className="max-sm:hidden"
                 onClick={() => void toggleArchived(organization.id, agent)}
               >
                 {archived ? (
@@ -126,10 +151,48 @@ export function AgentPage() {
                 ) : (
                   <Archive className="size-3.5" aria-hidden />
                 )}
-                <span className="max-sm:hidden">
-                  {archived ? "Restore" : "Archive"}
-                </span>
+                {archived ? "Restore" : "Archive"}
               </Button>
+            )}
+            {/* On phones Edit and Archive are words in one menu, not two
+                unlabelled glyphs side by side where Archive is a mis-tap
+                away from Edit. */}
+            {((mine && !archived) || canArchive) && (
+              <Menu>
+                <MenuTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`More actions for ${agent.name}`}
+                      className="sm:hidden"
+                    >
+                      <MoreHorizontal className="size-4" aria-hidden />
+                    </Button>
+                  }
+                />
+                <MenuContent align="end">
+                  {mine && !archived && (
+                    <MenuItem onSelect={() => setEditing(true)}>
+                      <Pencil className="size-3.5" aria-hidden /> Edit
+                    </MenuItem>
+                  )}
+                  {canArchive && (
+                    <MenuItem
+                      onSelect={() =>
+                        void toggleArchived(organization.id, agent)
+                      }
+                    >
+                      {archived ? (
+                        <RotateCcw className="size-3.5" aria-hidden />
+                      ) : (
+                        <Archive className="size-3.5" aria-hidden />
+                      )}
+                      {archived ? "Restore" : "Archive"}
+                    </MenuItem>
+                  )}
+                </MenuContent>
+              </Menu>
             )}
           </>
         }
@@ -166,6 +229,10 @@ export function AgentPage() {
               <SessionRow key={session.id} session={session} agent={agent} />
             ))}
           </Panel>
+          {agent.kind !== "intelligence" && <ClaimedWork agent={agent} />}
+          {mine && agent.kind !== "intelligence" && (
+            <RecentActivity agent={agent} />
+          )}
         </div>
       </div>
       {editing && (
@@ -190,8 +257,13 @@ function About({ agent }: { agent: AgentEntity }) {
   const facts: [string, ReactNode][] = [
     [
       "Owner",
-      <span key="owner" className="inline-flex items-center gap-1.5">
-        <Actor userId={agent.ownerId} size={16} />
+      // The accountable person is never the part that is cut: on a
+      // narrow screen the explanation wraps below the name instead.
+      <span
+        key="owner"
+        className="inline-flex flex-wrap items-center gap-x-1.5"
+      >
+        <Actor userId={agent.ownerId} size={16} className="shrink-0" />
         <span className="text-muted-foreground">
           · acts with their permissions
         </span>
@@ -217,6 +289,7 @@ function About({ agent }: { agent: AgentEntity }) {
     ],
     ...(agent.kind === "runner"
       ? ([
+          ["Without asking", <WithoutAsking key="asking" agent={agent} />],
           [
             "Sessions",
             agent.shared
@@ -243,6 +316,246 @@ function About({ agent }: { agent: AgentEntity }) {
           ))}
         </dl>
       </li>
+    </Panel>
+  );
+}
+
+// The work items the agent holds now, from the same live claims the item
+// page, the board and the queue draw: a claim the dispatcher took for a
+// session is the agent's as much as one it took with its own token, so it
+// is listed here and never contradicts the item.
+function ClaimedWork({ agent }: { agent: AgentEntity }) {
+  const { organization, items, projects } = useWorkspace();
+  const claims = useLiveClaims();
+  const held = useMemo(
+    () =>
+      [...claims.values()]
+        .filter((c) => c.agentId === agent.id)
+        .sort((a, b) => b.claimedAt.localeCompare(a.claimedAt))
+        .flatMap((claim) => {
+          const item = items.find((i) => i.id === claim.workItemId);
+          const project = item && projects.find((p) => p.id === item.projectId);
+          return item && project ? [{ claim, item, project }] : [];
+        }),
+    [claims, items, projects, agent.id],
+  );
+  return (
+    <Panel
+      title="Claimed work"
+      icon={<Hand />}
+      count={held.length}
+      empty={`${agent.name} holds no work item now.`}
+    >
+      {held.map(({ claim, item, project }) => {
+        const key = identifier(project, item.number);
+        return (
+          <ListRow
+            key={claim.id}
+            href={paths.item(organization.slug, project.key, key)}
+            identifier={key}
+            title={item.title}
+            chips={
+              <ClaimBadge
+                claim={claim}
+                assigneeId={item.assigneeId}
+                withAgent={false}
+              />
+            }
+            time={claim.claimedAt}
+          />
+        );
+      })}
+    </Panel>
+  );
+}
+
+type AgentCall = {
+  id: string;
+  at: string;
+  capability: string;
+  outcome: string;
+  durationMs: number;
+  tokenName: string;
+  sessionId: string | null;
+  // The subject it named and, when refused, what it was told.
+  detail: {
+    target?: { field: string; id: string };
+    message?: string;
+    kind?: string;
+  } | null;
+};
+
+// "Scout is an agent: “Decide review” is a person's decision, made in the
+// work item's specification → Reviews (Approve or Request changes). …" →
+// its first sentence. A period inside parentheses or a name does not end it.
+function firstSentence(text: string) {
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "(" || c === "“") depth++;
+    else if ((c === ")" || c === "”") && depth > 0) depth--;
+    else if (
+      c === "." &&
+      depth === 0 &&
+      (i + 1 === text.length || text[i + 1] === " ")
+    )
+      return text.slice(0, i + 1);
+  }
+  return text;
+}
+
+const targetNouns: Record<string, string> = {
+  sessionId: "session",
+  pullRequestId: "pull request",
+  claimId: "claim",
+  reviewId: "review",
+  threadId: "discussion",
+  suggestionId: "suggestion",
+  specificationId: "specification",
+  pageId: "page",
+  channelId: "channel",
+  projectId: "project",
+  agentId: "agent",
+  runnerId: "runner",
+};
+
+// What the agent's harness does before a person is asked, as the runners
+// that can run it report their configuration; said plainly when unknown.
+// Approval requests only reach people for what the harness asks.
+function WithoutAsking({ agent }: { agent: AgentEntity }) {
+  const { runners } = useFactory();
+  const id = agent.harness;
+  if (!id) return <span className="text-muted-foreground">Unknown</span>;
+  const harness = harnessLabels[id];
+  const able = runners.filter(
+    (r) =>
+      !r.revokedAt &&
+      (!r.ownerId || r.ownerId === agent.ownerId) &&
+      r.harnesses.some((h) => h.id === id),
+  );
+  if (!able.length)
+    return (
+      <span className="text-muted-foreground">
+        Unknown until a runner with {harness} connects: each runner’s
+        configuration decides it.
+      </span>
+    );
+  const said = able.map((r) => ({
+    runner: r.name,
+    text: withoutAsking(id, r.harnesses.find((h) => h.id === id)?.permissions),
+  }));
+  const distinct = new Set(said.map((s) => s.text));
+  const unknown = `Unknown: ${distinct.size === 1 && able.length > 1 ? "its runners do" : "the runner does"} not report it (an older runner version). The runner’s configuration decides what ${harness} does without asking.`;
+  if (distinct.size === 1) return <span>{said[0]!.text ?? unknown}</span>;
+  return (
+    <ul className="space-y-1">
+      {said.map((s) => (
+        <li key={s.runner}>
+          <span className="font-medium">{s.runner}:</span> {s.text ?? unknown}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// What the agent did with its tokens, as Lictory recorded it: each tool it
+// called, what it named, when, and whether it worked, with the refusal it
+// got (inputs are never recorded). Its owner's view; administrators see
+// every agent's calls in the audit log.
+function RecentActivity({ agent }: { agent: AgentEntity }) {
+  const { organization, items, projects, memberName } = useWorkspace();
+  const { byId: channelById } = useChannels();
+  const { agentById, sessions } = useFactory();
+  // What the call named, by its name: a work item by its key, a channel
+  // as "#field-devices", a project, an agent or a session by name. An id
+  // only for what this browser cannot name.
+  const targetLabel = (target: { field: string; id: string } | undefined) => {
+    if (!target) return null;
+    if (target.field === "workItemId" || target.field === "key") {
+      const item = items.find((i) => i.id === target.id);
+      const project = item && projects.find((p) => p.id === item.projectId);
+      return item && project
+        ? identifier(project, item.number)
+        : target.id.toUpperCase();
+    }
+    const channel =
+      target.field === "channelId" ? channelById.get(target.id) : undefined;
+    const name = channel
+      ? channelLabel(
+          channel,
+          memberName,
+          (id) => agentById.get(id)?.name ?? "agent",
+        )
+      : target.field === "projectId"
+        ? projects.find((p) => p.id === target.id)?.key
+        : target.field === "agentId"
+          ? agentById.get(target.id)?.name
+          : target.field === "sessionId"
+            ? sessions.find((s) => s.id === target.id)?.title
+            : undefined;
+    if (name) return channel && channel.kind !== "direct" ? `#${name}` : name;
+    return `${targetNouns[target.field] ?? "on"} ${target.id.slice(0, 8)}`;
+  };
+  const [calls, setCalls] = useState<AgentCall[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    callCapability<{ calls: AgentCall[] }>("listAgentActivity", {
+      organizationId: organization.id,
+      agentId: agent.id,
+    }).then(
+      (result) => live && setCalls(result.calls),
+      () => live && setCalls([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [organization.id, agent.id]);
+  if (!calls) return null;
+  return (
+    <Panel
+      // A runner agent works in sessions (their transcripts say what it
+      // did); this lists only what it did in Lictory itself, so the title
+      // says so and an empty list does not read as an idle agent.
+      title={agent.kind === "runner" ? "Actions in Lictory" : "Recent activity"}
+      icon={<Activity />}
+      count={calls.length}
+      empty={
+        agent.kind === "runner"
+          ? `None yet: ${agent.name} has not called Lictory with its tokens. Work it holds is under Claimed work, and its work in each session is in that session’s transcript.`
+          : `${agent.name} has not called Lictory with its tokens yet.`
+      }
+    >
+      {calls.map((call) => (
+        <ListRow
+          key={call.id}
+          identifier={targetLabel(call.detail?.target) ?? undefined}
+          title={<span className="font-mono text-xs">{call.capability}</span>}
+          meta={
+            call.detail?.message ? (
+              // One line per call: the refusal's first sentence says what
+              // was refused and where a person does it; the rest (the rule
+              // and what the agent may do instead) is for the agent, and
+              // stays one hover or focus away.
+              <span title={call.detail.message} className="truncate">
+                {firstSentence(call.detail.message)}
+              </span>
+            ) : (
+              `${call.sessionId ? "A session's token" : call.tokenName} · ${call.durationMs} ms`
+            )
+          }
+          chips={
+            call.outcome === "ok" ? undefined : (
+              <StatusChip tone="danger">
+                {call.outcome === "server" || call.outcome === "external"
+                  ? "Failed"
+                  : "Refused"}
+                : {call.outcome.replaceAll("_", " ")}
+              </StatusChip>
+            )
+          }
+          time={call.at}
+        />
+      ))}
     </Panel>
   );
 }

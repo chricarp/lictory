@@ -5,6 +5,7 @@ import { Avatar } from "@lictory/ui/primitives";
 import { Button } from "@lictory/ui/button";
 import { InlineError } from "@lictory/platform/components/workspace/settings-section";
 import { authClient } from "@lictory/platform/lib/auth-client";
+import { useSessionUser } from "@lictory/platform/lib/session";
 import {
   ACCEPT_PROFILE_PHOTO,
   MAX_PROFILE_PHOTO_SIZE,
@@ -21,6 +22,7 @@ export function ProfilePhoto({
   name: string;
   image: string | null;
 }) {
+  const userId = useSessionUser().id;
   // Do not accept a selection before React has attached the change handler.
   const ready = useSyncExternalStore(subscribe, clientReady, serverReady);
   const input = useRef<HTMLInputElement>(null);
@@ -82,6 +84,7 @@ export function ProfilePhoto({
     <div className="space-y-3">
       <div className="flex items-center gap-4">
         <Avatar
+          userId={userId}
           name={name}
           image={file ? preview : image}
           preview={!!file}

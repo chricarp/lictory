@@ -24,6 +24,10 @@ import {
   useSignInOptions,
 } from "@lictory/platform/lib/session";
 import { PageTitle } from "@lictory/platform/routes/title";
+import {
+  OnboardingFrame,
+  OnboardingHeading,
+} from "@lictory/platform/components/workspace/onboarding-frame";
 
 // Account flows: public pages inside the auth layout. Every destination after
 // a step comes from `callbackUrl`/`next` and is limited to this app.
@@ -308,13 +312,14 @@ export function WelcomePage() {
       cancelled = true;
     };
   }, []);
+  // The first step of setting up: drawn like the steps that follow it.
   return (
-    <>
+    <OnboardingFrame accountLink={false}>
       <PageTitle title="Choose your handle" />
-      <AuthHeading
-        title="Choose your handle"
-        description="How teammates @mention you. You can change it later."
-      />
+      <OnboardingHeading title="Choose your handle">
+        How teammates and agents @mention you in channels and discussions. You
+        can change it later.
+      </OnboardingHeading>
       {data ? (
         <HandleForm
           initial={data.suggestions[0] ?? ""}
@@ -324,6 +329,6 @@ export function WelcomePage() {
       ) : (
         <LoadingState label="Preparing suggestions" />
       )}
-    </>
+    </OnboardingFrame>
   );
 }

@@ -143,9 +143,27 @@ export const auditActions = {
     category: "access",
     label: "Unlinked a channel from Slack",
   },
+  // Autopilot (docs/internals/claims.md#the-dispatcher): Lictory merged an
+  // agent's pull request under a project's autonomy policy. The actor is
+  // the administrator whose policy authorized it.
+  "autopilot.merged": {
+    category: "agent",
+    label: "Autopilot merged a pull request",
+  },
+  // The Definition of Done (docs/internals/claims.md): a person passed a
+  // check without its evidence, or withdrew that. Sign-offs are evidence
+  // and stay in the item's history only.
+  "done_check.overridden": {
+    category: "agent",
+    label: "Passed a Definition of Done check by hand",
+  },
+  "done_check.override_withdrawn": {
+    category: "agent",
+    label: "Withdrew a Definition of Done override",
+  },
 } as const satisfies Record<
   string,
-  { category: Exclude<AuditCategory, "configuration" | "agent">; label: string }
+  { category: Exclude<AuditCategory, "configuration">; label: string }
 >;
 export type AuditAction = keyof typeof auditActions;
 

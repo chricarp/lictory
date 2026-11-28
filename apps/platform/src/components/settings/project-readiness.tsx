@@ -502,7 +502,7 @@ function RuleSwitch({
       checked={on}
       disabled={disabled}
       onCheckedChange={() => onToggle()}
-      className="relative m-0 inline-flex h-4 w-7 shrink-0 cursor-default items-center rounded-full border-0 bg-muted-foreground/25 p-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-primary data-disabled:opacity-60"
+      className="relative m-0 inline-flex h-4 w-7 shrink-0 cursor-default items-center rounded-full border-0 bg-input p-0 outline-none focus-visible:ring-2 focus-visible:ring-ring/60 data-checked:bg-primary data-disabled:opacity-60"
     >
       <SwitchThumb className="inline-block size-3 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform duration-150 data-checked:translate-x-3.5" />
     </Switch>
@@ -721,7 +721,7 @@ function CustomSentence({
           <ChipInput
             value={check.label}
             label="Sign-off name"
-            placeholder="Designs attached"
+            placeholder="e.g. Designs attached"
             canEdit={canEdit}
             onChange={(label) => onChange({ ...check, label })}
           />
@@ -734,7 +734,7 @@ function CustomSentence({
               onChange={(e) =>
                 onChange({ ...check, description: e.target.value || null })
               }
-              className="mt-0.5 block w-full bg-transparent text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60 touch:text-base"
+              className="mt-0.5 block w-full bg-transparent text-xs text-muted-foreground outline-none placeholder:text-placeholder touch:text-base"
             />
           ) : (
             check.description && (
@@ -1068,7 +1068,7 @@ function Review({
             maxLength={500}
             placeholder="Why is this changing? (shown in history)"
             aria-label="Change summary"
-            className="h-8 min-w-48 flex-1 rounded-md border bg-card px-2.5 text-[13px] outline-none focus:border-primary/60 touch:text-base"
+            className="h-8 min-w-48 flex-1 rounded-md border border-input bg-card px-2.5 text-[13px] outline-none focus:border-primary/60 touch:text-base"
           />
           <Button variant="ghost" size="md" onClick={onBack}>
             Back

@@ -1,5 +1,11 @@
 import { useId, useMemo, useState } from "react";
-import { Check, CircleCheck, CircleDashed, FileText } from "lucide-react";
+import {
+  Check,
+  CircleCheck,
+  CircleDashed,
+  FileText,
+  TriangleAlert,
+} from "lucide-react";
 import {
   Combobox,
   ComboboxContent,
@@ -59,6 +65,11 @@ export function startableAgents(
 
 // The repositories offered: those serving the item's project when there is
 // one (its default first), else every linked one; archived ones never.
+// `fallback` is where the session works unless the person picks another:
+// the project's default (or its only repository), the server's own choice
+// for an item. `only` is the one repository linked at all, chosen up front
+// for a session with no item, so the default is not a scratch workspace
+// whose work is discarded; the person can still pick None.
 export function repositoryChoices(
   repositories: readonly CodeRepositoryEntity[],
   projectId: string | null,
@@ -72,16 +83,20 @@ export function repositoryChoices(
       serving[0] ??
       null)
     : null;
-  return { repositories: serving, fallback };
+  const only = !projectId && serving.length === 1 ? serving[0]! : null;
+  return { repositories: serving, fallback, only };
 }
 export function StartSessionDialog({
   onClose,
   agentId: initialAgent,
   workItemId: initialItem,
+  prompt: initialPrompt,
 }: {
   onClose: () => void;
   agentId?: string;
   workItemId?: string;
+  // Starting again what an earlier session was asked.
+  prompt?: string;
 }) {
   const { organization, userId, items } = useWorkspace();
   const { agents } = useFactory();
@@ -90,13 +105,14 @@ export function StartSessionDialog({
   const [agentId, setAgentId] = useState(
     initialAgent ?? startable[0]?.id ?? "",
   );
-  const [prompt, setPrompt] = useState("");
+  const [prompt, setPrompt] = useState(initialPrompt ?? "");
   const [workItemId, setWorkItemId] = useState<string | null>(
     initialItem ?? null,
   );
   const { repositories } = useCodeHosts();
-  // A linked repository (by id), the project's default, or an address.
-  const [repository, setRepository] = useState<string>(DEFAULT);
+  // A linked repository (by id), the project's default, or an address;
+  // null until the person picks one.
+  const [repository, setRepository] = useState<string | null>(null);
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [baseBranch, setBaseBranch] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -115,16 +131,21 @@ export function StartSessionDialog({
     [repositories, item?.projectId],
   );
   // A repository that does not serve the item's project falls back.
+  const picked = repository ?? choices.only?.id ?? DEFAULT;
   const choice =
-    repository === OTHER ||
-    choices.repositories.some((r) => r.id === repository)
-      ? repository
+    picked === OTHER || choices.repositories.some((r) => r.id === picked)
+      ? picked
       : DEFAULT;
   const chosenUrl =
     choice === OTHER
       ? repositoryUrl.trim()
       : (choices.repositories.find((r) => r.id === choice)?.webUrl ?? "");
 
+  // Nothing to clone: no linked repository chosen, no project default
+  // and no address.
+  const noRepository =
+    !chosenUrl &&
+    (choice === OTHER || !repositories.length || !choices.fallback);
   const submit = async () => {
     setPending(true);
     setError(null);
@@ -179,6 +200,7 @@ export function StartSessionDialog({
               id={ids.agent}
               value={agentId}
               onValueChange={setAgentId}
+              size="lg"
               className="w-full"
             >
               {startable.map((agent) => (
@@ -215,7 +237,7 @@ export function StartSessionDialog({
             onChange={(event) => setPrompt(event.target.value)}
             rows={5}
             maxLength={20_000}
-            placeholder="Implement the refund endpoint described in PAY-142, with tests."
+            placeholder="e.g. Implement the refund endpoint described in PAY-142, with tests."
             className={cn(
               inputClass,
               "h-auto min-h-28 resize-y py-2.5 text-[14px] leading-6",
@@ -252,6 +274,7 @@ export function StartSessionDialog({
                 id={ids.repository}
                 value={choice}
                 onValueChange={setRepository}
+                size="lg"
                 className="w-full"
               >
                 <DropdownSelectOption
@@ -299,18 +322,34 @@ export function StartSessionDialog({
                 }
                 value={repositoryUrl}
                 onChange={(event) => setRepositoryUrl(event.target.value)}
-                placeholder="https://github.com/acme/payments.git"
+                placeholder="e.g. https://github.com/acme/payments.git"
                 autoComplete="off"
                 spellCheck={false}
               />
             )}
-            <p className="text-xs text-muted-foreground">
-              {choice === OTHER || !repositories.length
-                ? "Cloned with the runner’s own git credentials."
-                : item
-                  ? "The project’s repositories, cloned with a short-lived credential."
-                  : "Linked repositories, cloned with a short-lived credential."}
-            </p>
+            {noRepository ? (
+              // Said before it starts: the work of a session with no
+              // repository is discarded with its scratch workspace.
+              <p
+                data-no-repository
+                className="flex items-start gap-1.5 text-xs font-medium text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))]"
+              >
+                <TriangleAlert
+                  aria-hidden
+                  className="mt-px size-3.5 shrink-0"
+                />
+                No repository: it works in a scratch workspace, and files it
+                changes are discarded when the session ends.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {choice === OTHER || !repositories.length
+                  ? "Cloned with the runner’s own git credentials."
+                  : item
+                    ? "The project’s repositories, cloned with a short-lived credential."
+                    : "Linked repositories, cloned with a short-lived credential."}
+              </p>
+            )}
           </div>
           <div className="min-w-0 space-y-1.5">
             <label htmlFor={ids.base} className="text-[13px] font-medium">

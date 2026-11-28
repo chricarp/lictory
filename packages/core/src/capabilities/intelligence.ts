@@ -28,7 +28,11 @@ import {
 
 const file = z
   .object({
-    filename: z.string().min(1).max(255),
+    filename: z
+      .string()
+      .min(1)
+      .max(255)
+      .describe("File name with its extension, such as runbook.pdf."),
     contentBase64: z
       .string()
       .max(Math.ceil((MAX_CONTEXT_DOCUMENT_SIZE * 4) / 3) + 4)
@@ -38,7 +42,7 @@ const file = z
     "A document (PDF, Word, Markdown, text…) converted to Markdown on the server. Replaces `content`.",
   );
 const body = {
-  title: z.string().max(200),
+  title: z.string().max(200).describe("Entry title."),
   content: z.string().optional().describe("Markdown note content."),
   file: file.optional(),
 };
@@ -110,8 +114,15 @@ const createContext = defineCapability({
   idempotent: true,
   input: z.object({
     organizationId,
-    target: contextTarget,
-    idempotencyKey: z.uuid().optional(),
+    target: contextTarget.describe(
+      'Where the entry applies: { scope: "organization" }, { scope: "project", projectId } or { scope: "team", teamId }.',
+    ),
+    idempotencyKey: z
+      .uuid()
+      .optional()
+      .describe(
+        "Retry key: retrying with the same value returns the first result.",
+      ),
     ...body,
   }),
   async run(ctx, input) {
@@ -137,7 +148,12 @@ const reviseContext = defineCapability({
   input: z.object({
     organizationId,
     entryId: id,
-    idempotencyKey: z.uuid().optional(),
+    idempotencyKey: z
+      .uuid()
+      .optional()
+      .describe(
+        "Retry key: retrying with the same value returns the first result.",
+      ),
     ...body,
   }),
   async run(ctx, input) {

@@ -33,12 +33,14 @@ main() {
   dir="${LICTORY_TRY_DIR:-$HOME/lictory-try}"
   admin_email="${LICTORY_ADMIN_EMAIL:-admin@example.com}"
   organization="${LICTORY_ORGANIZATION:-Evaluation}"
-  [ "$#" -eq 0 ] || fail "try.sh takes no arguments; stop or remove the trial with the docker compose commands it prints."
+  case "${1:-}" in -h | --help) usage; return 0 ;; esac
+  [ "$#" -eq 0 ] || usage_fail "try.sh takes no arguments (--help explains it); stop or remove the trial with the trial script it prints."
 
   say "Lictory trial: for evaluation on this computer, not for production."
+  check_admin_password
   check_docker
-  printf '%s' "$repository" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || fail "Invalid LICTORY_REPOSITORY."
-  printf '%s' "$registry" | grep -Eq '^[a-z0-9.-]+(:[0-9]+)?(/[a-z0-9._-]+)+$' || fail "Invalid LICTORY_IMAGE_REGISTRY."
+  printf '%s' "$repository" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' || usage_fail "Invalid LICTORY_REPOSITORY."
+  printf '%s' "$registry" | grep -Eq '^[a-z0-9.-]+(:[0-9]+)?(/[a-z0-9._-]+)+$' || usage_fail "Invalid LICTORY_IMAGE_REGISTRY."
 
   mkdir -p "$dir/postgres"
   dir=$(cd "$dir" && pwd)
@@ -91,7 +93,7 @@ fetch_release() {
   base="https://github.com/$repository/releases"
   if [ -n "$version" ]; then
     printf '%s' "$version" | grep -Eq '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' ||
-      fail "LICTORY_VERSION must be a release version such as 0.24.0."
+      usage_fail "LICTORY_VERSION must be a release version such as 0.24.0."
     version="${version#v}"
     url="$base/download/v$version/release.env"
   else
@@ -280,8 +282,9 @@ isolate_settings() {
 # The order of a server deployment (deploy/deploy.sh): database, migrations,
 # zero-cache's initial sync, the grants on its tables, then the services.
 start_services() {
-  say "Downloading images (the first run needs about 3 GB of disk)…"
+  step "Downloading images (the first run needs about 3 GB of disk)"
   docker compose pull --quiet >>"$log" 2>&1 || fail_with_log "Could not download the images."
+  done_step
   step "Starting PostgreSQL and Mailpit"
   docker compose up -d --wait --wait-timeout 180 postgres mailpit >>"$log" 2>&1 ||
     fail_with_log "PostgreSQL or Mailpit did not start."
@@ -342,6 +345,14 @@ roles() {
     fail_with_log "Could not apply the database roles."
 }
 
+# A chosen password is checked before anything is downloaded or started.
+check_admin_password() {
+  [ -n "${LICTORY_ADMIN_PASSWORD:-}" ] || return 0
+  case "$LICTORY_ADMIN_PASSWORD" in *[[:space:]]*) usage_fail "LICTORY_ADMIN_PASSWORD can't contain spaces." ;; esac
+  [ "${#LICTORY_ADMIN_PASSWORD}" -ge 10 ] && [ "${#LICTORY_ADMIN_PASSWORD}" -le 64 ] ||
+    usage_fail "LICTORY_ADMIN_PASSWORD must have 10 to 64 characters."
+}
+
 create_administrator() {
   credentials="$dir/administrator.txt"
   password="${LICTORY_ADMIN_PASSWORD:-}"
@@ -349,8 +360,6 @@ create_administrator() {
     password=$(value_of "$credentials" PASSWORD)
   fi
   [ -n "$password" ] || password=$(secret | cut -c1-20)
-  case "$password" in *[[:space:]]*) fail "LICTORY_ADMIN_PASSWORD can't contain spaces." ;; esac
-  [ "${#password}" -ge 10 ] && [ "${#password}" -le 64 ] || fail "LICTORY_ADMIN_PASSWORD must have 10 to 64 characters."
   step "Creating the first administrator"
   status=0
   printf '%s\n' "$password" | docker compose exec -T api node apps/api/dist/admin.js setup \
@@ -372,7 +381,7 @@ create_administrator() {
       ;;
   esac
   rm -f "$dir/.admin-output"
-  done_step
+  if [ "$created" = true ]; then done_step; else printf 'already there\n'; fi
 }
 
 summary() {
@@ -388,14 +397,41 @@ summary() {
   fi
   say "  Email inbox    http://localhost:$mail_port   (Mailpit: invitations and every other email)"
   say "                 user lictory, password $mail_password"
-  say "  Admin console  $url/admin"
+  say "  Admin console  $url/admin   (after your first sign-in, where you choose your handle)"
   say ""
-  compose_command="env -u COMPOSE_FILE -u COMPOSE_PROFILES -u COMPOSE_ENV_FILES -u COMPOSE_PATH_SEPARATOR docker compose"
-  say "  Stop           cd '$dir' && $compose_command -p lictory-try stop"
+  write_controls
+  say "  Stop           '$dir/trial' stop"
   say "  Start again    run this command again"
-  say "  Remove         cd '$dir' && $compose_command -p lictory-try down --volumes --rmi all && cd .. && rm -rf '$dir'"
+  say "  Remove         '$dir/trial' remove"
   say ""
   say "Run Lictory for your team on a server: https://docs.lictory.com/self-hosting/install"
+}
+
+# The trial's own stop and remove commands: Compose with this trial's
+# project and none of the shell's Compose settings, so another project's
+# COMPOSE_FILE never reaches it. Remove deletes the directory (and the saved
+# credentials) only after Docker cleaned up.
+write_controls() {
+  cat >"$dir/trial" <<'CONTROLS'
+#!/bin/sh
+# Stop or remove this Lictory trial (written by try.sh; run try.sh again to start it).
+set -eu
+cd "$(dirname "$0")"
+dir=$(pwd)
+compose() {
+  env -u COMPOSE_FILE -u COMPOSE_PROFILES -u COMPOSE_ENV_FILES -u COMPOSE_PATH_SEPARATOR \
+    docker compose -p lictory-try "$@"
+}
+case "${1:-}" in
+  stop) compose stop ;;
+  remove) compose down --volumes --rmi all && cd .. && rm -rf "$dir" ;;
+  *)
+    echo "Usage: $0 stop|remove   (start it again with try.sh)" >&2
+    exit 64
+    ;;
+esac
+CONTROLS
+  chmod 755 "$dir/trial"
 }
 
 # choose_port <requested> <candidates> <what>: the requested port, or the
@@ -416,8 +452,8 @@ choose_port() {
   fail "Ports $2 are all taken; choose a free one for $3 (LICTORY_TRY_PORT or LICTORY_TRY_MAIL_PORT)."
 }
 check_port_value() {
-  case "$1" in '' | *[!0-9]*) fail "Ports are numbers (got $1)." ;; esac
-  [ "$1" -ge 1 ] && [ "$1" -le 65535 ] || fail "Ports are 1 to 65535 (got $1)."
+  case "$1" in '' | *[!0-9]*) usage_fail "Ports are numbers (got $1)." ;; esac
+  [ "$1" -ge 1 ] && [ "$1" -le 65535 ] || usage_fail "Ports are 1 to 65535 (got $1)."
   printf '%s' "$1"
 }
 # Free when the connection is refused (curl exit 7); anything else answers.
@@ -439,12 +475,37 @@ set_key() {
 value_of() { grep -E "^$2=" "$1" 2>/dev/null | tail -n 1 | cut -d= -f2- || true; }
 secret() { od -An -N32 -tx1 /dev/urandom | tr -d ' \n'; }
 
+usage() {
+  cat <<'EOF'
+Usage: curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/try.sh | sh
+
+Runs Lictory on this computer for evaluation, from a published release, with
+Docker: http://localhost, Mailpit for email and a first administrator. Run it
+again to start a stopped trial or move it to the newest release; the data
+stays. NOT FOR PRODUCTION: servers use get.sh and `lictory install`.
+
+Settings are environment variables (curl … | LICTORY_TRY_PORT=8080 sh):
+  LICTORY_VERSION         a release such as 0.24.0 (default: the newest stable)
+  LICTORY_TRY_DIR         where the trial lives (default ~/lictory-try)
+  LICTORY_TRY_PORT        port of http://localhost (default 80, else 8080…)
+  LICTORY_TRY_MAIL_PORT   port of the Mailpit inbox (default 8025, else 8026…)
+  LICTORY_ADMIN_EMAIL     the first administrator (default admin@example.com)
+  LICTORY_ADMIN_PASSWORD  their password (default: generated and printed)
+  LICTORY_ORGANIZATION    the organization they own (default Evaluation)
+EOF
+}
 say() { printf '%s\n' "$*"; }
 step() { printf '  %s… ' "$*"; }
 done_step() { printf 'done\n'; }
 fail() {
   printf '\nlictory try: %s\n' "$*" >&2
   exit 1
+}
+# A usage error (an argument or a setting this script refuses) exits 64,
+# like every Lictory command line.
+usage_fail() {
+  printf '\nlictory try: %s\n' "$*" >&2
+  exit 64
 }
 fail_with_log() {
   printf '\nlictory try: %s\n' "$1" >&2

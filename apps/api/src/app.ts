@@ -1,3 +1,4 @@
+import { jsonLog } from "@lictory/api/log";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { authenticateAccessToken } from "@lictory/core/capabilities/access-tokens";
@@ -27,9 +28,11 @@ function rpcError(status: number, message: string, headers?: HeadersInit) {
     { status, headers },
   );
 }
+// Header values are ASCII, so ">" stands for the "→" of the JSON body; the
+// places are named the same way in both.
 const mcpChallenge = {
   "WWW-Authenticate":
-    'Bearer realm="lictory", error="invalid_token", error_description="Create a personal access token in Lictory account settings."',
+    'Bearer realm="lictory", error="invalid_token", error_description="Use an agent\'s token from Factory > Agents > the agent > Connection, or a personal access token from Account settings > Access tokens."',
 };
 
 export function createApp(options: { draining?: () => boolean } = {}) {
@@ -70,7 +73,7 @@ export function createApp(options: { draining?: () => boolean } = {}) {
     if (!token)
       return rpcError(
         401,
-        "A valid Lictory access token is required.",
+        "A valid Lictory access token is required. An agent's token comes from Factory → Agents → the agent → Connection (a new token is shown once); a person's own from Account settings → Access tokens. Revoked and expired tokens are refused.",
         mcpChallenge,
       );
     let payload: unknown;
@@ -171,16 +174,13 @@ export function createApp(options: { draining?: () => boolean } = {}) {
   app.route("/", documentRoutes());
 
   app.onError((error, c) => {
-    console.error(
-      JSON.stringify({
-        event: "api.unhandled",
-        path: c.req.path,
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      }),
-    );
+    jsonLog("error", "api.unhandled", {
+      path: c.req.path,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return c.json(
       {
         error: {

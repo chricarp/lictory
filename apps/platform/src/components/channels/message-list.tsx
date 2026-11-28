@@ -205,10 +205,11 @@ export function MessageList({
         ref={scroller}
         onScroll={onScroll}
         className="absolute inset-0 overflow-y-auto overscroll-contain"
-        // Screen readers hear new messages as they arrive.
-        aria-live="polite"
-        aria-relevant="additions"
+        // Screen readers hear new messages from others as they arrive,
+        // through the workspace's announcer (useAnnounceMessages): not this
+        // log, which would also read older messages as they load.
         role="log"
+        aria-live="off"
         aria-label={`Messages in ${channel.name ? `#${channel.name}` : "this conversation"}`}
       >
         <div className="flex min-h-full flex-col justify-end pb-2">

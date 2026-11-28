@@ -68,6 +68,8 @@ export type LinkedPullRequestFact = {
   openedByAgent: boolean;
   // Who opened it, in words: a member's name or the host login.
   author: string | null;
+  // The author is a host login no member has linked.
+  unlinkedLogin?: boolean;
 };
 
 export const claimRefusalCodes = [
@@ -219,7 +221,7 @@ export function claimability(
     if (!item.committedRevisionId)
       refuse(
         "scope_not_accepted",
-        `${own} has no accepted delivery scope. A person accepts revision ${item.revisionNumber} for delivery before agents can claim it.`,
+        `Agents start ${own} once a person accepts revision ${item.revisionNumber} for delivery.`,
         undefined,
         "acceptDeliveryScope",
       );
@@ -266,7 +268,7 @@ export function claimability(
       else if (!ancestor.committedRevisionId)
         refuse(
           "parent_scope_not_accepted",
-          `${own} is not covered by agreed scope: its specification ${parentKey} has no accepted revision. A person accepts it for delivery first.`,
+          `Agents start ${own} once a person accepts its specification ${parentKey} for delivery.`,
           [ancestor.id],
         );
       else if (!readinessHolds(ancestor, project.readinessPolicy))
@@ -283,11 +285,19 @@ export function claimability(
   const human = (facts.linkedPullRequests?.(item.id) ?? []).find(
     (pr) => pr.state !== "closed" && !pr.openedByAgent,
   );
-  if (human)
+  if (human) {
+    // Said as facts the board shows too (the pull request and the item's
+    // status), never "someone is doing this work" beside a card still in a
+    // not-started column: the status is a person's to move.
+    const status = facts.statusName(item.statusId);
+    const unstarted = ["backlog", "unstarted"].includes(
+      facts.category(item.statusId) ?? "",
+    );
     refuse(
       "pull_request_linked",
-      `A pull request is already linked: ${human.number === null ? "one" : `#${human.number}`}${human.author ? ` by ${human.author}` : ""}${human.state === "merged" ? " (merged)" : ""}. Someone is already doing this work; a person can still start an agent on it.`,
+      `A person's pull request is linked: ${human.number === null ? "one" : `#${human.number}`}${human.author ? ` by ${human.author}` : ""} (${human.state}).${human.unlinkedLogin ? ` ${human.author} is a code host login no member has linked.` : ""} Agents leave it to people; a person can still start an agent on it.${status && unstarted ? ` It is still in ${status}: move it when that work starts.` : ""}`,
     );
+  }
   if (!facts.hasStartedStatus)
     refuse(
       "no_started_status",

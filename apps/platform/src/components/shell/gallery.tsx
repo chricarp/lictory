@@ -101,6 +101,7 @@ function fakeSession(
     channelId: null,
     threadRootMessageId: null,
     resultSummary: null,
+    discardedFiles: null,
     pullRequestId: null,
     pullRequestUrl: null,
     error: null,
@@ -217,7 +218,9 @@ function Section({
   );
 }
 
-// The same examples on the light and the dark tokens.
+// The same examples on the light and the dark tokens. The dark copy is for
+// the eye only: it is inert, so keyboard and screen reader users meet each
+// example (and its landmarks) once.
 function Themed({
   theme,
   children,
@@ -229,6 +232,7 @@ function Themed({
     <div
       data-theme="lictory"
       data-gallery-theme={theme}
+      inert={theme === "dark"}
       className={
         (theme === "dark" ? "dark " : "") +
         "min-w-0 rounded-2xl bg-shell p-4 text-foreground ring-1 ring-foreground/10"
@@ -375,6 +379,7 @@ const tones: StatusTone[] = [
   "attention",
   "success",
   "danger",
+  "merged",
 ];
 const statuses: SessionStatus[] = [
   "queued",
@@ -503,9 +508,15 @@ function ApprovalExamples() {
     requestedById: userId,
     pullRequestUrl: "https://github.com/northwind/payments/pull/3",
   });
-  const decide = async (decision: "approve" | "deny") => {
+  const decide = async (decision: "approve" | "deny" | "answer") => {
     await new Promise((r) => setTimeout(r, 300));
-    setAnswered(decision === "approve" ? "Approved" : "Denied");
+    setAnswered(
+      decision === "approve"
+        ? "Approved"
+        : decision === "answer"
+          ? "Answered"
+          : "Denied",
+    );
   };
   return (
     <>
@@ -525,10 +536,12 @@ function ApprovalExamples() {
             id: galleryIds.otherSession,
             requestedById: other,
           }}
+          // A request naming no action is a question: answered in words.
           approval={{
             ...approval,
             id: "ap-2",
-            title: "Push to the release branch",
+            title: "Which release branch should this go to?",
+            detail: { tool: null, input: null, reason: null },
           }}
           agent={someoneElses}
           runner={runner}
@@ -560,6 +573,9 @@ function EmptyExamples() {
       agents: [],
       channels: [{ kind: "public", archivedAt: null }],
       members: 1,
+      invited: 0,
+      project: { key: "PAY" },
+      workItems: 1,
     },
     organization.slug,
     true,

@@ -53,26 +53,50 @@ to the last project; a factory needs one page that answers "what waits on me
 and what is the factory doing?" before any module.
 
 - **Set up {organization}** leads Home while the factory is incomplete: a
-  checklist derived from data (a code host connected, a runner that has
-  connected, an agent, a channel, a second member), each step done when its
+  checklist derived from data (a first work item, a second member or an
+  invitation, a code host connected, a runner that has connected, an agent,
+  a channel), the refinement loop before the factory, each step done when its
   data exists and the next one the single primary action. It leaves Home by
   itself once everything exists, and while it shows, Home shows no empty
   sections beside it (`components/shell/home/setup.ts`).
 - **Waiting on you** is the Inbox's To do derivation (questions agents ask
   me, reviews requested, pull requests to approve, page changes to review or
   merge, changes requested, blocked items): the same entries, the first few,
-  linking to the Inbox for the rest. The greeting, the card and the Inbox tab
-  count the same list (`waitingOnYou` in `components/shell/home/derive.ts`).
+  then one row naming the rest by kind ("2 blocked items · 1 failed agent
+  session", `waitingKinds`) and linking to the Inbox, so the count and the
+  card reconcile. The greeting, the card and the Inbox tab count the same
+  list (`waitingOnYou` in `components/shell/home/derive.ts`). With nothing
+  waiting the greeting says "Nothing waits on you", and unread updates are
+  counted beside it, never "caught up" while the Inbox has news.
   An agent's question is a compact `ApprovalRequest`, reviewed in place
   before it can be approved; agents come first, because a waiting agent is
   stopped.
 - **In flight** is work assigned to me whose delivery status is started (in
   Lictory, or as the delivery tool reports it).
-- **Ready to start** is ready, not yet committed work that is mine or
-  unassigned. Work assigned to someone else is theirs to start.
+- **Ready to start** is work that is mine or unassigned and may start now.
+  In native delivery that is the claimability rule
+  ([claims](claims.md#claimability)) the item page and the Factory queue
+  show: agreed scope, readiness, no blocker, no live claim. A ready
+  specification whose scope nobody accepted waits on a person under
+  Waiting on you instead, never in both. In external delivery it is ready
+  work not handed off yet. Work assigned to someone else is theirs to start.
 - **Recently edited pages** are pages whose published version changed last.
+- **Needs an administrator** (organization administrators only, nothing
+  while all is well): offline or never-started organization runners, queued
+  sessions no runner can take, code host or Slack connections that
+  stopped working (`components/shell/home/admin-health.tsx`), and the
+  monitor's database checks narrowed to the organization
+  (`domain/administrator-health.ts`): background work the worker has not
+  reached, email and Lictory Intelligence runs that failed, hand-offs that
+  failed and were not retried, and, for instance administrators, the
+  replication slot. The instance's monitor alerts the operator about the same
+  things; the organization administrator who can fix them, or tell the
+  operator, is told where they look. Backups and disk are checked only by the
+  monitor: they live on the server, not in the database.
 - **Registered cards** sit beside them: **Agents at work** (sessions
-  running that do not already wait on me, so a session is listed once). A
+  running that do not already wait on me, so a session is listed once;
+  those waiting on a teammate come last, and the heading names them when
+  they are all it lists). A
   card renders nothing until it has something to show, so an organization
   without agents sees no empty box, and a failing card never takes Home
   down. In flight, Ready to start and Recently edited
@@ -93,9 +117,12 @@ hooks the shell calls for each entry run in a stable order.
 - **Badges** (`useBadge` on a section) are a count, what it counts, a tone
   and whether it counts toward the desktop dock. `strong` is addressed to the
   person (mentions, direct messages, requests); `quiet` is activity worth a
-  glance. Only mentions and direct messages count toward the dock or taskbar
-  badge: the shell sums them into one source of the desktop bridge (see
-  [Desktop app](#desktop-app)).
+  glance. What waits on the person counts toward the dock or taskbar badge
+  (the Inbox's To do, mentions, direct messages), so the dock shows the
+  sidebar's numbers: the shell sums them into one source of the desktop
+  bridge (see [Desktop app](#desktop-app)). A count another badge already
+  holds never docks and is shown as a dot (the Factory's agents, which are
+  in To do).
 - **Palette providers** (`paletteProviders`) return candidates for the typed
   query; the palette matches, ranks, caps and groups them, and every section
   automatically gets a "Go to" command.
@@ -108,7 +135,7 @@ Registered today:
 | --------------- | ----------------------------------------------------------------------------- | ------------------------------------------ | ---------------- |
 | Channels        | joined channels, unread bold; mentions in channels (strong, dock)             | conversations, unread first                | none             |
 | Direct messages | recent conversations; everything unread in them (strong, dock)                | (with conversations)                       | none             |
-| Factory         | overview, agents, runners; sessions waiting on me (strong, not dock)          | sessions (active first), agents            | Agents at work   |
+| Factory         | overview, agents, runners; a dot while sessions wait on me (in To do)         | sessions (active first), agents            | Agents at work   |
 | Work            | the project in context with its queues (and its Factory queue in native mode) | projects, items, views (the palette's own) | Home's own lists |
 | Code            | pull requests; open ones requesting my review (strong, not dock)              | none                                       | none             |
 
@@ -133,12 +160,14 @@ owner, `lib/desktop-bridge.ts` (mounted once in the signed-in layout; see
 [the desktop app](./desktop.md#the-bridge)):
 
 - **The badge is a sum of sources**, and the bridge alone calls
-  `setBadge`. Unread notifications that ask something of the person are one
-  source; the shell's `dock` badges (channel mentions and direct messages of
-  the open organization, from read state) are another
-  (`useDesktopBadgeSource("sidebar", …)`). Channel notifications are left
-  out of the first so a mention never counts twice or outlives reading the
-  conversation; they still arrive as native notifications.
+  `setBadge`. The shell's `dock` badges of the open organization (the
+  Inbox's To do, channel mentions and direct messages, from live state) are
+  one source (`useDesktopBadgeSource("sidebar", …)`), and the shell names
+  that organization (`useDesktopOpenOrganization`). Unread notifications
+  that ask something of the person are the other source, for the person's
+  other organizations only: the open one's would count twice, and a
+  notification outlives the state it announced (a review answered, a
+  conversation read). They all still arrive as native notifications.
 - **`onNavigate`** requests (deep links, notification clicks, the tray) go
   through the router, only to paths inside the app: other origins and the
   account flows are refused.

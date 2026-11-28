@@ -4,13 +4,21 @@ import {
   Check,
   ChevronDown,
   FilePenLine,
+  GitCompareArrows,
   ListTree,
   TriangleAlert,
 } from "lucide-react";
 import { Link } from "@lictory/platform/lib/navigation";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { isTopLevel, refinementMeta } from "@lictory/core/lib/work-items";
+import {
+  identifier,
+  isTopLevel,
+  refinementMeta,
+  refinementOrder,
+} from "@lictory/core/lib/work-items";
+import { isCarriedApproval } from "@lictory/core/contracts/decomposition";
+import { pullRequestIsActive } from "@lictory/core/contracts/state-machines";
 import {
   externalLinksByItem,
   isAmended,
@@ -21,10 +29,9 @@ import {
 import { Button } from "@lictory/ui/button";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
-import {
-  RefinementIcon,
-  StatusIcon,
-} from "@lictory/platform/components/items/status";
+import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
+import { StatusIcon } from "@lictory/platform/components/items/status";
+import { useMyReview } from "@lictory/platform/components/review/review-panel";
 
 const labels: Record<LifecycleStage, string> = {
   proposal: "Shape the proposal",
@@ -32,7 +39,8 @@ const labels: Record<LifecycleStage, string> = {
   review: "Review the current specification",
   ready: "Ready for delivery",
   committed: "Accepted for delivery",
-  underway: "In progress",
+  // Not "In progress": that is a delivery status name in most workflows.
+  underway: "Delivery underway",
   completed: "Delivered",
   canceled: "Canceled",
 };
@@ -43,15 +51,39 @@ export function ItemWorkflow({
   onStartRefinement,
   onReview,
   onBreakdown,
+  onCompare,
+  onChanges,
+  onOpen,
   children,
 }: {
   onStartRefinement?: () => void;
+  // The card summarizes; the checks, the reviews and the discussions each
+  // have one authoritative place, and each summary opens it.
+  onOpen?: (place: "readiness" | "review" | "discussions") => void;
   onReview: () => void;
   onBreakdown: () => void;
+  // Opens the specification's proposed changes.
+  onChanges?: () => void;
+  // Opens what changed between two revisions.
+  onCompare?: (from: string, to: string) => void;
   children?: ReactNode;
 }) {
-  const { item, type, project, current, readOnly, entities } = useItem();
-  const { organization, directory, delivery } = useWorkspace();
+  const {
+    item,
+    type,
+    project,
+    current,
+    readOnly,
+    entities,
+    reviews,
+    approvals,
+    memberName,
+    revisionNumber,
+  } = useItem();
+  // A requested reviewer sees their own step first: the decision, and
+  // whether an approval they gave earlier stopped applying.
+  const mine = useMyReview();
+  const { organization, directory, delivery, items } = useWorkspace();
   const link = externalLinksByItem(entities, directory.delivery.targets).get(
     item.id,
   );
@@ -69,22 +101,36 @@ export function ItemWorkflow({
     delivering &&
     stage !== "canceled" &&
     isAmended(item, project, link);
+  // The stages are the refinement states, named as the Refinement property
+  // and the Refinement tabs name them, then delivery: one vocabulary for
+  // where an item stands. An amendment is refined while delivery continues,
+  // so its stage is the current revision's refinement state.
+  const steps = type.hasSpecification
+    ? [...refinementOrder.map((s) => refinementMeta[s].label), "Delivery"]
+    : ["Create", "Delivery"];
+  // A task without a specification is created, then delivered.
   const step =
     !type.hasSpecification || (delivering && !amendment)
-      ? 2
-      : stage === "proposal"
-        ? 0
-        : 1;
-  const steps = type.hasSpecification
-    ? ["Proposal", "Refinement", "Delivery"]
-    : ["Create", "Delivery"];
+      ? steps.length - 1
+      : Math.max(
+          0,
+          refinementOrder.indexOf(item.refinementState ?? "refinement"),
+        );
   // Boards and backlogs show implementation work; higher levels are
   // delivered through their children.
   const container = native && isTopLevel(type);
+  const tool = projectDeliveryTool(directory, project.id);
+  // In an external project the delivery tool owns delivery status: its own
+  // words lead, named as its.
+  const externalStatus =
+    !native && delivering && link?.externalStatus
+      ? `${link.externalStatus} in ${tool.name}`
+      : null;
   const label =
-    type.hasSpecification || delivering
+    externalStatus ??
+    (type.hasSpecification || delivering
       ? labels[stage]
-      : "Ready to plan the work";
+      : "Ready to plan the work");
   const agreed = native
     ? item.committedRevisionNumber
     : link?.publishedRevisionNumber;
@@ -97,15 +143,17 @@ export function ItemWorkflow({
         : stage === "ready"
           ? native
             ? container
-              ? "The checks pass. Accept this revision for delivery and break it down into work the team can pick up."
-              : "The checks pass. Accept this revision for delivery when the team is ready to build it."
+              ? `Every readiness check passes on revision ${current?.number ?? ""}. Delivery starts when a person accepts it; then break it down into work the team can pick up.`
+              : `Every readiness check passes on revision ${current?.number ?? ""}. Delivery starts when a person accepts it: the board, iterations and agents work from the accepted revision.`
             : "The checks pass. Hand off this revision to your delivery tool."
           : stage === "completed"
             ? "The delivered revision and its history stay here. Later changes are refined as a new revision."
             : stage === "committed" || stage === "underway"
-              ? container
-                ? "Delivery happens through the work below. Changes to the specification stay reviewable here."
-                : "Track the work in Delivery. Changes to the specification stay reviewable here."
+              ? !native
+                ? `${tool.Name} owns its delivery status and assignee; Lictory reads them back. Changes to the specification stay reviewable here.`
+                : container
+                  ? "Delivery happens through the work below. Changes to the specification stay reviewable here."
+                  : "Track the work in Delivery. Changes to the specification stay reviewable here."
               : stage === "canceled"
                 ? "The specification, reviews and decisions remain available for reference."
                 : nextRefinementAction(item);
@@ -114,41 +162,76 @@ export function ItemWorkflow({
     : delivering
       ? paths.board(organization.slug, project.key)
       : paths.backlog(organization.slug, project.key);
+  // The main button is the step the NEXT line names: while no required
+  // review is requested, that is requesting them (which also moves a draft
+  // into review). Starting refinement first is optional, so it is quieter.
+  const noReviewYet = !item.reviews.some(
+    (r) => r.required && r.status !== "cancelled",
+  );
+  const empty = !current?.content.trim();
+  const requestReviews = !readOnly && noReviewYet && !empty && (
+    <Button size="sm" onClick={onReview}>
+      Request reviews
+    </Button>
+  );
   // Accepting a ready native scope happens in the panel below; the other
   // stages point to the place where their next step happens.
-  const action =
-    !readOnly && stage === "proposal" && onStartRefinement ? (
-      <Button size="sm" onClick={onStartRefinement}>
+  const action = mine.review ? (
+    <div className="flex flex-wrap gap-1.5">
+      <Button size="sm" onClick={() => mine.decide("approve")}>
+        <Check className="size-3.5" /> Approve revision {current?.number}
+      </Button>
+      {mine.review.status !== "changes_requested" && (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => mine.decide("changes_requested")}
+        >
+          Request changes
+        </Button>
+      )}
+    </div>
+  ) : !readOnly && stage === "proposal" && onStartRefinement ? (
+    <div className="flex flex-wrap gap-1.5">
+      {requestReviews}
+      <Button
+        size="sm"
+        variant="secondary"
+        title="Optional: tells the team the proposal is being explored before anyone reviews it."
+        onClick={onStartRefinement}
+      >
         <FilePenLine className="size-3.5" /> Start refinement
       </Button>
-    ) : type.hasSpecification &&
-      ((!delivering && stage !== "ready") || amendment) ? (
+    </div>
+  ) : type.hasSpecification &&
+    ((!delivering && stage !== "ready") || amendment) ? (
+    requestReviews || (
       <Button variant="secondary" size="sm" onClick={onReview}>
         Review & checks
       </Button>
-    ) : stage === "canceled" ? null : container &&
-      (stage === "ready" || delivering) ? (
-      <Button variant="ghost" size="sm" onClick={onBreakdown}>
-        <ListTree className="size-3.5" /> View breakdown
-      </Button>
-    ) : stage === "ready" && native ? null : (
-      <Link
-        href={destination}
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
-      >
-        {native ? "Open delivery" : "Open hand-off"}
-        <ArrowRight className="size-3.5" />
-      </Link>
-    );
+    )
+  ) : stage === "canceled" ? null : container &&
+    (stage === "ready" || delivering) ? (
+    <Button variant="ghost" size="sm" onClick={onBreakdown}>
+      <ListTree className="size-3.5" /> View breakdown
+    </Button>
+  ) : stage === "ready" && native ? null : (
+    <Link
+      href={destination}
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-primary hover:bg-primary/5 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+    >
+      {!native ? "Open hand-off" : delivering ? "Open board" : "Open backlog"}
+      <ArrowRight className="size-3.5" />
+    </Link>
+  );
   const stages = (
     <ol
       aria-label="Workflow stages"
-      className="flex items-center gap-1.5 text-xs text-muted-foreground max-sm:hidden"
+      className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground max-sm:hidden"
     >
       {steps.map((name, index) => {
-        const position = type.hasSpecification ? index : index === 0 ? 0 : 2;
-        const active = position === step;
-        const complete = position < step;
+        const active = index === step;
+        const complete = index < step;
         return (
           <li
             key={name}
@@ -193,102 +276,202 @@ export function ItemWorkflow({
   const [decisionOpen, setDecisionOpen] = useState(false);
   const decisionId = useId();
   const refinement = item.refinementState;
-  // What happens next, in one line: the specification's open concern first,
-  // then the delivery decision.
+  // What happens next, in one line: the specification's open concern. A
+  // ready revision's delivery decision is the panel below, and a requested
+  // reviewer's next step is their decision above.
   const next =
-    type.hasSpecification && refinement && refinement !== "ready"
-      ? nextRefinementAction(item)
-      : stage === "ready" && native
-        ? `Accept revision ${current?.number ?? ""} for delivery when the team is ready to build it.`
-        : null;
+    !mine.review &&
+    type.hasSpecification &&
+    refinement &&
+    refinement !== "ready"
+      ? stage === "proposal" && empty && noReviewYet
+        ? "Describe the intent and the expected behavior in the specification, then request the required reviews."
+        : // Two buttons for one draft: say what the quieter one is for.
+          stage === "proposal" && noReviewYet && !readOnly && onStartRefinement
+          ? "Request the required reviews when the intent is clear. To explore it with the team before anyone is asked to decide, start refinement first."
+          : nextRefinementAction(item)
+      : null;
   // One dominant statement, then the evidence behind it. An amendment names
   // both revisions in one sentence: the one under refinement and the one
   // delivery still uses.
-  const statement =
-    amendment && current
+  const statement = mine.review
+    ? `Your ${mine.review.responsibility} review is requested`
+    : amendment && current
       ? `Revision ${current.number} is ${refinement ? refinementMeta[refinement].label.toLowerCase() : "in refinement"}`
       : label;
   // When a NEXT line names the step, the general guidance would repeat it.
-  const subline =
-    amendment && agreed != null
+  const subline = mine.review
+    ? mine.staleRevision && current
+      ? `You approved revision ${mine.staleRevision.number}. It changed since, so that approval no longer applies to revision ${current.number}.`
+      : `Read revision ${current?.number ?? ""}, then approve it or request changes. Your decision applies to this revision only.${
+          item.blockingThreads > 0
+            ? ` Ready also needs the ${item.blockingThreads === 1 ? "blocking discussion" : `${item.blockingThreads} blocking discussions`} resolved.`
+            : ""
+        }`
+    : amendment && agreed != null
       ? `Delivery continues with revision ${agreed}${status ? ` · ${status.name}` : ""}.`
       : next
         ? null
         : description;
+  // The reviews of the current revision, so approval state reads here
+  // even while the review rail steps aside for discussions.
+  const requested = reviews.filter(
+    (r) => r.status !== "cancelled" && r.revisionId === current?.id,
+  );
+  const approvedReviews = requested.filter((r) =>
+    approvals.some((a) => a.reviewId === r.id && a.status === "granted"),
+  ).length;
+  // Proposed changes sent for review (a suggested change on a ready
+  // specification is one): findable from the card after the toast is gone.
+  const inReview = entities.filter(
+    (e) =>
+      e.type === "pullRequest" &&
+      e.workItemId === item.id &&
+      pullRequestIsActive(e),
+  ).length;
+  // Approvals a later revision made outdated, for reviews of the current
+  // revision nobody has approved yet: "Engineering approved revision 12;
+  // revision 14 needs review" reads on the card, not only in the rail.
+  const outdated = requested.flatMap((r) => {
+    if (approvals.some((a) => a.reviewId === r.id && a.status === "granted"))
+      return [];
+    const latest = approvals
+      .filter(
+        (a) =>
+          a.status === "stale" &&
+          !isCarriedApproval(a.endReason) &&
+          reviews.find((x) => x.id === a.reviewId)?.responsibility ===
+            r.responsibility,
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return latest
+      ? [{ responsibility: r.responsibility, approval: latest }]
+      : [];
+  });
   // Evidence, grouped by what it is about: the specification's refinement
   // (always the current revision) and, once a revision is accepted, delivery.
+  // The statement names the stage (the refinement state's sentence), so
+  // the evidence lists facts only once: the revision as plain metadata,
+  // then what holds it back. Pills are states; text is metadata.
   const specEvidence = type.hasSpecification && (
     <>
-      {refinement && (
-        <li>
-          <Pill
-            tone={
-              refinement === "ready"
-                ? "good"
-                : refinement === "in_review"
-                  ? "info"
-                  : "neutral"
-            }
-          >
-            <RefinementIcon state={refinement} className="size-3" />
-            {refinementMeta[refinement].label}
-          </Pill>
-        </li>
-      )}
       {current && (
-        <li>
-          <Pill tone="neutral">Revision {current.number}</Pill>
+        <li className="pr-1 text-muted-foreground">
+          Revision {current.number}
         </li>
       )}
       {item.readinessTotal > 0 && (
         <li>
-          <Pill
-            tone={
-              item.readinessPassed === item.readinessTotal ? "good" : "neutral"
-            }
+          <Opens
+            to={onOpen && (() => onOpen("readiness"))}
+            hint="Show the readiness checks"
           >
-            {item.readinessPassed}/{item.readinessTotal} checks
-          </Pill>
+            <Pill
+              tone={
+                item.readinessPassed === item.readinessTotal
+                  ? "good"
+                  : "neutral"
+              }
+            >
+              {item.readinessPassed}/{item.readinessTotal} checks
+            </Pill>
+          </Opens>
+        </li>
+      )}
+      {requested.length > 0 && (
+        <li>
+          <Opens
+            to={onOpen && (() => onOpen("review"))}
+            hint="Show the reviews"
+          >
+            <Pill
+              tone={
+                approvedReviews === requested.length
+                  ? "good"
+                  : outdated.length > 0
+                    ? "warning"
+                    : "neutral"
+              }
+            >
+              {approvedReviews}/{requested.length} approved
+              {outdated.length > 0 && ` · ${outdated.length} outdated`}
+            </Pill>
+          </Opens>
+        </li>
+      )}
+      {inReview > 0 && (
+        <li>
+          {onChanges ? (
+            <button
+              type="button"
+              onClick={onChanges}
+              className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              <Pill tone="info">
+                {inReview} {inReview === 1 ? "change" : "changes"} in review
+              </Pill>
+            </button>
+          ) : (
+            <Pill tone="info">
+              {inReview} {inReview === 1 ? "change" : "changes"} in review
+            </Pill>
+          )}
         </li>
       )}
       {item.blockingThreads > 0 && (
         <li>
-          <Pill tone="danger">
-            {item.blockingThreads} blocking discussion
-            {item.blockingThreads === 1 ? "" : "s"}
-          </Pill>
+          <Opens
+            to={onOpen && (() => onOpen("discussions"))}
+            hint="Show the discussions"
+          >
+            <Pill tone="danger">
+              {item.blockingThreads} blocking discussion
+              {item.blockingThreads === 1 ? "" : "s"}
+            </Pill>
+          </Opens>
         </li>
       )}
     </>
   );
-  const deliveryEvidence = native && item.committedRevisionNumber != null && (
-    <>
-      {status && (
-        <li>
-          <Pill tone={status.category === "done" ? "good" : "neutral"}>
-            <StatusIcon
-              category={status.category}
-              color={status.color}
-              className="size-3"
-            />
-            {status.name}
-          </Pill>
-        </li>
-      )}
-      <li>
-        <Pill tone="neutral">
-          Accepted revision {item.committedRevisionNumber}
-        </Pill>
+  const parent = item.parentId
+    ? items.find((i) => i.id === item.parentId)
+    : undefined;
+  const handedOff =
+    !native && link?.externalKey && link.publishedRevisionNumber != null ? (
+      <li className="px-1 text-muted-foreground">
+        Handed off revision {link.publishedRevisionNumber}
       </li>
-      {item.deliveredRevisionNumber != null && (
-        <li>
-          <Pill tone="good">
-            Delivered revision {item.deliveredRevisionNumber}
-          </Pill>
+    ) : null;
+  const deliveryEvidence =
+    handedOff ??
+    (native && item.committedRevisionNumber != null && (
+      <>
+        {status && (
+          <li>
+            <Pill tone={status.category === "done" ? "good" : "neutral"}>
+              <StatusIcon
+                category={status.category}
+                color={status.color}
+                className="size-3"
+              />
+              {status.name}
+            </Pill>
+          </li>
+        )}
+        <li className="px-1 text-muted-foreground">
+          {/* Plain work without a description of its own is agreed through
+              its parent's specification: an empty revision 1 is not the
+              agreement. */}
+          {!type.hasSpecification && parent && empty
+            ? `Part of ${identifier(project, parent.number)}’s accepted scope`
+            : item.deliveredRevisionNumber == null
+              ? `Accepted revision ${item.committedRevisionNumber}`
+              : item.deliveredRevisionNumber === item.committedRevisionNumber
+                ? `Delivered revision ${item.deliveredRevisionNumber}`
+                : `Accepted revision ${item.committedRevisionNumber} · Delivered revision ${item.deliveredRevisionNumber}`}
         </li>
-      )}
-    </>
-  );
+      </>
+    ));
   const evidence = (
     <dl className="grid gap-1.5 text-[11.5px] sm:gap-2">
       {specEvidence && <EvidenceRow label="Spec">{specEvidence}</EvidenceRow>}
@@ -300,18 +483,26 @@ export function ItemWorkflow({
   return (
     <section
       aria-label="Item workflow"
-      className="mt-5 rounded-[1.25rem] bg-tray p-1 ring-1 ring-border/70 ring-inset"
+      className={cn(
+        "mt-5",
+        children &&
+          "rounded-[1.25rem] bg-tray p-1 ring-1 ring-border/70 ring-inset",
+      )}
     >
-      {/* A tray: the state card on top, the decision it leads to beneath. */}
+      {/* A tray when a decision sits beneath the state card; otherwise the
+          card alone, without a second frame. */}
       <div className="rounded-2xl bg-card px-4 pt-3.5 pb-4 shadow-(--shadow-border)">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
+        {/* The decision sits beside the statement while both fit and wraps
+            below it on phones and at high zoom, so neither is squeezed
+            into a one-word column. */}
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2.5">
+          <div className="min-w-0 flex-[1_1_20rem]">
             <p className="flex items-center gap-2 text-[15px] font-semibold tracking-[-0.015em]">
               <span
                 aria-hidden
                 className={cn(
                   "size-2 shrink-0 rounded-full",
-                  amendment
+                  amendment || mine.review
                     ? "bg-warning"
                     : stage === "ready" || stage === "completed"
                       ? "bg-success"
@@ -320,26 +511,59 @@ export function ItemWorkflow({
               />
               {statement}
             </p>
+            {/* What holds the item back leads, right under the statement. */}
+            {next && (
+              <p className="mt-1 pl-4 text-[13px] leading-relaxed">
+                <span className="sr-only">Next: </span>
+                {next}
+              </p>
+            )}
             {subline && (
-              <p className="mt-1 line-clamp-3 pl-4 text-[13px] leading-relaxed text-muted-foreground sm:line-clamp-none">
+              <p className="mt-1 pl-4 text-[13px] leading-relaxed text-muted-foreground">
                 {subline}
               </p>
             )}
+            {mine.review && mine.staleRevision && current && onCompare && (
+              <button
+                type="button"
+                onClick={() => onCompare(mine.staleRevision!.id, current.id)}
+                className="mt-1.5 ml-4 inline-flex items-center gap-1.5 rounded-md text-[13px] font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring/60"
+              >
+                <GitCompareArrows aria-hidden className="size-3.5" />
+                What changed since revision {mine.staleRevision.number}
+              </button>
+            )}
           </div>
-          {/* On phones too the action sits beside the statement, so the
-              card stays short. */}
-          {action && <div className="shrink-0">{action}</div>}
+          {action && (
+            <div className="max-w-full shrink-0 max-sm:pl-4">{action}</div>
+          )}
         </div>
         <div className="mt-3 pl-4 max-sm:pl-0 sm:mt-3.5">{evidence}</div>
-        {next && (
-          <p className="mt-2.5 flex items-baseline gap-2 border-t pt-2.5 pl-4 text-[13px] max-sm:pl-0 sm:mt-3">
-            <span className="w-12 shrink-0 text-xs font-medium text-muted-foreground sm:w-16">
-              Next
-            </span>
-            <span className="min-w-0">{next}</span>
-          </p>
+        {!mine.review && outdated.length > 0 && current && (
+          <ul className="mt-2 space-y-0.5 pl-4 text-[12.5px] max-sm:pl-0">
+            {outdated.map(({ responsibility, approval }) => (
+              <li
+                key={approval.id}
+                className="flex items-baseline gap-1.5 text-muted-foreground"
+              >
+                <TriangleAlert
+                  aria-hidden
+                  className="size-3 shrink-0 self-center text-warning"
+                />
+                <span>
+                  {responsibility}: {memberName(approval.reviewerId)} approved
+                  revision {revisionNumber(approval.revisionId) ?? "?"};
+                  revision {current.number} needs their review again.
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
-        <div className="mt-3 hidden pl-4 sm:block">{stages}</div>
+        {/* The stages explain where a specification is on its way to
+            delivery; plain work and delivered scope say it in the statement. */}
+        {type.hasSpecification && (!delivering || amendment) && (
+          <div className="mt-3 hidden pl-4 sm:block">{stages}</div>
+        )}
       </div>
       {children && (
         <div>
@@ -394,14 +618,39 @@ function EvidenceRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <dt className="w-12 shrink-0 text-xs font-medium text-muted-foreground sm:w-16">
+    // The label aligns with the first line of chips when they wrap.
+    <div className="flex items-start gap-2">
+      <dt className="w-12 shrink-0 text-xs leading-6 font-medium text-muted-foreground sm:w-16">
         {label}
       </dt>
       <dd>
         <ul className="flex flex-wrap items-center gap-1.5">{children}</ul>
       </dd>
     </div>
+  );
+}
+
+// A summary chip that opens the place where its facts are kept.
+function Opens({
+  to,
+  hint,
+  children,
+}: {
+  to?: () => void;
+  hint: string;
+  children: ReactNode;
+}) {
+  if (!to) return children;
+  return (
+    <button
+      type="button"
+      onClick={to}
+      title={hint}
+      className="rounded-full outline-none hover:brightness-95 focus-visible:ring-2 focus-visible:ring-ring/60"
+    >
+      {children}
+      <span className="sr-only">. {hint}</span>
+    </button>
   );
 }
 
@@ -412,7 +661,7 @@ function Pill({
   mono = false,
   children,
 }: {
-  tone: "neutral" | "good" | "info" | "danger";
+  tone: "neutral" | "good" | "info" | "warning" | "danger";
   mono?: boolean;
   children: ReactNode;
 }) {
@@ -424,6 +673,8 @@ function Pill({
         tone === "neutral" && "bg-muted text-foreground/80 ring-foreground/8",
         tone === "good" && "bg-success/8 text-success ring-success/20",
         tone === "info" && "bg-ring/8 text-ring ring-ring/20",
+        tone === "warning" &&
+          "bg-warning/10 text-[color-mix(in_oklab,var(--warning)_70%,var(--foreground))] ring-warning/30",
         tone === "danger" &&
           "bg-destructive/8 text-destructive ring-destructive/20",
       )}

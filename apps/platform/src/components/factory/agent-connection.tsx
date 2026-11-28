@@ -1,15 +1,16 @@
+import { formatDate } from "@lictory/core/lib/work-items";
 import { useCallback, useEffect, useState } from "react";
-import { BellRing, Copy, KeyRound, Plug, Plus } from "lucide-react";
+import { BellRing, KeyRound, Plug, Plus } from "lucide-react";
 import { callCapability } from "@lictory/core/capabilities/client";
 import type { AgentEntity } from "@lictory/core/factory/entities";
 import type { AgentTokenSummary } from "@lictory/core/factory/agents";
 import { Button } from "@lictory/ui/button";
+import { CommandBlock, CopyValue } from "@lictory/ui/command-block";
 import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
 import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
-import { toast } from "@lictory/ui/toast";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { Panel } from "@lictory/platform/components/shell/panel";
 import {
@@ -43,12 +44,7 @@ const expiries = [
   { value: "never", label: "No expiry" },
 ];
 
-const date = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+const date = formatDate;
 
 const isActive = (token: AgentTokenSummary) =>
   !token.revokedAt &&
@@ -64,7 +60,7 @@ type Client = "claude" | "codex" | "other";
 function setupFor(client: Client, endpoint: string) {
   if (client === "claude")
     return `claude mcp add --transport http lictory ${endpoint} \\
-  --header "Authorization: Bearer $LICTORY_TOKEN"`;
+  --header 'Authorization: Bearer \${LICTORY_TOKEN}'`;
   if (client === "codex")
     return `# ~/.codex/config.toml
 [mcp_servers.lictory]
@@ -73,33 +69,6 @@ bearer_token_env_var = "LICTORY_TOKEN"`;
   return `Transport  Streamable HTTP
 URL        ${endpoint}
 Header     Authorization: Bearer <token>`;
-}
-
-function CopyButton({
-  text,
-  label,
-  copied,
-  className,
-}: {
-  text: string;
-  label: string;
-  copied: string;
-  className?: string;
-}) {
-  return (
-    <Button
-      size="sm"
-      variant="secondary"
-      aria-label={label}
-      className={className}
-      onClick={() => {
-        void navigator.clipboard.writeText(text);
-        toast({ title: copied });
-      }}
-    >
-      <Copy className="size-3.5" aria-hidden /> Copy
-    </Button>
-  );
 }
 
 // How to point an MCP client at Lictory as this agent.
@@ -129,25 +98,15 @@ function SetupSnippet() {
         <SegmentedItem value="codex">Codex</SegmentedItem>
         <SegmentedItem value="other">Other clients</SegmentedItem>
       </Segmented>
-      <div className="relative">
-        <pre
-          aria-label="Setup"
-          className="overflow-x-auto rounded-lg bg-muted/60 p-3 pr-20 font-mono text-[12px] leading-5 whitespace-pre"
-        >
-          {text}
-        </pre>
-        <CopyButton
-          text={text}
-          label="Copy the setup"
-          copied="Setup copied"
-          className="absolute top-2 right-2"
-        />
-      </div>
+      <CommandBlock label="Setup" copyLabel="Copy the setup">
+        {text}
+      </CommandBlock>
       {client !== "other" && (
         <p className="text-xs text-muted-foreground">
           Set <code className="font-mono">LICTORY_TOKEN</code> to the token in
-          the client&apos;s environment, so it never lands in a file you might
-          commit.
+          the environment the client starts in. The setup stores the
+          variable&apos;s name, never the token, so the token never lands in the
+          client&apos;s configuration or a file you might commit.
         </p>
       )}
     </div>
@@ -295,19 +254,11 @@ export function AgentConnection({
               <p className="text-[13px] font-medium">
                 Copy this token now. It will not be shown again.
               </p>
-              <div className="flex items-center gap-2">
-                <code
-                  data-testid="agent-token-secret"
-                  className="min-w-0 flex-1 truncate rounded-md bg-card px-2 py-1.5 font-mono text-xs shadow-(--shadow-border)"
-                >
-                  {secret}
-                </code>
-                <CopyButton
-                  text={secret}
-                  label="Copy the token"
-                  copied="Token copied"
-                />
-              </div>
+              <CopyValue
+                label="Token"
+                value={secret}
+                testId="agent-token-secret"
+              />
             </div>
           )}
           {!archived && (secret ?? !optional) && <SetupSnippet />}
@@ -446,11 +397,12 @@ export function AgentWakeUps({ agent }: { agent: AgentEntity }) {
       >
         <li className="space-y-3 px-3.5 py-3">
           <p className="text-[13px] leading-5 text-muted-foreground">
-            Wake {agent.name} when something waits on it or on you: a mention, a
-            review request, a stale approval, an answered question, a decided
-            pull request. Each event carries identifiers and a short title,
-            never the content, and says what happened, never what to do. A
-            client that keeps a connection open can call{" "}
+            Lictory calls a URL you choose as soon as something waits on{" "}
+            {agent.name} or on you: a mention, a review request, a stale
+            approval, an answered question, a decided pull request. Each call
+            says what happened and where, with a short title; {agent.name} reads
+            the details with its own tools. A client that keeps a connection
+            open can call{" "}
             <code className="font-mono text-xs">waitForEvents</code> instead.
           </p>
           {creating && (
