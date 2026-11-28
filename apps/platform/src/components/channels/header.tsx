@@ -308,14 +308,13 @@ export function ChannelHeader({
                   {!channel.archivedAt &&
                     (channel.externalSource === "slack" ? (
                       <MenuItem onSelect={() => void unlink()}>
-                        <SlackMark className="size-3.5 text-muted-foreground" />{" "}
-                        Unlink from Slack
+                        <SlackMark className="size-3.5" /> Unlink from Slack
                       </MenuItem>
                     ) : (
                       !channel.externalSource && (
                         <MenuItem onSelect={() => setLinking(true)}>
-                          <SlackMark className="size-3.5 text-muted-foreground" />{" "}
-                          Link to Slack channel…
+                          <SlackMark className="size-3.5" /> Link to Slack
+                          channel…
                         </MenuItem>
                       )
                     ))}
