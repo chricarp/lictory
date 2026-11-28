@@ -10,7 +10,8 @@ type Describe = string | ((tool: string) => string);
 // Which family of objects a tool works on, for identifiers shared by
 // specifications, pages and code (branches, pull requests, threads).
 const family = (tool: string) =>
-  /Page|Space|Draft$/.test(tool) && tool !== "commitSpecificationDraft"
+  (/Page|Space/.test(tool) || tool.endsWith("Draft")) &&
+  tool !== "commitSpecificationDraft"
     ? "page"
     : /Code|Repository/.test(tool)
       ? "code"

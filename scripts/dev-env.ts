@@ -12,7 +12,7 @@
 // compose.host-network.yaml when a firewall blocks it. Running it again keeps
 // what still works. See docs/operations/development.md.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -167,11 +167,16 @@ async function dockerReachesHost(image: string) {
 async function main() {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const envPath = join(root, ".env");
-  if (!existsSync(envPath)) {
-    copyFileSync(join(root, ".env.example"), envPath);
+  let text: string;
+  try {
+    text = readFileSync(envPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    text = readFileSync(join(root, ".env.example"), "utf8");
+    // "wx" never replaces a .env another process created meanwhile.
+    writeFileSync(envPath, text, { flag: "wx" });
     console.log("Created .env from .env.example.");
   }
-  let text = readFileSync(envPath, "utf8");
   const env = parseEnv(text);
   const changes: Record<string, string> = {};
   const notes: string[] = [];

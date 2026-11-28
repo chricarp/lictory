@@ -16,3 +16,7 @@ bb8a4e3f11efac27add956d1d75d137fb916256e:packages/core/src/channels/slack/slack.
 bb8a4e3f11efac27add956d1d75d137fb916256e:scripts/e2e-fakes/slack.ts:generic-api-key:75
 bb8a4e3f11efac27add956d1d75d137fb916256e:scripts/e2e-fakes/slack.ts:generic-api-key:76
 694bbc0bb77520cdca6b1a996a42923ab49cee71:packages/core/src/code/signatures.test.ts:generic-api-key:11
+# Placeholder hex strings for the fake Slack app in the credential tests.
+0446f189591e3d1b48cf75e1c306ecb9c27aa8a6:packages/core/src/channels/slack/credentials.test.ts:generic-api-key:8
+0446f189591e3d1b48cf75e1c306ecb9c27aa8a6:packages/core/src/channels/slack/credentials.test.ts:generic-api-key:9
+b645a99b7dd71af14ef35bc4812e35fae5643f3c:packages/core/src/channels/slack/slack.test.ts:generic-api-key:1079
