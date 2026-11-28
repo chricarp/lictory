@@ -12,9 +12,13 @@
 // LOAD_ITEMS_OPENED (3 per client), LOAD_SAMPLE_COMMAND (a shell command
 // printing one JSON object of server metrics, run every 10 s; optional).
 // Seeded users share the password in LOAD_PASSWORD. Never point this at a
-// production database: it creates accounts and organizations.
+// production database: it creates accounts and organizations. The seeded
+// users and the report (or LOAD_REPORT) are written to .load-test/ in the
+// checkout, never to a shared temporary directory.
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { hashPassword } from "better-auth/crypto";
 import { serializeSignedCookie } from "better-call";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -54,6 +58,13 @@ const summary = (values: number[]) => ({
   p99: percentile(values, 99),
   max: values.length ? Math.round(Math.max(...values)) : null,
 });
+
+const outputDir = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  ".load-test",
+);
+const usersFile = join(outputDir, "users.json");
 
 async function seed() {
   const url = process.env.DATABASE_URL;
@@ -254,7 +265,8 @@ async function seed() {
   const [{ size } = { size: "" }] = await client<
     { size: string }[]
   >`select pg_size_pretty(pg_database_size(current_database())) as size`;
-  writeFileSync("/tmp/lictory-load-users.json", JSON.stringify(users));
+  mkdirSync(outputDir, { recursive: true });
+  writeFileSync(usersFile, JSON.stringify(users));
   console.log(
     JSON.stringify({
       event: "seeded",
@@ -272,9 +284,7 @@ async function seed() {
 
 async function load() {
   const platform = process.env.PLATFORM_URL ?? "http://localhost:3001";
-  const users = JSON.parse(
-    readFileSync("/tmp/lictory-load-users.json", "utf8"),
-  ) as {
+  const users = JSON.parse(readFileSync(usersFile, "utf8")) as {
     email: string;
     organizationId: string;
     userId: string;
@@ -487,10 +497,10 @@ async function load() {
     propagationMs: summary(propagation),
     samples,
   };
-  writeFileSync(
-    process.env.LOAD_REPORT ?? "/tmp/lictory-load-report.json",
-    JSON.stringify(report, null, 2),
-  );
+  const reportFile = process.env.LOAD_REPORT ?? join(outputDir, "report.json");
+  mkdirSync(dirname(reportFile), { recursive: true });
+  writeFileSync(reportFile, JSON.stringify(report, null, 2));
+  console.log(`Report written to ${reportFile}.`);
   console.log(JSON.stringify({ ...report, samples: samples.length }));
   process.exit(0);
 }
