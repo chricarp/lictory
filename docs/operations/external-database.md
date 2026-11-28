@@ -341,7 +341,8 @@ On PostgreSQL 17.11 containers, without any managed provider:
   over `sslmode=verify-full` with a private CA through `NODE_EXTRA_CA_CERTS`,
   logged degraded mode, kept replicating after a change to an unreplicated
   table, and reset (exit for auto-reset, then a clean resync) after a column
-  was added to `sync_entity`;
+  was added to `sync_entity`; zero-cache 1.12.0 repeated all of this except
+  TLS (`sslmode=disable`, the same server version);
 - `wal_level = replica` failed `wal-level` and `replication-connection`;
   PgBouncer 1.26 in transaction mode passed logical replication through, and
   was reported by `direct-connection` (process id mismatch) and by
