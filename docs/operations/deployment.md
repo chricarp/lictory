@@ -25,7 +25,7 @@ https://<your app host> ──▶ Caddy gateway (TLS, SPA assets)
 | `api`           | `lictory-api`           | Hono API, Better Auth, files, Zero query/mutate endpoints and document metadata    |
 | `worker`        | `lictory-api`           | Durable AI, email and delivery jobs; delivery status refresh and automatic cycles  |
 | `collaboration` | `lictory-api`           | Live draft editing in Spaces (Hocuspocus WebSocket); one instance per installation |
-| `zero-cache`    | `rocicorp/zero:1.11.3`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume    |
+| `zero-cache`    | `rocicorp/zero:1.12.0`  | Sync engine; SQLite replica of the `lictory_zero` publication on its own volume    |
 | `postgres`      | `postgres:17.11-alpine` | Authoritative data; logical replication for Zero                                   |
 | `migrate`       | `lictory-migrate`       | One-shot: applies committed migrations before activation                           |
 | `ops`           | `lictory-ops`           | One-shot backups, restores and monitoring                                          |
@@ -435,8 +435,11 @@ worker running when rolling multiple instances.
 
 Rollback switches application images only; migrations stay applied. After a
 rollback, tabs that loaded the newer release reload when they next need a
-chunk. Publish a fix as a new release; `lictory upgrade` only moves forward,
-and `lictory rollback` returns to the previously activated release.
+chunk. A rollback across a Zero upgrade also returns zero-cache to the older
+version first. Zero clients cannot connect to an older zero-cache, so those
+tabs reload themselves, with backoff, until they load the restored release.
+Publish a fix as a new release; `lictory upgrade` only moves forward, and
+`lictory rollback` returns to the previously activated release.
 
 Proxy validation runs again before migrations and activation with the current
 environment, including manual activation, rollback and automatic recovery to

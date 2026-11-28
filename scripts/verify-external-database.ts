@@ -68,7 +68,7 @@ const urls = {
 const zeroImage =
   /rocicorp\/zero:[\w.-]+@sha256:[a-f0-9]{64}/.exec(
     readFileSync("deploy/compose.production.yaml", "utf8"),
-  )?.[0] ?? "rocicorp/zero:1.11.3";
+  )?.[0] ?? "rocicorp/zero:1.12.0";
 const summary: string[] = [
   `Server: ${admin.host}:${admin.port}, sslmode=${sslmode}`,
 ];

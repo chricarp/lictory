@@ -98,7 +98,7 @@ services:
   # bridge networks breaks this call; `bun run dev` detects it and prints the
   # fix (docs/operations/development.md, "Troubleshooting").
   zero-cache:
-    image: rocicorp/zero:1.11.3@sha256:d1ad384ea14eee10e0a3180a281ef8b943924993c06d8e47a36017b9bdcc7c55
+    image: rocicorp/zero:1.12.0@sha256:213d3bc4c667458c2ca6b65c963db4e484298dc25586f3cd93033bbdeaf32cb1
     environment:
       # Direct connection (never through a pooler): it holds the replication slot.
       ZERO_UPSTREAM_DB: postgresql://lictory:lictory@postgres:5432/lictory
@@ -140,7 +140,7 @@ services:
     restart: unless-stopped
 
   mailpit:
-    image: axllent/mailpit:v1.32@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+    image: axllent/mailpit:v1.33@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
