@@ -908,8 +908,7 @@ export function BacklogRow({
         "relative flex items-center gap-2 border-b px-4 text-[13px] last:border-b-0 hover:bg-muted/50 max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2 sm:h-9",
         draggable && "cursor-grab",
         dragging && "opacity-40",
-        selected &&
-          "bg-primary/8 shadow-[inset_2px_0_0_var(--color-primary)] hover:bg-primary/10",
+        selected && "bg-primary/8 hover:bg-primary/10",
       )}
     >
       <TypeIcon type={typeOf(delivery, item)} />

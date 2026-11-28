@@ -269,7 +269,7 @@ export function SidebarLink({
       title={compact ? children : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex items-center rounded-lg text-[13px] focus-ring-inset transition-[background-color,color,box-shadow] duration-150 outline-none motion-reduce:transition-none",
+        "relative isolate flex items-center rounded-lg text-[13px] focus-ring-inset transition-[background-color,color,box-shadow] duration-150 outline-none motion-reduce:transition-none",
         compact
           ? "size-8 justify-center"
           : "h-7 gap-2.5 px-2 [@media(pointer:coarse)]:h-8",
@@ -335,7 +335,7 @@ function PendingHint() {
   return (
     <span
       aria-hidden
-      className="link-pending absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
+      className="link-pending pointer-events-none absolute inset-0 -z-10 rounded-[inherit] bg-sidebar-accent/70"
     />
   );
 }

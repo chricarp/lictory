@@ -882,9 +882,7 @@ export function CommandPalette({
           onAction={(id) => run(results.find((r) => r.id === id))}
           className="flex min-h-0 w-full flex-1 flex-col rounded-none bg-transparent"
         >
-          {/* The field's focus is marked by a 2px line in the focus color
-              under it (the field has no ring of its own). */}
-          <div className="flex shrink-0 items-center gap-2 border-b px-3 focus-within:shadow-[inset_0_-2px_0_0_var(--ring)]">
+          <div className="flex shrink-0 items-center gap-2 border-b px-3">
             <CommandInput
               ref={inputRef}
               placeholder="Search items, pages or commands…"
