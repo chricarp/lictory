@@ -1,7 +1,10 @@
 import { Link } from "@lictory/platform/lib/navigation";
 import { useState } from "react";
 
-import { FormMessage } from "@lictory/platform/components/auth/form-field";
+import {
+  FormMessage,
+  ValidatedForm,
+} from "@lictory/platform/components/auth/form-field";
 import { NewPasswordFields } from "@lictory/platform/components/auth/password-field";
 import { Button } from "@lictory/ui/button";
 import { authClient } from "@lictory/platform/lib/auth-client";
@@ -62,7 +65,7 @@ export function ResetPasswordForm({ token }: { token?: string }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-4">
+    <ValidatedForm onSubmit={onSubmit} className="grid gap-4">
       <NewPasswordFields
         autoFocus
         passwordLabel="New password"
@@ -77,6 +80,6 @@ export function ResetPasswordForm({ token }: { token?: string }) {
       >
         {pending ? "Updating password…" : "Update password"}
       </Button>
-    </form>
+    </ValidatedForm>
   );
 }

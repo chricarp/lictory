@@ -162,7 +162,7 @@ async function fixture() {
       .filter((x) => x.projectId === project.id)
       .map((x) => [x.name, x.id]),
   ) as Record<
-    "Backlog" | "Todo" | "In Progress" | "In Review" | "Done" | "Canceled",
+    "Backlog" | "Todo" | "In Progress" | "Code review" | "Done" | "Canceled",
     string
   >;
   const proposalId = crypto.randomUUID();
@@ -771,13 +771,15 @@ void test("approvals target exact revisions, only assignments authorize, and sug
   const f = await fixture();
   const first = await f.current();
   const base = { workItemId: f.proposalId, baseRevisionId: first.id };
+  // Optional, so the approval does not make the item ready: a ready
+  // specification's main is protected and refuses suggestions.
   await f.command({
     type: "requestReview",
     ...base,
     reviewId: crypto.randomUUID(),
     disciplineId: f.roles.Engineering,
     userId: f.reviewerId,
-    required: true,
+    required: false,
   });
   const review = (await f.entities()).find((e) => e.type === "review")!;
   await assert.rejects(
@@ -849,6 +851,22 @@ void test("approvals target exact revisions, only assignments authorize, and sug
         e.revisionId === first.id,
     ),
   );
+  // The item's history says which approval the new revision outdated.
+  const revised = all.find(
+    (e) =>
+      e.type === "activity" && e.action === "revised" && e.detail?.number === 2,
+  );
+  assert.deepEqual(revised?.type === "activity" && revised.detail, {
+    number: 2,
+    summary: revised?.type === "activity" ? revised.detail?.summary : null,
+    outdatedApprovals: [
+      {
+        reviewerId: f.reviewerId,
+        responsibility: "Engineering",
+        revision: 1,
+      },
+    ],
+  });
   assert.ok(
     all.some(
       (e) =>
@@ -1267,6 +1285,82 @@ void test("work item numbering, hierarchy validation and epic readiness over sto
     }),
     /cannot be placed under a Story/,
   );
+  // Epic > Story > Task/Bug > Subtask: a Story breaks down into Tasks and
+  // Bugs, which may also sit directly under an Epic; nothing goes the other
+  // way.
+  const taskId = crypto.randomUUID();
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: taskId,
+    typeId: f.types.Task,
+    parentId: f.proposalId,
+    title: "Persist the transaction ID",
+  });
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: crypto.randomUUID(),
+    typeId: f.types.Bug,
+    parentId: f.proposalId,
+    title: "Retry duplicates a charge",
+  });
+  const otherEpicId = crypto.randomUUID();
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: otherEpicId,
+    typeId: f.types.Epic,
+    parentId: null,
+    title: "Refunds",
+  });
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: crypto.randomUUID(),
+    typeId: f.types.Task,
+    parentId: otherEpicId,
+    title: "Refund ledger export",
+  });
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId: crypto.randomUUID(),
+    typeId: f.types.Subtask,
+    parentId: taskId,
+    title: "Add the column",
+  });
+  await assert.rejects(
+    f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: crypto.randomUUID(),
+      typeId: f.types.Story,
+      parentId: taskId,
+      title: "Story under a task",
+    }),
+    /A Story cannot be placed under a Task/,
+  );
+  await assert.rejects(
+    f.command({
+      type: "createWorkItem",
+      projectId: f.projectId,
+      workItemId: crypto.randomUUID(),
+      typeId: f.types.Bug,
+      parentId: taskId,
+      title: "Bug under a task",
+    }),
+    /A Bug cannot be placed under a Task/,
+  );
+  // A Story with Task children cannot become a Task.
+  await assert.rejects(
+    f.command({
+      type: "updateWorkItem",
+      workItemId: f.proposalId,
+      typeId: f.types.Task,
+    }),
+    /children that cannot sit under a Task/,
+  );
   await f.command({
     type: "updateWorkItem",
     workItemId: f.proposalId,
@@ -1626,7 +1720,7 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
     organizationId: f.organizationId,
     name: "Outcome",
     icon: "flag",
-    level: 3,
+    level: 4,
     hasSpecification: true,
   });
   await db.insert(s.workItem).values({
@@ -1666,6 +1760,19 @@ void test("epic search is paginated, project-scoped, searchable, and authorized"
     f.types.Subtask,
   );
   assert.ok(taskParents.epics.some((item) => item.id === f.proposalId));
+  // A Task's parent may be a Story (its breakdown) or an Epic.
+  const storyParents = await searchEpics(
+    db,
+    f.userId,
+    f.organizationId,
+    f.projectId,
+    "",
+    0,
+    50,
+    f.types.Task,
+  );
+  assert.ok(storyParents.epics.some((item) => item.id === f.proposalId));
+  assert.ok(storyParents.epics.some((item) => item.typeId === f.types.Epic));
   const topParents = await searchEpics(
     db,
     f.userId,
@@ -1969,6 +2076,92 @@ void test("disciplines grant capabilities in their project; project administrato
   );
 });
 
+void test("a suggestion nobody is asked to accept can be taken and accepted by someone who can accept it", async () => {
+  const f = await fixture();
+  const first = await f.current();
+  const suggestionId = crypto.randomUUID();
+  const item = { workItemId: f.proposalId, suggestionId };
+  await f.command(
+    {
+      type: "createSuggestion",
+      workItemId: f.proposalId,
+      baseRevisionId: first.id,
+      suggestionId,
+      replacement: `${first.content}\nRetries reuse the key.\n`,
+      title: "Reuse the key",
+      rationale: "Reuse the key",
+      open: true,
+    },
+    f.reviewerId,
+  );
+  // Only themselves, never someone else, and not to withdraw the author's
+  // choice.
+  await assert.rejects(
+    f.command({
+      type: "setSuggestionReviewer",
+      ...item,
+      userId: f.reviewerId,
+      assigned: true,
+    }),
+    /Only the author/,
+  );
+  await f.command({
+    type: "setSuggestionReviewer",
+    ...item,
+    userId: f.userId,
+    assigned: true,
+  });
+  await f.command({
+    type: "decideSuggestion",
+    ...item,
+    version: 1,
+    decision: "approve",
+  });
+  await f.command({
+    type: "mergeSuggestion",
+    workItemId: f.proposalId,
+    baseRevisionId: first.id,
+    suggestionId,
+  });
+  const merged = (await f.entities()).find(
+    (e) => e.type === "suggestion" && e.id === suggestionId,
+  ) as Extract<Entity, { type: "suggestion" }>;
+  assert.equal(merged.status, "merged");
+  assert.equal((await f.current()).number, first.number + 1);
+  // Once someone is asked, nobody else takes it over.
+  const second = crypto.randomUUID();
+  await f.command(
+    {
+      type: "createSuggestion",
+      workItemId: f.proposalId,
+      baseRevisionId: (await f.current()).id,
+      suggestionId: second,
+      replacement: "# Retries\n\nBounded.\n",
+      title: "Bound retries",
+      rationale: "Bound retries",
+      open: true,
+    },
+    f.reviewerId,
+  );
+  await f.command({
+    type: "setSuggestionReviewer",
+    workItemId: f.proposalId,
+    suggestionId: second,
+    userId: f.userId,
+    assigned: true,
+  });
+  await assert.rejects(
+    f.command({
+      type: "setSuggestionReviewer",
+      workItemId: f.proposalId,
+      suggestionId: second,
+      userId: f.userId,
+      assigned: false,
+    }),
+    /Only the author/,
+  );
+});
+
 void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibility, versioned approvals, rebase and merge gates", async () => {
   const f = await fixture();
   const first = await f.current();
@@ -2163,6 +2356,24 @@ void test("suggestions follow a pull-request lifecycle: drafts, reviewer eligibi
     f.command({ type: "mergeSuggestion", ...base, suggestionId }),
     /specification changed/,
   );
+  // Once readiness protects main, a suggestion cannot write it either.
+  await db
+    .update(s.workItem)
+    .set({ mainProtected: true })
+    .where(eq(s.workItem.id, f.proposalId));
+  await assert.rejects(
+    f.command({
+      type: "mergeSuggestion",
+      workItemId: f.proposalId,
+      baseRevisionId: second.id,
+      suggestionId,
+    }),
+    /This specification is ready/,
+  );
+  await db
+    .update(s.workItem)
+    .set({ mainProtected: false })
+    .where(eq(s.workItem.id, f.proposalId));
   await assert.rejects(
     f.command({
       type: "mergeSuggestion",
@@ -2530,21 +2741,21 @@ void test("archiving a status requires a replacement and moves its items explici
   await f.command({
     type: "updateWorkItem",
     workItemId: f.proposalId,
-    statusId: f.statuses["In Review"],
+    statusId: f.statuses["Code review"],
   });
   await assert.rejects(
     f.command({
       type: "archiveStatus",
       projectId: f.projectId,
-      statusId: f.statuses["In Review"],
-      replacementId: f.statuses["In Review"],
+      statusId: f.statuses["Code review"],
+      replacementId: f.statuses["Code review"],
     }),
     /another active status/,
   );
   await f.command({
     type: "archiveStatus",
     projectId: f.projectId,
-    statusId: f.statuses["In Review"],
+    statusId: f.statuses["Code review"],
     replacementId: f.statuses["In Progress"],
   });
   assert.equal(
@@ -2610,11 +2821,25 @@ void test("sprints: one active per project, carry-over on completion, frozen rep
     workItemId: done,
     statusId: f.statuses.Done,
   });
+  // Planned and sized in one change counts at its estimate, as the backlog
+  // shows it (it was recorded unestimated before).
+  const sized = await create(f, f.types.Bug);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: sized,
+    iterationId: sprint,
+    estimate: 1,
+  });
   const report = await iterationReport(db, f.userId, f.organizationId, sprint);
   assert.deepEqual(report.totals.atStart, { count: 2, points: 8 });
-  assert.deepEqual(report.totals.addedAfterStart, { count: 1, points: 2 });
+  assert.deepEqual(report.totals.addedAfterStart, { count: 2, points: 3 });
   assert.deepEqual(report.totals.completed, { count: 1, points: 3 });
-  assert.equal(report.series.at(-1)!.remaining, 7);
+  assert.equal(report.series.at(-1)!.remaining, 8);
+  await f.command({
+    type: "updateWorkItem",
+    workItemId: sized,
+    iterationId: null,
+  });
   await f.command({
     type: "completeIteration",
     projectId: f.projectId,
@@ -2957,7 +3182,7 @@ void test("shared branches merge independent commits, reject overlap and preserv
       content: "resolved",
       message: "Old resolution",
     }),
-    /changed again/,
+    /saved again meanwhile/,
   );
   await f.command({
     type: "commitBranch",
@@ -3115,7 +3340,7 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
       sourceHeadId: b.source.headId,
       targetHeadId: b.target.headId,
     }),
-    /required responsibility/,
+    /required discipline/,
   );
   await decide();
   const mutationId = crypto.randomUUID(),
@@ -3128,7 +3353,7 @@ void test("PR approval binds to merge result, supplies main reviews, protects ma
     };
   await assert.rejects(
     f.command(mergeCommand, f.reviewerId),
-    /disciplines in this project cannot merge/,
+    /disciplines in this project cannot apply changes/,
   );
   // Cleanup and its audit event must roll back with the merge if any write fails.
   await client`CREATE FUNCTION reject_branch_cleanup() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'branch_deleted' THEN RAISE EXCEPTION 'forced cleanup failure'; END IF; RETURN NEW; END $$`;
@@ -3441,7 +3666,7 @@ void test("branch/PR deletion emits tombstones, keeps history, and branches can 
       workItemId: f.proposalId,
       branchId: childId,
     }),
-    /active pull requests/,
+    /open reviews of this change/,
   );
   const checkpoint = (await f.read()).nextCursor;
   await f.command({
@@ -4951,6 +5176,8 @@ void test("projections written by every command above equal a rebuild from the d
     unchanged: keys.length - 2,
     // No spaces in this organization (spaces.test.ts covers their rebuild).
     spaces: { upserted: 0, deleted: 0, unchanged: 0, readersChanged: 0 },
+    // No code hosts connected (code/service.test.ts covers their rebuild).
+    code: { upserted: 0, deleted: 0 },
   });
   assert.deepEqual(await projectionDrift(db, f.organizationId), []);
 });

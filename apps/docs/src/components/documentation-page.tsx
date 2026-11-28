@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { TOCItem, useActiveAnchor } from "fumadocs-core/toc";
 import { TOCScrollArea, useTOCItems } from "fumadocs-ui/components/toc";
 import { DocsPage, type DocsPageProps } from "fumadocs-ui/layouts/docs/page";
+import { Breadcrumb } from "@lictory/docs/components/sidebar";
 import {
   TOCProvider,
   TOCPopover,
@@ -87,7 +88,7 @@ export function DocumentationPage(props: DocsPageProps) {
       {...props}
       tableOfContent={{ single: true }}
       tableOfContentPopover={{ style: "block" }}
-      slots={{ toc: tocSlots }}
+      slots={{ toc: tocSlots, breadcrumb: Breadcrumb }}
     />
   );
 }

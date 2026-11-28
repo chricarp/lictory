@@ -379,6 +379,10 @@ void test("account deletion decides on every table that references a user with O
   const removed = [
     "access_token",
     "account",
+    // Agent event webhooks and subscriptions, and the events addressed to
+    // the person (docs/internals/agent-events.md).
+    "agent_event",
+    "agent_event_subscription",
     "capability_invocation",
     "discipline_member",
     "intelligence_chat",

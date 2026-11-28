@@ -21,10 +21,11 @@ import {
   capabilityRows,
   comparison as findComparison,
   comparisonPath,
+  comparisonProfiles,
+  comparisonReviewed,
   comparisons,
 } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
-import { product as findProduct } from "@lictory/marketing/content/products";
 import { roundups } from "@lictory/marketing/content/roundups";
 import { publicPageMetadata } from "@lictory/marketing/lib/public-metadata";
 import { comparisonStructuredData } from "@lictory/marketing/lib/comparison-structured-data";
@@ -50,9 +51,7 @@ export default async function ComparisonPage({
   const item = findComparison(product);
   if (!item) notFound();
   const others = comparisons.filter((other) => other.slug !== item.slug);
-  const profiles = item.product
-    ? [findProduct("lictory"), findProduct(item.product)]
-    : [];
+  const profiles = comparisonProfiles(item);
   // Roundups that include this competitor.
   const related = roundups.filter(
     (roundup) =>
@@ -65,7 +64,7 @@ export default async function ComparisonPage({
         items={[{ name: "Lictory", href: "/" }, { name: item.headline }]}
       />
       <PageHeading title={item.headline} lead={item.intro}>
-        <Updated date={item.updated} reviewed={profiles[1]?.reviewed} />
+        <Updated date={item.updated} reviewed={comparisonReviewed(item)} />
       </PageHeading>
 
       <div className="mt-10 grid gap-3 sm:grid-cols-2">

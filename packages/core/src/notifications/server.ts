@@ -106,13 +106,14 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
     users: Iterable<string>,
     kind: NotificationKind,
     detail: Record<string, unknown> = {},
-    options: { direct?: boolean; watchers?: boolean } = {},
+    options: { direct?: boolean; watchers?: boolean; dedupeKey?: string } = {},
   ) => {
     notices.push({
       ...base,
       userIds: users,
       kind,
       detail: { itemKey, title: item.title, ...detail },
+      ...(options.dedupeKey ? { dedupeKey: options.dedupeKey } : {}),
       watchers: options.watchers,
       // Opting out of an item silences ambient updates, never requests that
       // are addressed to the person (review requests, mentions, assignment).
@@ -204,7 +205,19 @@ export async function notifyItemActivity(tx: Tx, ctx: ItemContext) {
         break;
       }
       case "refinement_changed":
-        if (detail.to === "ready") add(involved(), "item_ready", {}, followers);
+        // "PAY-1 is ready" once per person and revision: a revision that
+        // dips out of ready (a review requested after an approval) and
+        // back tells nobody twice; To do shows the live state.
+        if (detail.to === "ready")
+          add(
+            involved(),
+            "item_ready",
+            {},
+            {
+              ...followers,
+              dedupeKey: `item_ready:${item.id}:${item.revisionNumber}`,
+            },
+          );
         else if (detail.from === "ready")
           add(involved(), "item_unready", {}, followers);
         break;

@@ -235,6 +235,21 @@ export async function cancelOrganizationDeletion(
 // exists. organization-deletion.test.ts checks this list against the
 // database's foreign keys, so a new table fails the test until it is added.
 export const deletionOrder: readonly PgTable[] = [
+  // Code: links and queued work reference work items, projects and
+  // mirrors; mirrors reference repositories, which reference connections.
+  s.codeWorkLink,
+  s.codeWrite,
+  s.codeWebhookDelivery,
+  s.codeHostIdentity,
+  s.codeCommitChecks,
+  s.codeCommit,
+  s.codeIssue,
+  s.codeReview,
+  s.codePullRequest,
+  s.codeBranch,
+  s.codeRepositoryProject,
+  s.codeRepository,
+  s.codeConnection,
   // Knowledge links reference pages, commits, branches, work items,
   // revisions, projects, teams and iterations: they go first.
   s.pageReference,
@@ -243,15 +258,40 @@ export const deletionOrder: readonly PgTable[] = [
   s.workItemPageSource,
   s.pageBranchOrigin,
   s.pageContextLink,
+  // Agent sessions reference work items and projects; their events,
+  // inputs and approval requests cascade with them, agents and runners with
+  // the organization.
+  s.agentSession,
   // Queued events first: the delete waits for a fan-out in flight, so the
   // notifications it writes are removed by the next statements.
   s.notificationEvent,
   s.notificationEmail,
   s.notification,
+  // Lictory Channels: everything that references messages, then messages
+  // (thread replies reference their roots in the same table), then
+  // memberships. Channels themselves go after the files attached to them.
+  s.channelPromotion,
+  s.channelMirror,
+  s.channelExternalLink,
+  s.channelMention,
+  s.channelReaction,
+  s.channelThreadParticipant,
+  s.channelMessageRevision,
+  s.channelMessage,
+  s.channelMember,
   s.workItemWatcher,
   s.intelligenceContextVersion,
   s.intelligenceContextEntry,
   s.aiRun,
+  // Claims and the Definition of Done reference items, revisions and
+  // projects (docs/internals/claims.md).
+  s.autopilotMerge,
+  s.claimQuestion,
+  s.workItemClaim,
+  s.doneSignOff,
+  s.dispatchBackoff,
+  s.autonomyPolicy,
+  s.definitionOfDone,
   s.decision,
   s.threadMessage,
   s.thread,
@@ -278,6 +318,7 @@ export const deletionOrder: readonly PgTable[] = [
   s.specificationCommit,
   s.specificationRevision,
   s.fileObject,
+  s.channel,
   s.iterationEvent,
   s.workItemLabel,
   s.workItemRelation,

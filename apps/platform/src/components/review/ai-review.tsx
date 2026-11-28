@@ -1,3 +1,5 @@
+import { ItemScreenTitle } from "@lictory/platform/components/items/screen-title";
+import { StatusChip } from "@lictory/ui/status-chip";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
 import {
@@ -340,22 +342,20 @@ export function AiReviewView({
       {/* The review is evidence, not a decision: it reads as a proposal in a
           tray, with its provenance named before its verdict. */}
       <header className="rounded-[1.375rem] bg-tray p-1 ring-1 ring-border/70 ring-inset">
-        <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2 pb-2.5 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+        <div className="flex flex-wrap items-center gap-2 px-3.5 pt-2 pb-2.5 text-xs font-semibold text-muted-foreground">
           <IntelligenceMark className="size-3.5 text-foreground" />
           Lictory Intelligence · review
-          <span className="ml-auto inline-flex h-5 items-center rounded-full bg-card px-2 tracking-[0.04em] ring-1 ring-foreground/8 ring-inset">
-            Proposal · people decide
-          </span>
+          <StatusChip className="ml-auto">Proposal · people decide</StatusChip>
         </div>
         <div className="rounded-[1.125rem] bg-card p-4 shadow-(--shadow-border)">
           <div className="flex items-start gap-4">
             <div className="min-w-0 flex-1">
               {/* The headline is what needs a human, not a grade. */}
-              <h1 className="text-xl font-semibold tracking-[-0.02em]">
+              <ItemScreenTitle>
                 {run.findings.length === 0
                   ? "No proposed concerns"
                   : `${run.findings.length} proposed concern${run.findings.length === 1 ? "" : "s"}`}
-              </h1>
+              </ItemScreenTitle>
               <p className="mt-0.5 text-[13px] text-muted-foreground">
                 AI assessment of {identifier(ctx.project, ctx.item.number)} ·
                 requested by {ctx.memberName(run.requestedById)} ·{" "}
@@ -561,7 +561,7 @@ export function AiReviewView({
               )}
               <span>
                 <b>{keyOf(o.workItemId)}</b>:{" "}
-                {o.ok ? "pull request opened." : o.message}
+                {o.ok ? "change sent for review." : o.message}
               </span>
             </li>
           ))}
@@ -606,8 +606,10 @@ export function AiReviewView({
             ) : (
               <GitPullRequest className="size-3.5" />
             )}
-            Open corrective{" "}
-            {chosenItems.length === 1 ? "pull request" : "pull requests"}
+            Propose{" "}
+            {chosenItems.length === 1
+              ? "a corrective change"
+              : "corrective changes"}
           </Button>
         </div>
       )}
@@ -651,7 +653,7 @@ export function FindingCard({
           <Checkbox
             checked={Boolean(selected)}
             onCheckedChange={onToggle}
-            aria-label={`Include “${f.title}” in a corrective pull request`}
+            aria-label={`Include “${f.title}” in a corrective change`}
             className="mt-1"
           />
         )}
@@ -775,9 +777,9 @@ function FindingRow({
 const policyCopy = {
   off: "Off for this project: runs only when someone starts it.",
   advisory:
-    "Advisory: reviews every new commit. Findings inform, merge isn't blocked.",
+    "Advisory: reviews every new version. Findings inform; applying isn't blocked.",
   required:
-    "Required: merge waits for a review of the latest commit. Blockers open blocking discussions.",
+    "Required: applying waits for a review of the latest version. Blockers open blocking discussions.",
 } as const;
 
 function useActionPolicy() {
@@ -799,20 +801,20 @@ export function actionCheck(
       summary:
         policy === "off"
           ? "Not run. Start it whenever you want a review."
-          : "Starts when the pull request is ready for review.",
+          : "Starts when the change is ready for review.",
     };
   if (latest.status === "queued")
-    return { state: "pending", summary: "Queued for the latest commit" };
+    return { state: "pending", summary: "Queued for the latest version" };
   if (latest.status === "running")
-    return { state: "running", summary: "Reviewing the latest commit…" };
+    return { state: "running", summary: "Reviewing the latest version…" };
   if (latest.status === "failed")
     return { state: "failure", summary: latest.error ?? "The run failed." };
   if (latest.status === "superseded")
-    return { state: "skipped", summary: "Cancelled by a newer commit" };
+    return { state: "skipped", summary: "Cancelled by a newer version" };
   if (latest.headCommitId !== sourceHeadId)
     return {
       state: "neutral",
-      summary: "Out of date: reviewed an earlier commit",
+      summary: "Out of date: reviewed an earlier version",
     };
   const blockers = latest.findings.filter((f) => f.severity === "blocker");
   return {
@@ -1035,9 +1037,9 @@ function RunDetail({
     r.status === "completed"
       ? current
         ? "Completed"
-        : "Completed · earlier commit"
+        : "Completed · earlier version"
       : r.status === "superseded"
-        ? "Cancelled · a newer commit arrived"
+        ? "Cancelled · a newer version arrived"
         : r.status[0]!.toUpperCase() + r.status.slice(1);
   const ordered = [...r.findings].sort(
     (a, b) =>
@@ -1061,7 +1063,7 @@ function RunDetail({
         {(
           [
             [
-              "Commit",
+              "Version",
               <code key="c">{r.headCommitId?.slice(0, 7) ?? "—"}</code>,
             ],
             ["Triggered by", requestedBy],
@@ -1146,17 +1148,17 @@ function RunDetail({
                     action={
                       !f.edit ? null : applied ? (
                         <span className="inline-flex items-center gap-1 text-xs text-success">
-                          <Check className="size-3" /> Committed to {sourceName}
+                          <Check className="size-3" /> Saved to {sourceName}
                         </span>
                       ) : current && canCommit ? (
                         <Button
                           size="sm"
                           variant="secondary"
                           disabled={pending}
-                          title={`Adds a commit to ${sourceName}. Reviewers will need to approve again.`}
+                          title={`Saves a new version of ${sourceName}. Reviewers will need to approve again.`}
                           onClick={() => onCommit(f.id)}
                         >
-                          Commit suggestion
+                          Apply to the change
                         </Button>
                       ) : null
                     }
@@ -1189,12 +1191,12 @@ export function useActionGate(
     return undefined;
   const [latest] = runs;
   if (!latest)
-    return `The ${INTELLIGENCE_REVIEW_ACTION} has not reviewed this pull request.`;
+    return `The ${INTELLIGENCE_REVIEW_ACTION} has not reviewed this change.`;
   if (latest.status === "queued" || latest.status === "running")
-    return `The ${INTELLIGENCE_REVIEW_ACTION} is still reviewing the latest commit.`;
+    return `The ${INTELLIGENCE_REVIEW_ACTION} is still reviewing the latest version.`;
   if (latest.status === "failed")
     return `The ${INTELLIGENCE_REVIEW_ACTION} failed. Re-run it.`;
   if (latest.headCommitId !== sourceHeadId)
-    return `The ${INTELLIGENCE_REVIEW_ACTION} has not reviewed the latest commit.`;
+    return `The ${INTELLIGENCE_REVIEW_ACTION} has not reviewed the latest version.`;
   return undefined;
 }

@@ -110,7 +110,13 @@ test.describe("touch devices", () => {
         }),
       ).toBeVisible();
 
-      await page.getByRole("button", { name: "Search", exact: true }).tap();
+      // The item's phone bar has no global search: the palette opens from
+      // the navigation drawer.
+      await page.getByRole("button", { name: "Open navigation" }).tap();
+      await page
+        .getByRole("dialog", { name: "Navigation" })
+        .getByRole("button", { name: /^Search…/ })
+        .tap();
       const search = page
         .getByRole("dialog", { name: "Command palette" })
         .getByRole("combobox", { name: "Search", exact: true });
@@ -122,11 +128,11 @@ test.describe("touch devices", () => {
 
       // A small, auto-focused field rendered through the shared picker.
       await page.goto(workspace.itemPath(1) + "?branches=1");
-      const branch = page.getByRole("textbox", { name: "New branch name" });
+      const branch = page.getByRole("textbox", { name: "Name of the change" });
       await expect(branch).toHaveCSS("font-size", "16px");
       await branch.fill("mobile/readability");
       await page
-        .getByRole("combobox", { name: "Branch from", exact: true })
+        .getByRole("combobox", { name: "Start from", exact: true })
         .tap();
       await expectUnscaled(page);
     });

@@ -622,8 +622,8 @@ specifications use (Markdown `![name](/api/files/{id})`, an image node's
 
 ## Integration with the rest of Lictory
 
-- Navigation: Spaces in the organization sidebar, and each project's and team's
-  spaces in their navigation. Page titles are in the command palette, and
+- Navigation: the Spaces section of the sidebar, the project in context's
+  spaces first. Page titles are in the command palette, and
   what pages say is found by [content search](#search-and-product-knowledge).
 - References to work items, other pages (optionally pinned to a version) and
   recorded decisions render as live chips for readers who can see the target:
@@ -1040,10 +1040,11 @@ attributed to the anonymized account, like specification threads.
   on `space_entity`). Creating a space, every access, home and publishing
   change and archiving a space wait for the server, because they decide who
   can read what.
-- **Navigation.** The organization sidebar lists the organization's spaces
-  and those of my projects and teams (the rest under "All spaces"); each
-  project's navigation lists its own and its teams' spaces. The command
-  palette finds spaces and page titles.
+- **Navigation.** Spaces are listed in one place, the sidebar's Spaces
+  section: the spaces of the project in context first, then the
+  organization's and those of my other projects and teams (the rest under
+  "All spaces"). The project's own rows do not repeat them, so a space is
+  never listed twice. The command palette finds spaces and page titles.
 - **The page tree** is a WAI-ARIA tree: arrow keys move and expand, Enter
   opens, Alt+Arrow moves a page among its siblings and Shift+F10 opens its
   actions. Dragging drops a page before, after or into another; "Move…"
@@ -1054,9 +1055,11 @@ attributed to the anonymized account, like specification threads.
   browser like the sidebar's state; "Show pages" brings it back), and it
   steps aside while comments are open on frames under 80rem. The space home
   has "Find a page" (titles anywhere in the tree, with their path) and
-  "Recently updated" with who published what (`publishedById`,
-  `publishedMessage` of the page summary). Breadcrumbs keep the immediate
-  parent and fold the ancestors between the space and it into "…".
+  "Recently updated" beside the tree on wide screens, with who published what (`publishedById`,
+  `publishedMessage` of the page summary). A page starts with the shell's
+  `PageHeader`: its path (Spaces, the space, its parent pages), its title
+  and its toolbar; phones keep the title in the bar and put the toolbar
+  under the page's title.
 - **Reading.** A page shows main's latest commit, a branch's head
   (`?branch=<branchId>`) or a version picked with `?commit=<commitId>`,
   rendered by a read-only Tiptap editor from the commit's canonical JSON with
@@ -1177,9 +1180,10 @@ attributed to the anonymized account, like specification threads.
   ([When a line ends](#when-a-line-ends)); the page summary's `openThreads`
   and `blockingThreads` stay page-wide, as the merge gate into main is. The count of blocking threads says what they block ("blocks merging
   pull requests" in Direct spaces, whose Publish they do not stop; "blocks
-  merging" in Reviewed ones). Highlights are tints in the thread's colour;
-  the selected thread and the one pointed at, in the panel or in the text,
-  are tinted more on both sides.
+  merging" in Reviewed ones). Highlights are tints in the thread's colour
+  with a solid line under the text, as in specifications; the selected thread
+  and the one pointed at, in the panel or in the text, are tinted more on
+  both sides.
 - **Space settings.** Every setting applies when it changes (text fields
   when left or on Enter) and shows "Saving…", then "Saved", or the refusal
   beside it. Moving an Inherited space to another location asks first,

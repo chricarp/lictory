@@ -1,0 +1,105 @@
+---
+title: Accessibility
+description: What Lictory aims for (WCAG 2.2 AA), how to use it with a keyboard and a screen reader, what is checked and the gaps we know about.
+---
+
+Lictory aims to meet **WCAG 2.2 level AA** in the application, the desktop
+app, the documentation and the website. Reviewing specifications means long
+sessions of reading, commenting and deciding, and keyboard, screen reader and
+low-vision users must be able to do all of it.
+
+This page states what is true today, including what is not yet good enough.
+Report an accessibility problem as a
+[GitHub issue](https://github.com/chricarp/lictory/issues) with the page, what
+you did and the assistive technology you used.
+
+## Keyboard
+
+- Everything can be reached with the keyboard. The first Tab stop on every
+  page is **Skip to content**, which moves past the sidebar. On a work
+  item the second is **Skip to specification** (or **Skip to
+  description**), which lands on the text itself, past the item list and
+  the header.
+- Focus is always visible: one ring in the theme's focus color, at 3:1 or
+  more against every surface.
+- Dialogs, popovers and inline editors take focus when they open and give it
+  back when they close.
+- Single-key shortcuts never fire while you type, and each person can turn
+  them off in **Account settings** → **Keyboard** (WCAG 2.1.4). Every
+  shortcut is listed in [keyboard shortcuts](/basics/shortcuts).
+- Board cards and backlog rows have a **Move** button beside the drag: move
+  a card to another column, or rank a card or row to the top, up, down or to
+  the bottom, without dragging (WCAG 2.5.7).
+- Editor toolbars are one Tab stop; arrow keys move between their controls.
+  The inline pickers (`/`, `#`, `[[`, `@`) are listboxes driven by the arrow
+  keys while focus stays in the text.
+- A specification you read, and a published page, is one Tab stop. Inside
+  it the keyboard selects text: Arrow Left/Right select the previous or next
+  word, Arrow Up/Down a word on the line above or below, Home/End the first
+  or last word of the line, Shift with those keys extends the selection and
+  Escape clears it. The selection is the browser's own, so everything a
+  pointer selection offers works on it.
+- Mod+Alt+M comments on the selected text (or, with nothing selected, opens
+  a comment on the whole page or specification). In a specification the
+  selection's actions (comment, suggest a change) come next in the tab
+  order, and Enter on a marked passage opens its discussion. In a published
+  page, Tab moves from the selected text into its actions (Comment, Create
+  work item, Ask Litto); Escape returns to the text with the selection kept.
+- Discussions on a specification are reached with Alt+Arrow Up/Down from the
+  discussion panel; the thread reached marks its passage in the text.
+- A message's actions (reactions, reply, and **More actions** with Promote
+  to proposal, Record as decision and Copy link) are one Tab stop per
+  message, shown when it has focus; arrow keys move between them. On a touch
+  screen, tap a message to show its actions.
+- A disabled Merge or Request changes stays reachable with Tab and is
+  described by the reason it cannot act yet.
+
+## Screen readers
+
+- Rich text fields are labelled multi-line text boxes. The page editor's save
+  state is a polite status, so "Saved" is announced.
+- Changed discussion anchors, stale approvals and readiness say what they mean
+  in words, never only by color. Discussed passages are underlined as well as
+  tinted, so the mark does not depend on seeing color.
+- Buttons repeated for each request say which request they answer:
+  "Approve: Write CHANGES.md", "Review: Write CHANGES.md, PAY-11".
+- Other people's carets are hidden from screen readers; who is editing is
+  stated next to the save state.
+- Changes made by other people are announced through one polite live
+  region, each once: new messages and thread replies in the open
+  conversation, an agent's approval request and a session starting,
+  finishing, failing or waiting, a new revision and approvals granted,
+  withdrawn or made outdated, a pull request's checks and merge, Definition
+  of Done checks changing, something new waiting on you in the Inbox, and a
+  hand-off's results. Your own actions are confirmed where you acted.
+- Form errors are shown next to each field and tied to it, and the first
+  field to fix takes focus.
+
+## What is checked automatically
+
+Every change to Lictory runs lint rules for accessible React code and
+[axe-core](https://github.com/dequelabs/axe-core) on the main workflows in the
+browser suite: sign-in and sign-up, setting up an organization (on a phone
+and a laptop), specification review, the board and backlog, handing work off
+to Jira and its results, settings, Home, the Inbox, channels, the Factory,
+Code and Spaces, several of them in light and dark mode. The suite fails on any serious or
+critical violation. Tools find roughly a third to a half of accessibility
+problems, so the rest depends on people testing by hand.
+
+## Known gaps
+
+- **Drag and drop.** Board cards, backlog rows, stories and space pages are
+  dragged with a pointer, and each has a single-pointer and keyboard
+  alternative: **Move** on cards and rows, Alt+Arrow keys from a story's
+  grip, **Move…** on a page. Moving a card to another swimlane (assignee or
+  priority) is done in its properties.
+- **Other people's edits in a live draft** are not announced as they type;
+  who is editing is stated next to the save state.
+- **Screen reader pass.** The announcements above are verified by automated
+  browser tests of the live region; a recorded pass with VoiceOver or NVDA
+  over the whole workflow has not been done yet.
+- **Themes.** Light mode and the default dark mode are checked; the optional
+  color themes are not.
+
+The [internal accessibility notes](https://github.com/chricarp/lictory/blob/main/docs/internals/accessibility.md)
+describe the checks and the keyboard model in more detail.

@@ -149,6 +149,10 @@ test("anchored discussions sit beside the text in document order, marked, and re
     "original transaction ID",
     "reported to the customer",
   ]);
+  // Marked by a solid line under the text as well as a tint, so the mark
+  // does not depend on seeing colour.
+  for (const mark of await marked(page).all())
+    await expect(mark).toHaveCSS("box-shadow", /0px -2px 0px 0px inset$/);
   // Clicking a marked passage opens its discussion.
   await marked(page).first().click();
   const panel = panelOf(page);
@@ -227,6 +231,86 @@ test("anchored discussions sit beside the text in document order, marked, and re
   // The choice to keep the panel open is remembered.
   await page.reload();
   await expect(panelOf(page)).toBeVisible();
+});
+
+const selectionText = (page: Page) =>
+  page.evaluate(() => window.getSelection()?.toString().trim() ?? "");
+
+test("a keyboard-only reviewer anchors a discussion to a passage, and hears a revision someone else saves", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const { workItemId, path } = await open(page);
+  const reviewer = seeded.users[1]!;
+  await signIn(page, reviewer.email);
+  await page.goto(path);
+  // The text is one tab stop that explains its keys.
+  const reader = page.getByRole("document", { name: "Specification text" });
+  await expect(reader).toHaveAccessibleDescription(/Arrow keys select a word/);
+  // Two Tab presses from the top of the page reach it: the second skip link
+  // passes the sidebar, the item list and the header.
+  // Start from the top of the document. A panel that finishes loading (or a
+  // page that reloads after a lost chunk) can move the starting point after
+  // the blur, so the step is retried until the first Tab lands on the first
+  // skip link; what follows is asserted once.
+  await expect(async () => {
+    await page.evaluate(() => (document.activeElement as HTMLElement)?.blur());
+    await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("link", { name: "Skip to content" }),
+    ).toBeFocused({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  await page.keyboard.press("Tab");
+  const skip = page.getByRole("link", { name: "Skip to specification" });
+  await expect(skip).toBeFocused();
+  await expect(skip).toBeInViewport();
+  await page.keyboard.press("Enter");
+  await expect(reader).toBeFocused();
+  // Arrow keys move a selected word; Shift extends it.
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => selectionText(page)).toBe("Behavior");
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(() => selectionText(page)).toBe("Retries");
+  await page.keyboard.press("Shift+End");
+  await expect
+    .poll(() => selectionText(page))
+    .toBe("Retries reuse the original transaction ID.");
+  // The actions sit after the selected line's text, covering no words.
+  const actions = page.getByRole("toolbar", { name: "Selection actions" });
+  const selected = await page.evaluate(() => {
+    const r = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+    return { right: r.right, top: r.top, bottom: r.bottom };
+  });
+  const box = (await actions.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(selected.right);
+  expect(box.y + box.height / 2).toBeGreaterThan(selected.top);
+  expect(box.y + box.height / 2).toBeLessThan(selected.bottom);
+  // Tab reaches the selection's actions first.
+  await page.keyboard.press("Tab");
+  await expect(
+    actions.getByRole("button", { name: "Comment on selection" }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  const composer = await fillMarkdown(
+    page,
+    "Comment on selection",
+    "Is the ID reused across providers?",
+  );
+  await composer.press("ControlOrMeta+Enter");
+  await expect(marked(page)).toHaveText([
+    "Retries reuse the original transaction ID.",
+  ]);
+  // Focus lands on the new discussion, not at the top of the page.
+  await expect(
+    panelOf(page).getByRole("article", { name: /Discussion by/ }),
+  ).toBeFocused();
+  await expectNoAccessibilityViolations(page, "keyboard-anchored discussion");
+
+  // Someone else's revision is announced politely; the page stays put.
+  await revise(workItemId, `${first}\nA second note.\n`, "Add a note");
+  await expect(page.locator("[data-announcer]")).toContainText(
+    `${seeded.owner.name} saved revision 2`,
+  );
 });
 
 test("a discussion whose text changed says so and opens the revision it was written on", async ({
@@ -328,8 +412,8 @@ test("changes between revisions mark only the words that changed, and any two re
   await expect(selected.locator("del")).toHaveText(["original", "ten"]);
   await expect(page).toHaveURL(/[?&]compare=/);
 
-  // Versions list who changed what, and reading one shows its full text.
-  const versions = page.getByRole("region", { name: "Versions" });
+  // Revisions list who changed what, and reading one shows its full text.
+  const versions = page.getByRole("region", { name: "Revisions" });
   await expect(versions.getByRole("button")).toHaveCount(3);
   await expect(versions.getByRole("button").first()).toContainText("Current");
   await versions.getByRole("button", { name: /r1/ }).click();
@@ -339,14 +423,14 @@ test("changes between revisions mark only the words that changed, and any two re
   // The same history holds branches and pull requests.
   await page
     .getByRole("navigation", { name: "Specification history" })
-    .getByRole("button", { name: "Branches & pull requests" })
+    .getByRole("button", { name: "Proposed changes" })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Branches & pull requests" }),
+    page.getByRole("heading", { name: "Proposed changes" }),
   ).toBeVisible();
   await page
     .getByRole("navigation", { name: "Specification history" })
-    .getByRole("button", { name: "Versions" })
+    .getByRole("button", { name: "Revisions" })
     .click();
   await expect(versions).toBeVisible();
 });
@@ -429,6 +513,29 @@ test("a wide discussions column chosen earlier gives way so the text keeps its r
   expect(await width("aside[data-discussions]")).toBeGreaterThanOrEqual(304);
 });
 
+test("at 200% zoom on a laptop the discussions stay beside the text instead of covering it", async ({
+  page,
+}) => {
+  // 1440×900 at 200% zoom lays out as 720×450 CSS pixels.
+  await page.setViewportSize({ width: 720, height: 450 });
+  const { path } = await open(page);
+  await signIn(page, seeded.owner.email);
+  await page.goto(path);
+  await openDiscussions(page);
+  await expect(page.getByRole("dialog", { name: "Discussions" })).toHaveCount(
+    0,
+  );
+  await expect(page.locator("aside[data-discussions]")).toBeVisible();
+  const textWidth = await page
+    .locator("[data-pane-document]")
+    .first()
+    .evaluate((element) => element.getBoundingClientRect().width);
+  expect(textWidth).toBeGreaterThanOrEqual(360);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(720);
+});
+
 test("on a phone the discussions open as a sheet that closes with Escape", async ({
   page,
 }) => {
@@ -460,9 +567,16 @@ test("on a phone the discussions open as a sheet that closes with Escape", async
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden();
   await expect(toggle).toBeFocused();
+  // A sheet left open does not reopen over the page on the next visit:
+  // it would cover the item and its controls until closed.
+  await toggle.click();
+  await expect(sheet).toBeVisible();
+  await page.reload();
+  await expect(discussionsToggle(page)).toBeVisible();
+  await expect(sheet).toHaveCount(0);
 });
 
-test("suggesting a change opens a branch with the chosen passage selected in its live draft", async ({
+test("a larger suggested change opens a branch with the chosen passage selected in its live draft", async ({
   page,
 }) => {
   const { path } = await open(page);
@@ -476,8 +590,15 @@ test("suggesting a change opens a branch with the chosen passage selected in its
     .getByRole("toolbar", { name: "Selection actions" })
     .getByRole("button", { name: "Suggest a change" })
     .click();
+  // A plain passage is suggested beside the text; a larger change goes to
+  // the editor.
+  const composer = page.getByRole("form", { name: "Suggest a change" });
+  await expect(composer.getByLabel("Replace with")).toHaveValue(
+    "reconciled against the first attempt",
+  );
+  await composer.getByRole("button", { name: "Larger change" }).click();
   const editor = page.locator(
-    '[data-markdown-editor][aria-label="Branch specification"][contenteditable="true"]',
+    '[data-markdown-editor][aria-label="Proposed specification"][contenteditable="true"]',
   );
   await expect(editor).toBeFocused();
   await expect
@@ -488,4 +609,274 @@ test("suggesting a change opens a branch with the chosen passage selected in its
   await expect(editor).toContainText(
     "Late answers are matched to the first attempt.",
   );
+});
+
+test("a suggestion on selected text is accepted by the person asked and becomes the next revision", async ({
+  page,
+  browser,
+}) => {
+  const { workItemId, path } = await open(page);
+  // Ben holds no discipline: anyone in the organization may suggest.
+  await signIn(page, seeded.users[1]!.email);
+  await page.goto(path);
+  await expect(page.locator("[data-spec-root]")).toContainText(
+    "reconciled against the first attempt",
+  );
+  await selectInSpecification(page, "reconciled against the first attempt");
+  await page
+    .getByRole("toolbar", { name: "Selection actions" })
+    .getByRole("button", { name: "Suggest a change" })
+    .click();
+  const composer = page.getByRole("form", { name: "Suggest a change" });
+  await composer
+    .getByLabel("Replace with")
+    .fill("matched to the first attempt");
+  await composer.getByLabel("Why").fill("Reconciliation is a batch job.");
+  // The item's author (Product: edits and reviews) is asked by default.
+  await expect(composer.getByLabel("Who accepts it")).toContainText(
+    seeded.owner.name,
+  );
+  await composer.getByRole("button", { name: "Suggest", exact: true }).click();
+  const card = page.getByRole("article", {
+    name: `Suggested change by ${seeded.users[1]!.name}`,
+  });
+  await expect(card).toContainText("Reconciliation is a batch job.");
+  await expect(card).toContainText(`Waiting for ${seeded.owner.name}`);
+  await expect(card.getByRole("button", { name: "Accept" })).toHaveCount(0);
+  // The passage it rewrites is marked in the text.
+  await expect(
+    page.locator("[data-spec-root] mark[data-suggestions]"),
+  ).toHaveText("reconciled against");
+
+  const authorContext = await browser.newContext();
+  const author = await authorContext.newPage();
+  await signIn(author, seeded.owner.email);
+  await author.goto(path);
+  await author.getByRole("button", { name: /^1 suggested change/ }).click();
+  const pending = author.getByRole("article", {
+    name: `Suggested change by ${seeded.users[1]!.name}`,
+  });
+  await expect(pending).toContainText("matched to the first attempt");
+  await pending.getByRole("button", { name: "Accept" }).click();
+  await expect(pending).toHaveCount(0);
+  await expect(author.locator("[data-spec-root]")).toContainText(
+    "Late answers are matched to the first attempt.",
+  );
+  await expect
+    .poll(async () => (await currentRevision(workItemId)).number)
+    .toBe(2);
+  expect((await currentRevision(workItemId)).content).toContain(
+    "Late answers are matched to the first attempt.",
+  );
+  // The suggester sees it applied too.
+  await expect(card).toHaveCount(0);
+  await expect(page.locator("[data-spec-root]")).toContainText(
+    "matched to the first attempt",
+  );
+  await authorContext.close();
+});
+
+test("a suggestion made through the API waits beside the text, and a rejection keeps the text", async ({
+  page,
+}) => {
+  const { workItemId, path } = await open(page);
+  const revision = await currentRevision(workItemId);
+  const suggestionId = crypto.randomUUID();
+  await seeded.command(
+    {
+      type: "createSuggestion",
+      workItemId,
+      baseRevisionId: revision.id,
+      suggestionId,
+      replacement: revision.content.replace("ten percent", "five percent"),
+      title: "Smaller first rollout",
+      rationale: "Start with fewer merchants.",
+      open: true,
+    },
+    seeded.users[1]!.id,
+  );
+  await signIn(page, seeded.owner.email);
+  await page.goto(path);
+  await openDiscussions(page);
+  const card = page.getByRole("article", {
+    name: `Suggested change by ${seeded.users[1]!.name}`,
+  });
+  await expect(card).toContainText("Start with fewer merchants.");
+  // Nobody was asked, so someone who could accept it may take it.
+  await expect(card.getByRole("button", { name: "Accept" })).toBeVisible();
+  await card.getByRole("button", { name: "Reject" }).click();
+  await expect(card).toHaveCount(0);
+  expect((await currentRevision(workItemId)).number).toBe(revision.number);
+});
+
+test("a reviewer whose approval a new revision made outdated sees it, and their decision, first", async ({
+  browser,
+  page,
+}) => {
+  const { workItemId, path } = await open(page);
+  const ben = seeded.users[1]!;
+  const engineering = seeded.roster.disciplines.find(
+    (d) => d.name === "Engineering",
+  )!;
+  await seeded.command({
+    type: "setDisciplineMember",
+    projectId: seeded.projectId,
+    disciplineId: engineering.id,
+    userId: ben.id,
+    member: true,
+  });
+  const first = await currentRevision(workItemId);
+  const reviewId = crypto.randomUUID();
+  await seeded.command({
+    type: "requestReview",
+    workItemId,
+    baseRevisionId: first.id,
+    reviewId,
+    disciplineId: engineering.id,
+    userId: ben.id,
+    // Optional, so the approval does not make it ready (and protect main).
+    required: false,
+  });
+  await seeded.command(
+    {
+      type: "decideReview",
+      workItemId,
+      baseRevisionId: first.id,
+      reviewId,
+      decision: "approve",
+    },
+    ben.id,
+  );
+  await revise(
+    workItemId,
+    first.content.replace("30 seconds", "20 seconds"),
+    "Shorter timeout",
+  );
+  const context = await browser.newContext();
+  const reviewer = await context.newPage();
+  await signIn(reviewer, ben.email);
+  await reviewer.goto(path);
+  const workflow = reviewer.getByRole("region", {
+    name: "Item workflow",
+    exact: true,
+  });
+  await expect(workflow).toContainText("Your Engineering review is requested");
+  await expect(workflow).toContainText(
+    "You approved revision 1. It changed since",
+  );
+  await workflow
+    .getByRole("button", { name: "What changed since revision 1" })
+    .click();
+  await expect(reviewer.getByText("20 seconds").first()).toBeVisible();
+  await reviewer.goto(path);
+  await workflow.getByRole("button", { name: "Approve revision 2" }).click();
+  await expect(workflow).not.toContainText(
+    "Your Engineering review is requested",
+  );
+  await expect(
+    reviewer
+      .getByRole("list", { name: "Requested reviews" })
+      .getByText("Approved", { exact: true }),
+  ).toBeVisible();
+  await context.close();
+});
+
+test("a reviewer decides on a phone without a squeezed card, and a change to the ready specification goes to its reviewers", async ({
+  page,
+}) => {
+  const { workItemId, path } = await open(page);
+  const ben = seeded.users[1]!;
+  const engineering = seeded.roster.disciplines.find(
+    (d) => d.name === "Engineering",
+  )!;
+  await seeded.command({
+    type: "setDisciplineMember",
+    projectId: seeded.projectId,
+    disciplineId: engineering.id,
+    userId: ben.id,
+    member: true,
+  });
+  const revision = await currentRevision(workItemId);
+  await seeded.command({
+    type: "requestReview",
+    workItemId,
+    baseRevisionId: revision.id,
+    reviewId: crypto.randomUUID(),
+    disciplineId: engineering.id,
+    userId: null,
+    required: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signIn(page, ben.email);
+  await page.goto(path);
+  const workflow = page.getByRole("region", {
+    name: "Item workflow",
+    exact: true,
+  });
+  const statement = workflow.getByText("Your Engineering review is requested");
+  const approve = workflow.getByRole("button", { name: "Approve revision 1" });
+  await expect(statement).toBeVisible();
+  // The decision wraps below the statement instead of squeezing it into a
+  // one-word column (WCAG 1.4.10 reflow).
+  const said = (await statement.boundingBox())!;
+  const button = (await approve.boundingBox())!;
+  expect(said.width).toBeGreaterThan(250);
+  expect(button.y).toBeGreaterThanOrEqual(said.y + said.height);
+  await expect(workflow).toContainText("0/1 approved");
+  await approve.click();
+  await expect(workflow).toContainText("Ready for delivery");
+  await expect(workflow).toContainText(
+    "Delivery starts when a person accepts it",
+  );
+
+  // On a laptop, the rail steps aside while discussions are open so the
+  // specification keeps a comfortable measure; the card still says the
+  // approval state.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(workflow).toContainText("1/1 approved");
+  await selectInSpecification(page, "reconciled against the first attempt");
+  await page
+    .getByRole("toolbar", { name: "Selection actions" })
+    .getByRole("button", { name: "Suggest a change" })
+    .click();
+  // The same composer as before readiness; the ready specification's
+  // reviewers approve the change instead of one person.
+  const composer = page.getByRole("form", { name: "Suggest a change" });
+  await expect(composer).toContainText(
+    "the change is reviewed by its reviewers",
+  );
+  await expect(composer.getByLabel("Who accepts it")).toHaveCount(0);
+  await expect(
+    page.getByRole("complementary", { name: "Details" }),
+  ).toHaveCount(0);
+  const text = await page
+    .locator("[data-pane-document]")
+    .evaluate((e) => e.getBoundingClientRect().width);
+  expect(text).toBeGreaterThanOrEqual(680);
+  await expect(
+    page.getByRole("button", { name: "Review & details" }),
+  ).toBeVisible();
+  await composer
+    .getByLabel("Replace with")
+    .fill("matched to the first attempt");
+  await composer.getByLabel("Why").fill("Reconciliation is a batch job.");
+  await composer
+    .getByRole("button", { name: "Send for review", exact: true })
+    .click();
+  await expect(composer).toHaveCount(0);
+  // The toast, not ui-sdk's announcement of it (both carry the words).
+  await expect(
+    page.locator('[data-slot="toast"]', { hasText: "Change sent for review" }),
+  ).toBeVisible();
+  // Nothing changed in the specification: the reviewers decide first.
+  expect((await currentRevision(workItemId)).number).toBe(1);
+  // The change stays findable from the item's card once the toast is gone.
+  await page
+    .getByRole("region", { name: "Item workflow" })
+    .getByRole("button", { name: "1 change in review" })
+    .click();
+  await expect(page).toHaveURL(/[?&]branches=1/);
+  await expect(
+    page.getByText("Change “reconciled against the first attempt”").first(),
+  ).toBeVisible();
 });

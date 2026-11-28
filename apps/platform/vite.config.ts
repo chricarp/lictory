@@ -4,12 +4,17 @@ import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { appearanceBootScript } from "../../packages/core/src/lib/appearance";
+import { loadRecoveryScript } from "./src/lib/load-recovery";
 import {
   analyticsSettings,
   legalLinks,
   publicConfigTag,
 } from "../../packages/core/src/lib/public-config";
 
+// The package scripts load this file with `--configLoader runner`: it
+// imports core sources without file extensions, as the rest of the
+// repository does, which Vite's default loader accepts but warns about on
+// every start (its future native loader would not).
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const workspace = (path: string) => `${root}${path}`;
 
@@ -43,12 +48,15 @@ function appStatic(): Plugin {
   };
 }
 
-// The saved light/dark preference applies before the first paint.
+// The saved light/dark preference applies before the first paint, and a
+// page whose code fails to load recovers instead of staying blank.
 function appearanceBoot(): Plugin {
   return {
     name: "lictory-appearance-boot",
     transformIndexHtml(html) {
-      return html.replace("/*appearance-boot*/", appearanceBootScript);
+      return html
+        .replace("/*appearance-boot*/", appearanceBootScript)
+        .replace("/*load-recovery*/", loadRecoveryScript);
     },
   };
 }

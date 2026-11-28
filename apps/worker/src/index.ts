@@ -1,6 +1,8 @@
 // First: stops with every configuration problem before other modules load.
 import "@lictory/worker/configuration";
 
+import { installCodeLoop } from "@lictory/core/code/loop";
+import { installFactoryLoop } from "@lictory/core/factory/loop";
 import { createJobDatabase, listenForWork } from "@lictory/core/jobs";
 import {
   refreshAiState,
@@ -32,6 +34,12 @@ const config = workerConfig(process.env);
 const mail = mailTransportSummary();
 
 const database = createJobDatabase(databaseUrl, { max: config.poolMax });
+// The factory loop's ports: the dispatcher launches sessions through the
+// Factory and session ends follow their claims (docs/internals/factory.md).
+installFactoryLoop(database.db);
+// The code loop's ports: session workspaces and pull requests, Definition
+// of Done evidence and Autopilot merges (docs/internals/code-hosts.md).
+installCodeLoop(database.db);
 // AI provider settings stored from the admin console. The AI and chat jobs
 // wait for the first successful load, including runs a work signal starts
 // before startup reaches it; a failed load is retried by the next run.

@@ -103,14 +103,6 @@ export function AdminConsoleLayout({ children }: { children: ReactNode }) {
   return (
     <div className="h-dvh">
       <SettingsLayout
-        icon={
-          <span
-            aria-hidden
-            className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"
-          >
-            <ShieldUser className="size-5" />
-          </span>
-        }
         title="Admin console"
         subtitle={`${window.location.host} · accounts, organizations and access for this installation`}
         nav={nav}
@@ -319,6 +311,11 @@ function AdminOverview() {
           <PolicyRow
             label="Outbound email"
             value={data.email ? "Configured" : "Not configured"}
+            detail={
+              data.email
+                ? undefined
+                : "Invitations, sign-up verification, password reset and notification email are not sent, so new people cannot finish a password sign-up. Create their accounts with a password here, or have an operator configure SMTP or Resend (sudo lictory install --email smtp)."
+            }
           />
         </div>
       </SettingsSection>
@@ -734,7 +731,12 @@ function PersonRow({
   return (
     <Collapsible data-testid="admin-person" className="text-[13px]">
       <div className="flex flex-wrap items-center gap-3 px-5 py-3">
-        <Avatar name={user.name || user.email} image={user.image} size="sm" />
+        <Avatar
+          userId={user.id}
+          name={user.name || user.email}
+          image={user.image}
+          size="sm"
+        />
         <div className="min-w-0 flex-1">
           <p className="flex flex-wrap items-center gap-1.5 font-medium">
             <span className="truncate">{user.name || user.email}</span>

@@ -44,7 +44,16 @@ export function presentation(input: {
   busy: boolean;
   // Rejected changes whose text is kept for recovery.
   rejected: number;
+  // The browser reports no network (navigator.onLine is false). Zero keeps
+  // retrying for a while before it reports "disconnected"; without a network
+  // that retry cannot succeed, so say offline at once.
+  browserOffline?: boolean;
 }): Presentation {
+  if (
+    input.browserOffline &&
+    (input.connection === "connecting" || input.connection === "connected")
+  )
+    return "offline";
   switch (input.connection) {
     case "needs-auth":
     case "closed":

@@ -24,20 +24,45 @@ and [coding agent / MCP guide](https://docs.lictory.com/integrations/agents).
 Durable concepts that are easy to misunderstand. Read the first four before
 adding domain writes or synchronized entities.
 
+- [The software factory](./internals/software-factory.md): channels, agents,
+  agent sessions, runners, claims, autonomy policy, code hosts and the
+  desktop app, and what text and agents can never do
+- [Claims, autonomy and the Definition of Done](./internals/claims.md):
+  which work agents may claim, leases, agent questions, the autonomy
+  policy, evidence-based Done, the dispatcher and the ports the Factory and
+  Code modules implement
+- [The Factory](./internals/factory.md): agents (owner ∩ scope), runners,
+  agent sessions, the runner protocol, leases, credential brokering and
+  isolation
+- [The workspace shell](./internals/shell.md): the organization rail,
+  sidebar sections, Home, the command palette and how modules register into
+  them, reserved module routes, and the desktop app's title bar
 - [Organizations, projects and teams](./internals/organization-model.md):
   what each scope owns, application roles, project roles and disciplines,
   delivery modes
 - [Workspace synchronization and review invariants](./internals/synchronization.md)
 - [Delivery model](./internals/delivery.md)
+- [Code hosts](./internals/code-hosts.md): GitHub, GitLab and Bitbucket
+  connections, read-only mirrors, links between code and work, verified
+  webhook ingest, the outbox of writes, merge rules and the ports the
+  Definition of Done, Autopilot and agent sessions use
 - [Work item lifecycle](./internals/lifecycle.md): proposals, agreed scope,
   reviewed breakdowns, delivery completion and reusable product knowledge
 - [Capabilities, MCP and agents](./internals/capabilities.md)
+- [Agent events](./internals/agent-events.md): waking external agents when
+  something waits on them: addressed events, identifiers-only payloads, the
+  commit-safe cursor, MCP Events and bearer webhooks, egress rules and the
+  organization policy
 - [State machines](./internals/state-machines.md): where the rule for each
   status lives, the declared tables that commands, the browser and agents
   share, and the check that refuses an undeclared status
 - [Lictory Spaces](./internals/spaces.md): spaces and pages, live drafts,
   commits and reviewed publishing, access inherited from projects and teams,
   the collaboration service (in development)
+- [Lictory Channels](./internals/channels.md): channels, threads and direct
+  conversations, the conversation writer, read cursors and unread counts,
+  notifications, promotion into proposals, decisions and discussions, and
+  Slack sync (ownership, signatures, people mapping, the outbox)
 - [Live drafts of specifications](./internals/specification-drafts.md):
   several people editing a specification line at once, and how only Save
   revision and Commit turn the shared draft into history
@@ -73,6 +98,9 @@ adding domain writes or synchronized entities.
 - [Product analytics](./internals/analytics.md)
 - [Identity and illustrations](./internals/design.md): shared artwork, product
   scenes, empty states and asset delivery
+- [The desktop app](./internals/desktop.md): the Electron shell for
+  self-hosted servers, its security model, the bridge with the web app,
+  deep links, updates, packaging and the personal runner
 - [Accessibility](./internals/accessibility.md): the WCAG 2.2 AA target,
   automated lint and browser checks, and known gaps
 

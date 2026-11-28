@@ -19,6 +19,7 @@ import { callCapability } from "@lictory/core/capabilities/client";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
 import {
+  categoryOf,
   identifier,
   relativeTime,
   typeOf,
@@ -29,6 +30,7 @@ import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import { Badge, EmptyState } from "@lictory/ui/primitives";
 import { MissingState } from "@lictory/ui/status-page";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { LoadingState } from "@lictory/ui/spinner";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { RefinementIcon } from "@lictory/platform/components/items/status";
@@ -72,6 +74,8 @@ export function Handoff() {
 }
 
 type Row = { item: WorkItem; link?: ExternalLink };
+// A plain item (Task, Subtask) that goes under a parent already handed off.
+type ReadyRow = Row & { changed: boolean; under?: WorkItem };
 
 function ExternalHandoff({ project }: { project: Project }) {
   const {
@@ -104,7 +108,8 @@ function ExternalHandoff({ project }: { project: Project }) {
         )
           links.set(e.workItemId, e);
       }
-    const ready: (Row & { changed: boolean })[] = [];
+    const ready: ReadyRow[] = [];
+    const byId = new Map(items.map((i) => [i.id, i]));
     const delivered: Row[] = [];
     const attention: Row[] = [];
     const refining: WorkItem[] = [];
@@ -123,7 +128,20 @@ function ExternalHandoff({ project }: { project: Project }) {
       }
       if (link && (link.externalKey || link.status === "pending"))
         delivered.push({ item, link });
-      if (!spec) continue;
+      if (!spec) {
+        // Plain work goes with its parent; once the parent is in the
+        // delivery tool, work added under it (or left behind) goes on its
+        // own, so it must not vanish from this view.
+        const parent = item.parentId ? byId.get(item.parentId) : undefined;
+        if (
+          !link &&
+          parent &&
+          links.get(parent.id)?.externalKey &&
+          categoryOf(delivery, item) !== "canceled"
+        )
+          ready.push({ item, changed: false, under: parent });
+        continue;
+      }
       const changed = Boolean(
         link?.externalKey &&
         link.publishedRevisionNumber != null &&
@@ -183,19 +201,39 @@ function ExternalHandoff({ project }: { project: Project }) {
   const loading = view.status === "hydrating" && items.length === 0;
   const externalProjectKey = availability.target?.externalProjectKey;
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-4xl space-y-4 px-6 py-6">
-        <header className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-semibold tracking-tight">
-            {project.name} · Hand-off
-          </h1>
-          {externalProjectKey && (
-            <span className="text-xs text-muted-foreground">
+    <div className="flex h-full flex-col">
+      <PageHeader
+        title="Hand-off"
+        icon={<Upload />}
+        breadcrumbs={[
+          {
+            label: project.name,
+            href: paths.project(organization.slug, project.key),
+          },
+        ]}
+        description={`Hand off an agreed specification, then follow its progress in ${tool.name}. ${tool.Name} owns delivery status and assignment.`}
+        meta={
+          externalProjectKey ? (
+            <span className="truncate">
               to {externalProjectKey}
               {availability.connection && ` on ${availability.connection.name}`}
             </span>
-          )}
-          <div className="ml-auto flex items-center gap-1">
+          ) : undefined
+        }
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="max-md:hidden"
+              render={
+                <Link
+                  href={`${paths.refinement(organization.slug, project.key)}?stage=ready`}
+                />
+              }
+            >
+              Review ready work
+            </Button>
             {availability.target && (
               <Button
                 variant="ghost"
@@ -210,266 +248,265 @@ function ExternalHandoff({ project }: { project: Project }) {
                 Refresh from {tool.name}
               </Button>
             )}
-            {canHandOff && (
+            {/* Rows carry their own Hand off; this one acts on a selection. */}
+            {canHandOff && chosen.length > 0 && (
               <Button
                 size="sm"
-                disabled={!chosen.length}
                 onClick={() => setExporting({ itemIds: chosen })}
               >
                 <Upload className="size-3.5" />
-                {chosen.length
-                  ? `Hand off ${chosen.length} ${chosen.length === 1 ? "item" : "items"}`
-                  : "Hand off"}
+                Hand off {chosen.length}{" "}
+                {chosen.length === 1 ? "item" : "items"}
               </Button>
             )}
-          </div>
-        </header>
-        <p className="text-[13px] text-muted-foreground">
-          Hand off an agreed specification, then follow its progress in{" "}
-          {tool.name}. {tool.Name} owns delivery status and assignment.{" "}
-          <Link
-            href={`${paths.refinement(organization.slug, project.key)}?stage=ready`}
-            className="font-medium text-primary hover:underline"
-          >
-            Review ready work →
-          </Link>
-        </p>
-        {!availability.target ? (
-          <Notice tone="warning">
-            {project.name} has no {tool.product ?? "external"} project to hand
-            work off to yet.{" "}
-            {canManage(project.id) ? (
-              <Link
-                className="underline"
-                href={paths.projectSettings(
-                  organization.slug,
-                  project.key,
-                  "delivery",
-                )}
-              >
-                Choose one in delivery settings
-              </Link>
-            ) : (
-              "Ask a project administrator to choose one in the project's delivery settings"
-            )}
-            .
-          </Notice>
-        ) : !availability.connection ? (
-          <Notice tone="warning">
-            The {tool.product ?? "delivery"} connection of this project is
-            unavailable. An organization administrator can reconnect it in
-            organization settings.
-          </Notice>
-        ) : (
-          availability.connection.status === "invalid" && (
-            <Notice tone="warning">
-              {availability.connection.name} rejected Lictory&apos;s credentials
-              {availability.connection.lastError
-                ? `: ${availability.connection.lastError}`
-                : ""}
-              . An organization administrator can reconnect it.
-            </Notice>
-          )
-        )}
-        {availability.configured && !availability.allowed && (
-          <p className="text-[13px] text-muted-foreground">
-            Your disciplines in {project.name} cannot hand off work. People with
-            the hand-off capability export ready specifications here.
-          </p>
-        )}
-        {loading ? (
-          <LoadingState label="Opening hand-off" />
-        ) : (
-          <>
-            {groups.attention.length > 0 && (
-              <Group
-                title="Needs attention"
-                count={groups.attention.length}
-                tone="danger"
-              >
-                {groups.attention.map(({ item, link }) => (
-                  <ItemRow
-                    key={item.id}
-                    item={item}
-                    label={label(item)}
-                    href={href(item)}
-                    meta={
-                      <>
-                        {link?.status === "conflict" ? (
-                          <Badge tone="warning">Changed in {tool.name}</Badge>
-                        ) : (
-                          <Badge tone="danger">Failed</Badge>
-                        )}
-                        {link && <ExternalKey link={link} />}
-                      </>
-                    }
-                    detail={
-                      link?.lastError ??
-                      (link?.status === "conflict"
-                        ? `${tool.Name} was edited since the last hand-off. Review and confirm overwriting to hand off again.`
-                        : undefined)
-                    }
-                    action={
-                      canHandOff && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => setExporting({ itemIds: [item.id] })}
-                        >
-                          Retry
-                        </Button>
-                      )
-                    }
-                  />
-                ))}
-              </Group>
-            )}
-            <Group title="Ready to hand off" count={groups.ready.length}>
-              {groups.ready.length === 0 ? (
-                <p className="px-4 py-4 text-[13px] text-muted-foreground">
-                  Nothing is waiting. Specifications appear here once their
-                  readiness checks pass.
-                </p>
-              ) : (
-                groups.ready.map(({ item, link, changed }) => (
-                  <ItemRow
-                    key={item.id}
-                    item={item}
-                    label={label(item)}
-                    href={href(item)}
-                    select={
-                      canHandOff
-                        ? {
-                            checked: selected.has(item.id),
-                            onChange: (on) =>
-                              setSelected((current) => {
-                                const next = new Set(current);
-                                if (on) next.add(item.id);
-                                else next.delete(item.id);
-                                return next;
-                              }),
-                          }
-                        : undefined
-                    }
-                    meta={
-                      changed && link ? (
-                        <>
-                          <Badge tone="warning">Changed since hand-off</Badge>
-                          <ExternalKey link={link} />
-                        </>
-                      ) : (
-                        <Badge tone="info">Not handed off</Badge>
-                      )
-                    }
-                    detail={
-                      changed && link
-                        ? `Handed off revision ${link.publishedRevisionNumber} · current ${item.revisionNumber}`
-                        : `Revision ${item.revisionNumber} · ${item.readinessPassed}/${item.readinessTotal} checks pass`
-                    }
-                    action={
-                      canHandOff && (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => setExporting({ item })}
-                        >
-                          <Upload className="size-3.5" />
-                          {changed ? "Hand off changes" : "Hand off"}
-                        </Button>
-                      )
-                    }
-                  />
-                ))
-              )}
-            </Group>
-            <Group title={`In ${tool.name}`} count={groups.delivered.length}>
-              {groups.delivered.length === 0 ? (
-                <p className="px-4 py-4 text-[13px] text-muted-foreground">
-                  Nothing has been handed off yet.
-                </p>
-              ) : (
-                groups.delivered.map(({ item, link }) => (
-                  <ItemRow
-                    key={item.id}
-                    item={item}
-                    label={label(item)}
-                    href={href(item)}
-                    meta={
-                      link && (
-                        <>
-                          {link.status === "pending" ? (
-                            <Badge>
-                              <Loader2 className="size-3 animate-spin" />
-                              Exporting…
-                            </Badge>
-                          ) : (
-                            <ExternalStatusBadge link={link} />
-                          )}
-                          <ExternalKey link={link} />
-                        </>
-                      )
-                    }
-                    detail={link && deliveredDetail(link, item, tool.name)}
-                  />
-                ))
-              )}
-            </Group>
-            {groups.refining.length > 0 && (
-              <Collapsible className="group rounded-xl bg-card shadow-(--shadow-border)">
-                <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-4 py-3 text-left text-sm font-semibold">
-                  <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-data-open:rotate-90" />
-                  Still in refinement
-                  <span className="text-xs font-normal text-muted-foreground tabular-nums">
-                    {groups.refining.length}
-                  </span>
-                </CollapsibleTrigger>
-                <CollapsiblePanel render={<ul />} className="border-t">
-                  {groups.refining.map((item) => (
-                    <li key={item.id}>
-                      <ItemRow
-                        item={item}
-                        label={label(item)}
-                        href={href(item)}
-                        meta={
-                          item.refinementState && (
-                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                              <RefinementIcon state={item.refinementState} />
-                              {item.readinessPassed}/{item.readinessTotal}
-                            </span>
-                          )
-                        }
-                      />
-                    </li>
-                  ))}
-                </CollapsiblePanel>
-              </Collapsible>
-            )}
-            {!groups.ready.length &&
-              !groups.delivered.length &&
-              !groups.attention.length &&
-              !groups.refining.length && (
-                <EmptyState
-                  illustration="planning"
-                  title="No specifications yet"
-                  action={
-                    <Button
-                      variant="secondary"
-                      render={
-                        <Link
-                          href={paths.proposals(organization.slug, project.key)}
-                        />
-                      }
-                    >
-                      Start with a proposal
-                    </Button>
-                  }
-                >
-                  Capture a proposal in {project.name}, refine it with your
-                  team, then hand the agreed work off to {tool.name} here.
-                </EmptyState>
-              )}
           </>
-        )}
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-4xl space-y-4 px-6 py-6 max-sm:px-3">
+          {!availability.target ? (
+            <Notice tone="warning">
+              {project.name} has no {tool.product ?? "external"} project to hand
+              work off to yet.{" "}
+              {canManage(project.id) ? (
+                <Link
+                  className="underline"
+                  href={paths.projectSettings(
+                    organization.slug,
+                    project.key,
+                    "delivery",
+                  )}
+                >
+                  Choose one in delivery settings
+                </Link>
+              ) : (
+                "Ask a project administrator to choose one in the project's delivery settings"
+              )}
+              .
+            </Notice>
+          ) : !availability.connection ? (
+            <Notice tone="warning">
+              The {tool.product ?? "delivery"} connection of this project is
+              unavailable. An organization administrator can reconnect it in
+              organization settings.
+            </Notice>
+          ) : (
+            availability.connection.status === "invalid" && (
+              <Notice tone="warning">
+                {availability.connection.name} rejected Lictory&apos;s
+                credentials
+                {availability.connection.lastError
+                  ? `: ${availability.connection.lastError}`
+                  : ""}
+                . An organization administrator can reconnect it.
+              </Notice>
+            )
+          )}
+          {availability.configured && !availability.allowed && (
+            <p className="text-[13px] text-muted-foreground">
+              Your disciplines in {project.name} cannot hand off work. People
+              with the hand-off capability hand off ready specifications here.
+            </p>
+          )}
+          {loading ? (
+            <LoadingState label="Opening hand-off" />
+          ) : (
+            <>
+              {groups.attention.length > 0 && (
+                <Group
+                  title="Needs attention"
+                  count={groups.attention.length}
+                  tone="danger"
+                >
+                  {groups.attention.map(({ item, link }) => (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      label={label(item)}
+                      href={href(item)}
+                      meta={
+                        <>
+                          {link?.status === "conflict" ? (
+                            <Badge tone="warning">Changed in {tool.name}</Badge>
+                          ) : (
+                            <Badge tone="danger">Failed</Badge>
+                          )}
+                          {link && <ExternalKey link={link} />}
+                        </>
+                      }
+                      detail={
+                        link?.lastError ??
+                        (link?.status === "conflict"
+                          ? `${tool.Name} was edited since the last hand-off. Review and confirm overwriting to hand off again.`
+                          : undefined)
+                      }
+                      action={
+                        canHandOff && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setExporting({ itemIds: [item.id] })}
+                          >
+                            Retry
+                          </Button>
+                        )
+                      }
+                    />
+                  ))}
+                </Group>
+              )}
+              <Group title="Ready to hand off" count={groups.ready.length}>
+                {groups.ready.length === 0 ? (
+                  <p className="px-4 py-4 text-[13px] text-muted-foreground">
+                    Nothing is waiting. Specifications appear here once their
+                    readiness checks pass, with the work under them.
+                  </p>
+                ) : (
+                  groups.ready.map(({ item, link, changed, under }) => (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      label={label(item)}
+                      href={href(item)}
+                      select={
+                        canHandOff
+                          ? {
+                              checked: selected.has(item.id),
+                              onChange: (on) =>
+                                setSelected((current) => {
+                                  const next = new Set(current);
+                                  if (on) next.add(item.id);
+                                  else next.delete(item.id);
+                                  return next;
+                                }),
+                            }
+                          : undefined
+                      }
+                      meta={
+                        changed && link ? (
+                          <>
+                            <Badge tone="warning">Changed since hand-off</Badge>
+                            <ExternalKey link={link} />
+                          </>
+                        ) : (
+                          <Badge tone="info">Not handed off</Badge>
+                        )
+                      }
+                      detail={
+                        under
+                          ? `${typeOf(delivery, item).name} under ${label(under)}, which is in ${tool.name}`
+                          : changed && link
+                            ? `Handed off revision ${link.publishedRevisionNumber} · current ${item.revisionNumber}`
+                            : `Revision ${item.revisionNumber} · ${item.readinessPassed}/${item.readinessTotal} checks pass`
+                      }
+                      action={
+                        canHandOff && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setExporting({ item })}
+                          >
+                            <Upload className="size-3.5" />
+                            {changed ? "Hand off changes" : "Hand off"}
+                          </Button>
+                        )
+                      }
+                    />
+                  ))
+                )}
+              </Group>
+              <Group title={`In ${tool.name}`} count={groups.delivered.length}>
+                {groups.delivered.length === 0 ? (
+                  <p className="px-4 py-4 text-[13px] text-muted-foreground">
+                    Nothing has been handed off yet.
+                  </p>
+                ) : (
+                  groups.delivered.map(({ item, link }) => (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      label={label(item)}
+                      href={href(item)}
+                      meta={
+                        link && (
+                          <>
+                            {link.status === "pending" ? (
+                              <Badge>
+                                <Loader2 className="size-3 animate-spin" />
+                                Exporting…
+                              </Badge>
+                            ) : (
+                              <ExternalStatusBadge link={link} />
+                            )}
+                            <ExternalKey link={link} />
+                          </>
+                        )
+                      }
+                      detail={link && deliveredDetail(link, item, tool.name)}
+                    />
+                  ))
+                )}
+              </Group>
+              {groups.refining.length > 0 && (
+                <Collapsible className="group rounded-xl bg-card shadow-(--shadow-border)">
+                  <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 px-4 py-3 text-left text-sm font-semibold">
+                    <ChevronRight className="size-3.5 text-muted-foreground transition-transform group-data-open:rotate-90" />
+                    Still in refinement
+                    <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                      {groups.refining.length}
+                    </span>
+                  </CollapsibleTrigger>
+                  <CollapsiblePanel render={<ul />} className="border-t">
+                    {groups.refining.map((item) => (
+                      <li key={item.id}>
+                        <ItemRow
+                          item={item}
+                          label={label(item)}
+                          href={href(item)}
+                          meta={
+                            item.refinementState && (
+                              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                <RefinementIcon state={item.refinementState} />
+                                {item.readinessPassed}/{item.readinessTotal}
+                              </span>
+                            )
+                          }
+                        />
+                      </li>
+                    ))}
+                  </CollapsiblePanel>
+                </Collapsible>
+              )}
+              {!groups.ready.length &&
+                !groups.delivered.length &&
+                !groups.attention.length &&
+                !groups.refining.length && (
+                  <EmptyState
+                    illustration="planning"
+                    title="No specifications yet"
+                    action={
+                      <Button
+                        variant="secondary"
+                        render={
+                          <Link
+                            href={paths.proposals(
+                              organization.slug,
+                              project.key,
+                            )}
+                          />
+                        }
+                      >
+                        Start with a proposal
+                      </Button>
+                    }
+                  >
+                    Capture a proposal in {project.name}, refine it with your
+                    team, then hand the agreed work off to {tool.name} here.
+                  </EmptyState>
+                )}
+            </>
+          )}
+        </div>
       </div>
       {exporting && (
         <ExportDialog
@@ -495,7 +532,7 @@ function deliveredDetail(link: ExternalLink, item: WorkItem, tool: string) {
       ? link.publishedRevisionNumber < item.revisionNumber
         ? `Revision ${link.publishedRevisionNumber} handed off · current ${item.revisionNumber}`
         : `Revision ${link.publishedRevisionNumber} handed off`
-      : "Linked, not exported",
+      : "Linked, not handed off",
     link.syncedAt ? `checked ${relativeTime(link.syncedAt)}` : undefined,
   ];
   return parts.filter(Boolean).join(" · ");
@@ -608,8 +645,12 @@ function ItemRow({
         >
           {item.title}
         </Link>
+        {/* Why a hand-off failed is what to act on: shown whole, never
+            cut off mid-sentence. */}
         {detail && (
-          <p className="truncate text-xs text-muted-foreground">{detail}</p>
+          <p className="text-xs [overflow-wrap:anywhere] text-muted-foreground">
+            {detail}
+          </p>
         )}
       </div>
       {meta && (

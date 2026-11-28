@@ -219,6 +219,72 @@ void test("review workflow notifies the people it asks something of, never the a
   assert.ok(!reviewerKinds.includes("specification_revised"));
 });
 
+void test("an item becomes ready: each person hears it once per revision, however many approvals it takes", async () => {
+  const f = await fixture();
+  const workItemId = crypto.randomUUID();
+  await f.command({
+    type: "createWorkItem",
+    projectId: f.projectId,
+    workItemId,
+    typeId: (await directory(db, f.ownerId, f.organizationId)).types.find(
+      (t) => t.name === "Story",
+    )!.id,
+    parentId: null,
+    title: "Refunds over the API",
+    description:
+      "## Behavior\n\nRefunds reuse the original transaction ID.\n\n## Acceptance criteria\n\n- A retry never charges twice.",
+  });
+  const revision = (
+    await db
+      .select()
+      .from(s.specificationRevision)
+      .where(eq(s.specificationRevision.workItemId, workItemId))
+  )[0]!;
+  // Engineering, then QA: each requested by the owner, approved by the
+  // reviewer. The item is ready after the first, not after the second
+  // request, and ready again after the second approval.
+  for (const disciplineId of [f.roles.Engineering, f.roles.QA]) {
+    const reviewId = crypto.randomUUID();
+    await f.command({
+      type: "requestReview",
+      workItemId,
+      baseRevisionId: revision.id,
+      reviewId,
+      disciplineId,
+      userId: f.reviewerId,
+      required: true,
+    });
+    await f.command(
+      {
+        type: "decideReview",
+        workItemId,
+        baseRevisionId: revision.id,
+        reviewId,
+        decision: "approve",
+      },
+      f.reviewerId,
+    );
+  }
+  const changes = await db
+    .select()
+    .from(s.activity)
+    .where(
+      and(
+        eq(s.activity.workItemId, workItemId),
+        eq(s.activity.action, "refinement_changed"),
+      ),
+    );
+  assert.equal(
+    changes.filter((a) => a.detail?.to === "ready").length,
+    2,
+    "two transitions to ready",
+  );
+  const ready = (await f.inbox(f.ownerId)).filter(
+    (n) => n.kind === "item_ready" && n.workItemId === workItemId,
+  );
+  assert.equal(ready.length, 1);
+});
+
 void test("mentions reach members only once, and replies reach thread participants", async () => {
   const f = await fixture();
   const revision = await f.latest();
@@ -774,4 +840,46 @@ void test("projections equal a rebuild from the domain", async () => {
     .from(s.organization))
     drift.push(...(await projectionDrift(db, id)));
   assert.deepEqual(drift, []);
+});
+
+void test("an agent's question waits in To do; Updates lists and counts only its outcome", async () => {
+  const f = await fixture();
+  const sessionId = crypto.randomUUID();
+  await db.transaction((tx) =>
+    queueNotifications(tx, f.organizationId, [
+      {
+        userIds: [f.reviewerId],
+        kind: "agent_approval_requested",
+        actorId: null,
+        detail: { group: `ask:${sessionId}`, sessionId, agentName: "Forge" },
+      },
+      {
+        userIds: [f.reviewerId],
+        kind: "agent_session_finished",
+        actorId: null,
+        detail: {
+          group: `finished:${sessionId}`,
+          sessionId,
+          agentName: "Forge",
+          status: "completed",
+        },
+      },
+    ]),
+  );
+  await processNotificationEvents(db);
+  // The ask is written (it still emails and wakes agents)...
+  const written = await db
+    .select({ kind: s.notification.kind })
+    .from(s.notification)
+    .where(eq(s.notification.userId, f.reviewerId));
+  assert.ok(written.some((n) => n.kind === "agent_approval_requested"));
+  // ...but Updates shows the outcome alone, and counts it alone.
+  assert.deepEqual(await f.kinds(f.reviewerId), ["agent_session_finished"]);
+  assert.equal((await notifications.unread(f.reviewerId))[f.organizationId], 1);
+  // Asked for by kind, it is listed.
+  const asked = await notifications.list(f.reviewerId, {
+    organizationId: f.organizationId,
+    kinds: ["agent_approval_requested"],
+  });
+  assert.equal(asked.items.length, 1);
 });

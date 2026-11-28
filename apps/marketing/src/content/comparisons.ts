@@ -3,7 +3,11 @@ import {
   comparisonRows,
   type ComparisonCell,
 } from "@lictory/marketing/components/landing/content";
-import type { ProductId } from "@lictory/marketing/content/products";
+import {
+  product as findProduct,
+  type ProductId,
+  type ProductProfile,
+} from "@lictory/marketing/content/products";
 
 // Public comparison pages (/compare/[slug]). Claims about other products are
 // limited to what their own public websites and documentation say, with the
@@ -33,10 +37,13 @@ export type Comparison = {
     | "linear"
     | "lictory-vs-plane"
     | "lictory-vs-openproject"
-    | "lictory-vs-taiga";
+    | "lictory-vs-taiga"
+    | "slack-and-jira";
   competitor: string;
   /** The competitor's profile, for the licensing, hosting and pricing table. */
   product?: ProductId;
+  /** Further profiles when the competitor is a stack of products. */
+  alsoProducts?: readonly ProductId[];
   /** Document title and search result headline. */
   title: string;
   description: string;
@@ -58,6 +65,147 @@ export type Comparison = {
 };
 
 export const comparisons: readonly Comparison[] = [
+  {
+    slug: "slack-and-jira",
+    competitor: "Slack + Jira",
+    product: "slack",
+    alsoProducts: ["jira"],
+    title:
+      "Lictory vs Slack + Jira: one workspace for conversation, specifications, agents and delivery",
+    description:
+      "How Lictory compares with running a software team on Slack and Jira: chat, reviewed specifications, delivery and coding agents in one self-hosted product, and when to keep both.",
+    headline: "Lictory vs Slack + Jira",
+    intro:
+      "Many software teams talk in Slack and track their work in Jira, with a wiki, a code host and agent tools beside them. Lictory puts the conversation, the agreed specification, the delivery work and the coding agents in one self-hosted product, linked to each other. You can use it instead of both, or keep either one and connect it.",
+    verdict: {
+      lictory:
+        "Choose Lictory when you want conversations, specifications, delivery and coding agents in one data model and one permission system, on servers you run.",
+      competitor:
+        "Keep Slack and Jira when your company has standardized on them, depends on their app ecosystems or Jira’s configurable workflows, or wants a service the vendor hosts.",
+    },
+    capabilities: [
+      {
+        feature: "Channels, threads and direct messages",
+        lictory: "yes",
+        competitor: "yes",
+      },
+      {
+        feature: "Turn a chat message into a work item",
+        lictory: "yes",
+        competitor: "yes",
+        note: "Slack + Jira: with the Jira Cloud app for Slack.",
+      },
+      {
+        feature: "Boards, backlog and sprints",
+        lictory: "yes",
+        competitor: "yes",
+      },
+      {
+        feature: "Specifications with revisions and revision-bound approvals",
+        lictory: "yes",
+        competitor: "no",
+      },
+      {
+        feature: "Readiness as evidence-based checks",
+        lictory: "yes",
+        competitor: "partial",
+      },
+      {
+        feature: "Coding agents on runners you register, each with an owner",
+        lictory: "yes",
+        competitor: "undocumented",
+      },
+      {
+        feature: "One permission model and history for chat, work and agents",
+        lictory: "yes",
+        competitor: "no",
+        note: "Slack + Jira: two products, each with its own.",
+      },
+      {
+        feature: "Open source",
+        lictory: "yes",
+        competitor: "no",
+      },
+      {
+        feature: "Run it on your own server",
+        lictory: "yes",
+        competitor: "partial",
+        note: "Slack + Jira: Jira Data Center, for existing customers until 28 March 2029.",
+      },
+      {
+        feature: "A service the vendor hosts for you",
+        lictory: "no",
+        competitor: "yes",
+      },
+      {
+        feature: "Marketplace of third-party apps",
+        lictory: "no",
+        competitor: "yes",
+      },
+    ],
+    sections: [
+      {
+        id: "short-answer",
+        title: "The short answer",
+        body: `Slack is where the team talks. Jira is where the work is tracked. Between them, people copy what was decided into tickets, link documents by hand and ask each other which version was agreed.
+
+Lictory is one product for the whole path: a conversation in a **channel** is **promoted** into a proposal, the proposal is refined into a **specification** that people approve revision by revision, the approved work is broken down into **delivery items**, and **coding agents** implement them on runners you control, linked to the pull requests and checks on your code host. Every step keeps a link to the one before it.`,
+      },
+      {
+        id: "differences",
+        title: "Where they differ",
+        body: `- **Decisions leave the chat.** In Lictory a message, a thread or a conclusion becomes a proposal, a decision or a discussion anchored on the exact text of a specification, and the new object links back to the conversation. Nothing important lives only in scrollback.
+- **Requirements are reviewed like code.** A specification changes through immutable revisions with diffs; reviewers discuss the exact sentence and approve a specific revision, and approvals go stale when that text changes. A Jira description is edited in place.
+- **Agents are accountable members.** An agent in Lictory has a name, an owner and a scope, acts with its owner’s permissions and is shown as acting via that person. It claims only work the readiness policy allows to start, and its session has a thread where people answer its questions and approve what it asks for.
+- **Done is evidence.** An item reaches done when its Definition of Done passes: linked pull requests merged, required checks green. An agent’s report changes nothing.
+- **One record.** Chat, specifications, delivery and agent sessions share one permission check and one history, so “who decided this, and what did they approve?” has one answer.`,
+      },
+      {
+        id: "alongside",
+        title: "Using Lictory alongside Slack or Jira",
+        body: `You do not have to move everything at once.
+
+- **Keep Jira for delivery.** Set a Lictory project to external delivery: specifications are refined and approved in Lictory, and ready work is explicitly published to Jira Cloud with a link back to the approved revision. Jira then owns status and assignment.
+- **Link Slack channels.** A Lictory channel can be linked to a Slack channel. Each message is owned by the system it was written in: edits and deletions flow only from there, and Lictory never rewrites a Slack-authored message.
+- **Keep your code host.** GitHub, GitLab or Bitbucket stays the home of your code in every setup; Lictory links branches, pull requests and checks to work items.`,
+      },
+      {
+        id: "cost",
+        title: "Seats, integrations and where data lives",
+        body: `Slack and Jira are each licensed per user, and each runs on its vendor’s cloud (see the table above). Lictory is MIT licensed with every feature in the open-source code: you pay for the server it runs on, the runners your agents use and the AI provider you choose, if any.
+
+Fewer products also means fewer integrations to keep working and fewer places where a permission has to be revoked when someone leaves. The trade-off is that you operate the server yourself: there is no Lictory cloud.`,
+      },
+      {
+        id: "when-stack",
+        title: "When Slack and Jira are the better fit",
+        body: `Keep them if your company has already standardized on them across many teams, if you rely on apps from their marketplaces, on Jira’s configurable workflow schemes, service management, time tracking or portfolio planning, or if you want a service the vendor hosts and operates for you. Lictory deliberately does not try to be a time tracker, a capacity planner or a workflow builder.`,
+      },
+    ],
+    faqs: [
+      {
+        question: "Can Lictory replace Slack and Jira for a software team?",
+        answer:
+          "For many small and medium software teams, yes: Lictory has channels, threads and direct messages, specifications, boards, backlog, sprints or cycles, and coding agents on your own runners. Teams that depend on marketplace apps, service management or time tracking usually keep those tools.",
+      },
+      {
+        question: "Can we keep Jira and still use Lictory?",
+        answer:
+          "Yes. Set a project to external delivery. Lictory handles conversation, refinement, review and breakdown, then explicitly publishes approved work to Jira Cloud. Exactly one system owns delivery state for each piece of work.",
+      },
+      {
+        question: "What happens to messages in a linked Slack channel?",
+        answer:
+          "A message is owned by the system it was written in. Edits and deletions flow only from that system, and Lictory never rewrites a message that was written in Slack.",
+      },
+      {
+        question: "Where does our data live?",
+        answer:
+          "Lictory runs only on your own server; there is no Lictory cloud. Slack stores each workspace’s data in one region of its own service, the United States unless the workspace uses data residency.",
+      },
+    ],
+    updated: "2026-11-24",
+  },
   {
     slug: "jira",
     competitor: "Jira",
@@ -648,6 +796,24 @@ export function capabilityRows(item: Comparison): readonly CapabilityRow[] {
     lictory: row.lictory,
     competitor: row[key],
   }));
+}
+
+/** Lictory first, then every product the comparison is about. */
+export function comparisonProfiles(item: Comparison): ProductProfile[] {
+  if (!item.product) return [];
+  return [
+    findProduct("lictory"),
+    findProduct(item.product),
+    ...(item.alsoProducts ?? []).map(findProduct),
+  ];
+}
+
+/** When the facts about the other products were last checked: the oldest check. */
+export function comparisonReviewed(item: Comparison) {
+  return comparisonProfiles(item)
+    .slice(1)
+    .map((profile) => profile.reviewed)
+    .sort()[0];
 }
 
 export function comparisonPath(item: Comparison) {

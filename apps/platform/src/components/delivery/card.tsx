@@ -1,5 +1,5 @@
 import { Link } from "@lictory/platform/lib/navigation";
-import { memo } from "react";
+import { memo, type ReactNode } from "react";
 import { CircleAlert } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
@@ -14,7 +14,17 @@ import {
   estimateOptions,
   type WorkItem,
 } from "@lictory/core/contracts/protocol";
-import { Avatar } from "@lictory/ui/primitives";
+import type { ClaimEntity } from "@lictory/core/claims/contracts";
+import type { CodePullRequestEntity } from "@lictory/core/code/entities";
+import { PullRequestChip } from "@lictory/platform/components/code/parts";
+import {
+  ClaimBadge,
+  ClaimOwner,
+} from "@lictory/platform/components/claims/claim-badge";
+import {
+  Actor,
+  type AgentIdentity,
+} from "@lictory/platform/components/identity/actor";
 import {
   PriorityIcon,
   TypeIcon,
@@ -23,6 +33,16 @@ import {
   RefinementIcon,
   StatusIcon,
 } from "@lictory/platform/components/items/status";
+
+// How an estimate is read aloud: "5 points", "Estimate M".
+export function estimateSpoken(
+  project: Pick<Project, "estimateScale"> | undefined,
+  label: string,
+) {
+  return project?.estimateScale === "tshirt"
+    ? `Estimate ${label}`
+    : `${label} ${label === "1" ? "point" : "points"}`;
+}
 
 export function estimateLabel(
   project: Pick<Project, "estimateScale"> | undefined,
@@ -67,7 +87,6 @@ export const ItemCard = memo(function ItemCard({
   teamName,
   delivery,
   orgSlug,
-  memberName,
   showStatus,
   dragging,
   draggable,
@@ -75,6 +94,10 @@ export const ItemCard = memo(function ItemCard({
   onOpen,
   onDragStart,
   onDragEnd,
+  claim,
+  claimAgent,
+  pullRequests,
+  move,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -82,7 +105,6 @@ export const ItemCard = memo(function ItemCard({
   teamName?: string;
   delivery: Delivery;
   orgSlug: string;
-  memberName: (id: string | null) => string;
   showStatus?: boolean;
   dragging?: boolean;
   draggable: boolean;
@@ -92,6 +114,13 @@ export const ItemCard = memo(function ItemCard({
   onOpen?: (event: React.MouseEvent, id: string) => void;
   onDragStart?: (e: React.DragEvent) => void;
   onDragEnd?: () => void;
+  // The agent claim holding the item, and the agent's identity.
+  claim?: ClaimEntity;
+  claimAgent?: AgentIdentity;
+  // Its open pull requests, newest first.
+  pullRequests?: readonly CodePullRequestEntity[];
+  // "Move" without dragging, where the person may move it.
+  move?: ReactNode;
 }) {
   const type = typeOf(delivery, item);
   const id = identifier(project, item.number);
@@ -113,20 +142,19 @@ export const ItemCard = memo(function ItemCard({
     >
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <TypeIcon type={type} className="size-3.5 rounded-[3px]" />
-        <span className="font-mono">{id}</span>
+        <span className="shrink-0 font-mono">{id}</span>
         {showStatus && status && (
           <span className="ml-1 inline-flex items-center gap-1">
             <StatusIcon category={status.category} color={status.color} />
             {status.name}
           </span>
         )}
-        {item.assigneeId && (
-          <Avatar
-            userId={item.assigneeId}
-            name={memberName(item.assigneeId)}
-            size="xs"
-            className="ml-auto"
-          />
+        {/* One owner: an agent holding the item replaces the assignee's
+            avatar with its own line below the title. */}
+        {item.assigneeId && !claim && (
+          <span className="ml-auto">
+            <PersonAvatarById userId={item.assigneeId} />
+          </span>
         )}
       </div>
       {project && (
@@ -140,6 +168,23 @@ export const ItemCard = memo(function ItemCard({
           {item.title}
         </Link>
       )}
+      {claim && (
+        // Who holds it and its state on one line that wraps, so the state
+        // ("Waiting on Amara") is never cut beside a long key.
+        <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <ClaimOwner
+            claim={claim}
+            agent={claimAgent}
+            assigneeId={item.assigneeId}
+            className="max-w-full"
+          />
+          <ClaimBadge
+            claim={claim}
+            assigneeId={item.assigneeId}
+            withAgent={false}
+          />
+        </div>
+      )}
       <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         {item.priority !== "none" && <PriorityIcon priority={item.priority} />}
         {teamName && (
@@ -148,8 +193,16 @@ export const ItemCard = memo(function ItemCard({
           </span>
         )}
         {estimate && (
-          <span className="rounded-full bg-muted px-2 font-mono text-[11px] tabular-nums">
-            {estimate}
+          <span
+            title={estimateSpoken(project, estimate)}
+            className="rounded-full bg-muted px-2 text-[11px] font-medium tabular-nums"
+          >
+            {/* A unit, so an estimate is not read as a count. */}
+            <span aria-hidden>
+              {estimate}
+              {project?.estimateScale !== "tshirt" && " pts"}
+            </span>
+            <span className="sr-only">{estimateSpoken(project, estimate)}</span>
           </span>
         )}
         {item.refinementState && (
@@ -184,12 +237,19 @@ export const ItemCard = memo(function ItemCard({
             {item.blockingThreads === 1 ? "" : "s"}
           </span>
         )}
+        {pullRequests && <PullRequestChip pullRequests={pullRequests} />}
         {item.childCount > 0 && (
           <span className="tabular-nums" title="Children done">
             {item.childDoneCount}/{item.childCount} done
           </span>
         )}
+        {move && <span className="-my-1 ml-auto">{move}</span>}
       </div>
     </div>
   );
 });
+
+// The assignee's avatar on a card: their color or photo, named on hover.
+function PersonAvatarById({ userId }: { userId: string }) {
+  return <Actor userId={userId} label="none" size={20} />;
+}

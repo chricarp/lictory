@@ -15,15 +15,19 @@ import {
 import { callCapability } from "@lictory/core/capabilities/client";
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
+import { LogoMark } from "@lictory/ui/logo";
+import { OrganizationMark } from "@lictory/platform/components/workspace/organization-logo";
 import {
   OrganizationHandleField,
   useOrganizationHandle,
 } from "@lictory/platform/components/workspace/organization-handle-field";
 import { organizationHandleError } from "@lictory/core/lib/organization-handles";
 import { paths } from "@lictory/core/lib/paths";
+import { APP_VERSION } from "@lictory/core/lib/app-version";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import {
   InlineError,
+  LearnMore,
   SettingsBody,
   SettingsSection,
 } from "@lictory/platform/components/workspace/settings-section";
@@ -66,6 +70,14 @@ export function OrganizationGeneral() {
           </dl>
         )}
         <Branding />
+        {/* Support and upgrades ask which release this is; the web app and
+            the server ship together in one release. */}
+        <dl className="mt-6 grid gap-1 border-t pt-4 text-[13px]">
+          <dt className="text-xs text-muted-foreground">Lictory release</dt>
+          <dd className="font-medium tabular-nums" data-release>
+            {APP_VERSION ? `v${APP_VERSION}` : "Development build"}
+          </dd>
+        </dl>
       </SettingsBody>
     </SettingsSection>
   );
@@ -134,7 +146,7 @@ function ChangeOrganizationHandle() {
       <InlineError>{error}</InlineError>
       <Button
         type="submit"
-        variant="secondary"
+        size="sm"
         className="self-start"
         disabled={
           pending || status.blocked || status.handle === organization.slug
@@ -227,7 +239,8 @@ function Branding() {
                   className="max-h-full max-w-full object-contain"
                 />
               ) : (
-                <span className="text-[11px] text-muted-foreground">None</span>
+                // What people see without one: the fallback, dimmed.
+                <LogoFallback kind={field.kind} />
               )}
             </div>
             <div className="min-w-0 flex-1">
@@ -287,6 +300,28 @@ function Branding() {
   );
 }
 
+// The empty slot shows the fallback each logo has (see Branding above).
+function LogoFallback({ kind }: { kind: LogoKind }) {
+  const { organization } = useWorkspace();
+  return (
+    <span
+      aria-label="Not set; the default is shown"
+      role="img"
+      className="grid place-items-center opacity-60"
+    >
+      {kind === "full" ? (
+        <span className="max-w-40 truncate text-[13px] font-semibold">
+          {organization.name}
+        </span>
+      ) : kind === "mark" || organization.logos.mark ? (
+        <OrganizationMark organization={organization} className="size-7" />
+      ) : (
+        <LogoMark className="size-7" />
+      )}
+    </span>
+  );
+}
+
 const DEFAULT_BRAND_DRAFT = "#1d4ed8";
 
 // One color tints the application and the organization's email. The preview
@@ -322,9 +357,8 @@ function BrandColor() {
         <div className="min-w-0 flex-1 basis-56">
           <p className="text-[13px] font-medium">Brand color</p>
           <p className="text-xs text-muted-foreground">
-            Tints primary buttons and accents for everyone working in this
-            organization, and the button and links in its emails. People who
-            chose their own color theme keep it.
+            Tints primary buttons, accents and emails, adjusted so text stays
+            readable. <LearnMore page="branding" />
           </p>
         </div>
         {isAdmin ? (
@@ -351,7 +385,7 @@ function BrandColor() {
               aria-label="Brand color"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="#1d4ed8"
+              placeholder="e.g. #1d4ed8"
               spellCheck={false}
               maxLength={7}
               disabled={pending}
@@ -360,7 +394,6 @@ function BrandColor() {
             <Button
               type="submit"
               size="sm"
-              variant="secondary"
               disabled={pending || !draft.trim() || color === saved}
             >
               {pending ? "Saving…" : "Save color"}
@@ -396,6 +429,11 @@ function BrandColor() {
 
 function BrandPreview({ color }: { color: string }) {
   const palette = brandPalette(color);
+  const same = (tone: string) => tone.toLowerCase() === color.toLowerCase();
+  const adjusted = [
+    !same(palette.light.color) && `${palette.light.color} on light surfaces`,
+    !same(palette.dark.color) && `${palette.dark.color} on dark surfaces`,
+  ].filter(Boolean);
   const tones = [
     { label: "Light", surface: "#ffffff", tone: palette.light },
     { label: "Dark", surface: "#141518", tone: palette.dark },
@@ -423,6 +461,11 @@ function BrandPreview({ color }: { color: string }) {
           </span>
         </div>
       ))}
+      {adjusted.length > 0 && (
+        <p className="basis-full text-xs text-muted-foreground">
+          Shown as {adjusted.join(" and ")}, so text keeps 4.5:1 contrast.
+        </p>
+      )}
     </div>
   );
 }
@@ -464,7 +507,6 @@ function RenameOrganization({
           />
           <Button
             type="submit"
-            variant="secondary"
             disabled={pending || !value.trim() || value.trim() === name}
           >
             {pending ? "Saving…" : "Rename"}

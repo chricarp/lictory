@@ -1,5 +1,6 @@
 import { DropdownSurface, DropdownItem } from "@lictory/ui/dropdown";
 import {
+  Fragment,
   useId,
   useLayoutEffect,
   useRef,
@@ -30,6 +31,9 @@ export type MenuItem = {
   // Longer, on a second line (a page's space and parent pages).
   detail?: string;
   icon?: ReactNode;
+  // A heading the option is listed under ("People", "Agents"); options of
+  // one group are adjacent.
+  group?: string;
   run: (editor: Editor, range: Range) => void;
   // A second way to insert this option (Shift+Enter, or its button).
   alternate?: {
@@ -248,6 +252,12 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
   if (!state?.rect) return null;
   const active = state.items[state.index];
   const alternateId = `${store.id}-alternate`;
+  // With one group (or none), the group names the list; with several, each
+  // gets its heading.
+  const groups = new Set(state.items.map((item) => item.group));
+  const grouped = groups.size > 1;
+  const title =
+    !grouped && state.items[0]?.group ? state.items[0].group : state.title;
   return createPortal(
     <DropdownSurface
       ref={panelRef}
@@ -260,9 +270,12 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
     >
       <p
         id={titleId}
-        className="px-3 pt-2 pb-1 font-mono text-[11px] tracking-[0.06em] text-muted-foreground uppercase"
+        className={cn(
+          "px-3 pt-2 pb-1 text-xs font-semibold text-muted-foreground",
+          grouped && "sr-only",
+        )}
       >
-        {state.title}
+        {grouped ? state.title : title}
       </p>
       {state.items.length ? (
         <ul
@@ -273,83 +286,98 @@ export function SuggestionMenu({ store }: { store: MenuStore }) {
         >
           {state.items.map((item, index) => {
             const current = index === state.index;
+            const heading =
+              grouped &&
+              item.group &&
+              item.group !== state.items[index - 1]?.group ? (
+                <li
+                  role="presentation"
+                  className="px-2 pt-2 pb-1 text-xs font-semibold text-muted-foreground first:pt-1"
+                >
+                  {item.group}
+                </li>
+              ) : null;
             return (
-              // Keys are handled by the editor, which keeps focus and points
-              // aria-activedescendant at the chosen option.
-              <DropdownItem
-                key={item.id}
-                className={cn(
-                  item.detail ? "items-start" : "items-center",
-                  current && "bg-accent text-accent-foreground",
-                )}
-                render={
-                  // eslint-disable-next-line jsx-a11y/click-events-have-key-events
-                  <li
-                    id={`${store.id}-${index}`}
-                    role="option"
-                    aria-selected={current}
-                    // The active option says how to take its alternative.
-                    aria-describedby={
-                      current && item.alternate ? alternateId : undefined
-                    }
-                    title={
-                      item.detail ? `${item.label}\n${item.detail}` : undefined
-                    }
-                    // The editor keeps focus; pointer users pick without blurring it.
-                    onMouseDown={(e) => e.preventDefault()}
-                    onMouseMove={() => store.point(index)}
-                    onClick={() => store.choose(index)}
-                  />
-                }
-              >
-                {item.icon && (
-                  <span
-                    className={cn(
-                      "text-muted-foreground",
-                      item.detail && "mt-0.5",
-                    )}
-                    aria-hidden
-                  >
-                    {item.icon}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="flex min-w-0 items-baseline gap-2">
-                    <span className="line-clamp-2 min-w-0 flex-1 break-words">
-                      {item.label}
+              <Fragment key={item.id}>
+                {heading}
+                {/* Keys are handled by the editor, which keeps focus and
+                    points aria-activedescendant at the chosen option. */}
+                <DropdownItem
+                  className={cn(
+                    item.detail ? "items-start" : "items-center",
+                    current && "bg-accent text-accent-foreground",
+                  )}
+                  render={
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+                    <li
+                      id={`${store.id}-${index}`}
+                      role="option"
+                      aria-selected={current}
+                      // The active option says how to take its alternative.
+                      aria-describedby={
+                        current && item.alternate ? alternateId : undefined
+                      }
+                      title={
+                        item.detail
+                          ? `${item.label}\n${item.detail}`
+                          : undefined
+                      }
+                      // The editor keeps focus; pointer users pick without blurring it.
+                      onMouseDown={(e) => e.preventDefault()}
+                      onMouseMove={() => store.point(index)}
+                      onClick={() => store.choose(index)}
+                    />
+                  }
+                >
+                  {item.icon && (
+                    <span
+                      className={cn(
+                        "text-muted-foreground",
+                        item.detail && "mt-0.5",
+                      )}
+                      aria-hidden
+                    >
+                      {item.icon}
                     </span>
-                    {item.hint && (
-                      <span className="max-w-28 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
-                        {item.hint}
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-baseline gap-2">
+                      <span className="line-clamp-2 min-w-0 flex-1 break-words">
+                        {item.label}
+                      </span>
+                      {item.hint && (
+                        <span className="max-w-28 shrink-0 truncate font-mono text-[11px] text-muted-foreground">
+                          {item.hint}
+                        </span>
+                      )}
+                    </span>
+                    {item.detail && (
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {item.detail}
                       </span>
                     )}
                   </span>
-                  {item.detail && (
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {item.detail}
-                    </span>
+                  {current && item.alternate && (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      // Pointer path to the alternative; keyboard: Shift+Enter
+                      // (the option's description).
+                      aria-hidden
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        store.choose(index, true);
+                      }}
+                      className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] text-muted-foreground ring-1 ring-foreground/10 hover:bg-background hover:text-foreground"
+                    >
+                      <Pin className="size-3" aria-hidden />
+                      Pin
+                      <kbd className="font-sans text-[10px] opacity-70">⇧↵</kbd>
+                    </button>
                   )}
-                </span>
-                {current && item.alternate && (
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    // Pointer path to the alternative; keyboard: Shift+Enter
-                    // (the option's description).
-                    aria-hidden
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      store.choose(index, true);
-                    }}
-                    className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] text-muted-foreground ring-1 ring-foreground/10 hover:bg-background hover:text-foreground"
-                  >
-                    <Pin className="size-3" aria-hidden />
-                    Pin
-                    <kbd className="font-sans text-[10px] opacity-70">⇧↵</kbd>
-                  </button>
-                )}
-              </DropdownItem>
+                </DropdownItem>
+              </Fragment>
             );
           })}
         </ul>

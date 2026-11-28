@@ -31,11 +31,16 @@
   --input: #11121424;
   --ring: #3b5bdb;
   --hairline: #11121412;
-  --positive: #15803d;
-  --caution: #b45309;
+  /* Status text in mockups sits on tinted pills: darker than the app's
+     tokens so it keeps 4.5:1 on them. */
+  --positive: #166534;
+  --caution: #92400e;
   --negative: #dc2626;
   --lane-main: #111214;
   --lane-eng: #4f6ef7;
+  --lane-eng-text: #3651c9;
+  /* The brand orange as text (section markers): 4.5:1 on the paper. */
+  --brand-text: #b3491a;
   --lane-ai: #2f9e8f;
   --lane-mcp: #c0507a;
   --window-shadow:
@@ -76,6 +81,8 @@
   --negative: #f87171;
   --lane-main: #eceef1;
   --lane-eng: #7c93ff;
+  --lane-eng-text: #7c93ff;
+  --brand-text: var(--brand);
   --lane-ai: #4fc2ad;
   --lane-mcp: #e07aa0;
   --window-shadow: 0 0 0 1px #ffffff12, 0 28px 56px -28px #000000b3;
@@ -218,14 +225,13 @@ html {
 /* The current section is marked with the graph's commit dot. */
 .nav-indicator {
   position: absolute;
-  bottom: 2px;
+  /* The current page: a short bar under its link, as in the app's tabs. */
+  bottom: 3px;
   left: 0;
-  width: 6px;
-  height: 6px;
-  margin-left: 5px;
-  border-radius: 50%;
-  border: 1.5px solid var(--primary);
-  background: var(--background);
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--foreground);
   transition:
     transform 320ms var(--ease),
     opacity 150ms var(--ease);
@@ -374,7 +380,7 @@ html {
 .marker {
   display: flex;
   align-items: center;
-  color: var(--brand);
+  color: var(--brand-text);
   font-family: var(--font-geist-mono), monospace;
   font-size: 12px;
   font-weight: 500;
@@ -400,88 +406,25 @@ html {
   line-height: 28px;
   color: var(--secondary-text);
 }
+.section-intro-link {
+  color: var(--foreground);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--foreground) 25%,
+    transparent
+  );
+  text-underline-offset: 4px;
+}
+.section-intro-link:hover {
+  text-decoration-color: var(--foreground);
+}
 .section h3 {
   font-size: 16px;
   line-height: 24px;
 }
 
-/* Why Lictory */
-.shift {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: end;
-  gap: 80px;
-}
-.shift-chart {
-  padding: 28px;
-  border: 1px solid var(--border);
-  border-radius: 22px;
-  background: var(--card);
-}
-.shift-chart figcaption {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 28px;
-  font-size: 14px;
-  font-weight: 500;
-}
-.shift-chart figcaption span {
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 400;
-}
-.shift-row + .shift-row {
-  margin-top: 24px;
-}
-.shift-row > p:first-child {
-  margin-bottom: 8px;
-  color: var(--secondary-text);
-  font-size: 13px;
-}
-.shift-bar {
-  display: flex;
-  gap: 3px;
-  height: 40px;
-}
-.shift-bar > span {
-  display: flex;
-  align-items: center;
-  padding-inline: 12px;
-  border-radius: 6px;
-  background: var(--muted);
-  color: var(--secondary-text);
-  font-size: 12px;
-}
-.shift-bar > [data-part="define"] {
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 12%, var(--card));
-}
-.shift-bar > [data-part="define"][data-noted] {
-  color: var(--primary-foreground);
-  background: var(--primary);
-}
-.shift-note {
-  position: relative;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
-  color: var(--muted-foreground);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.principles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 48px;
-  margin-top: 64px;
-}
-.principles > div {
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-}
-.principles p,
-.agent-facts p,
 .delivery-options p {
   margin-top: 8px;
   color: var(--secondary-text);
@@ -489,71 +432,6 @@ html {
   line-height: 24px;
 }
 
-/* How it works: the steps hang from the graph's main line. */
-/* How it works: four steps read left to right in one tray, each a card with
-   its index and the git-like move it stands for. */
-.workflow {
-  display: grid;
-  gap: 48px;
-}
-.steps {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  padding: 8px;
-  border-radius: 26px;
-  background: var(--muted);
-  box-shadow: inset 0 0 0 1px var(--hairline);
-}
-.steps li {
-  display: flex;
-  flex-direction: column;
-  padding: 20px 20px 22px;
-  border-radius: 18px;
-  background: var(--card);
-  box-shadow:
-    0 0 0 1px var(--hairline),
-    0 1px 2px rgb(17 18 20 / 0.04);
-}
-.step-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 28px;
-}
-.step-icon {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
-  background: var(--muted);
-  box-shadow: inset 0 0 0 1px var(--hairline);
-  color: var(--foreground);
-}
-.steps li:last-child .step-icon {
-  background: var(--primary);
-  color: var(--primary-foreground);
-  box-shadow: none;
-}
-.step-index {
-  color: var(--muted-foreground);
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.steps h3 {
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-.steps p {
-  margin-top: 6px;
-  color: var(--secondary-text);
-  font-size: 14px;
-  line-height: 22px;
-}
 .review-stage {
   display: grid;
   grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
@@ -594,6 +472,565 @@ html {
   line-height: 22px;
 }
 
+/* The loop: five stages read left to right in one tray, each a card ending
+   at the gate that lets work past it. */
+.loop {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 56px;
+  padding: 8px;
+  border-radius: 26px;
+  background: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.loop-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 18px 18px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--hairline),
+    0 1px 2px rgb(17 18 20 / 0.04);
+}
+/* A small arrow between stages, in the tray's gap */
+.loop-stage:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 36px;
+  right: -7px;
+  z-index: 1;
+  width: 6px;
+  height: 6px;
+  border-top: 1.5px solid var(--muted-foreground);
+  border-right: 1.5px solid var(--muted-foreground);
+  transform: rotate(45deg);
+}
+.loop-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.loop-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--foreground);
+}
+.loop-stage:last-child .loop-icon {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  box-shadow: none;
+}
+.loop-index {
+  color: var(--muted-foreground);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.loop-stage h3 {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.loop-stage > p {
+  margin-top: 6px;
+  color: var(--secondary-text);
+  font-size: 14px;
+  line-height: 22px;
+}
+.loop-stage > .loop-gate {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px dashed var(--border);
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 20px;
+}
+.loop-stage > p + .loop-gate {
+  margin-top: 16px;
+}
+.loop-stage > .loop-gate {
+  margin-top: auto;
+}
+.loop-gate svg.lucide {
+  margin-top: 2px;
+  color: var(--brand);
+}
+.loop-gate[data-by="evidence"] svg.lucide {
+  color: var(--positive);
+}
+
+/* Modules: six cards, each with a small product vignette */
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 56px;
+}
+.module-card {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 8px 24px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--card);
+}
+.module-card h3 {
+  margin: 20px 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.module-card > p {
+  margin: 6px 16px 0;
+  color: var(--secondary-text);
+  font-size: 15px;
+  line-height: 24px;
+}
+.module-features {
+  display: grid;
+  gap: 8px;
+  margin: 16px 16px 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--secondary-text);
+  font-size: 14px;
+  line-height: 21px;
+}
+.module-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 44px;
+  margin: 8px 16px -12px;
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--foreground) 25%,
+    transparent
+  );
+  text-underline-offset: 4px;
+}
+.module-link:hover {
+  text-decoration-color: var(--foreground);
+}
+.module-link svg {
+  width: 16px;
+  height: 16px;
+}
+.module-features li {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 8px;
+}
+.module-features li::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background: var(--brand);
+}
+/* The vignette: a recessed tray with a raised product card, never a
+   screenshot. Decorative; the card's text tells the story. */
+.module-vignette {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  height: 168px;
+  overflow: hidden;
+  padding: 18px 18px 0;
+  border-radius: 15px;
+  background-color: var(--muted);
+  background-image: var(--hatch);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+  color: var(--secondary-text);
+  font-size: 12.5px;
+  line-height: 18px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent);
+  mask-image: linear-gradient(to bottom, #000 75%, transparent);
+}
+.module-vignette > *,
+.mv-desktop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--hairline),
+    0 1px 2px rgb(17 18 20 / 0.04);
+}
+.module-vignette svg.lucide {
+  width: 14px;
+  height: 14px;
+}
+.module-vignette strong {
+  overflow: hidden;
+  color: var(--foreground);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.module-vignette em {
+  color: var(--muted-foreground);
+  font-style: normal;
+}
+.mv-key {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 11.5px;
+}
+.mv-avatar {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--lane-eng) 18%, var(--card));
+  color: var(--lane-eng-text);
+  font-size: 10px;
+  font-weight: 600;
+}
+.mv-agent {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--lane-ai) 18%, var(--card));
+  color: var(--lane-ai);
+}
+.mv-agent svg.lucide {
+  width: 12px;
+  height: 12px;
+}
+.mv-tag,
+.mv-pill {
+  margin-left: auto;
+  padding: 0 7px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--border);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10.5px;
+  line-height: 18px;
+}
+.mv-chip {
+  justify-self: start;
+  border-radius: 999px !important;
+}
+.mv-check {
+  color: var(--foreground);
+}
+.mv-check svg.lucide {
+  color: var(--positive);
+}
+.module-vignette > .mv-ready {
+  justify-self: start;
+  min-height: 26px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--positive) 12%, var(--card));
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--positive) 26%, transparent);
+  color: var(--positive);
+  font-weight: 500;
+}
+.mv-runner .mv-status {
+  margin-left: auto;
+}
+.mv-status {
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.mv-status[data-tone="ok"] {
+  background: color-mix(in srgb, var(--positive) 12%, transparent);
+  color: var(--positive);
+}
+.mv-status[data-tone="wait"] {
+  background: color-mix(in srgb, var(--caution) 12%, transparent);
+  color: var(--caution);
+}
+.module-vignette > .mv-ask {
+  background: color-mix(in srgb, var(--caution) 10%, var(--card));
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--caution) 24%, transparent);
+  color: var(--foreground);
+}
+.module-vignette > .mv-row {
+  background: transparent;
+  box-shadow: none;
+  padding-inline: 0;
+}
+.module-vignette > .mv-tree {
+  position: relative;
+  min-height: 28px;
+}
+.module-vignette > .mv-tree[data-depth="1"] {
+  margin-left: 18px;
+}
+.module-vignette > .mv-tree[data-active] {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.mv-caret {
+  width: 2px;
+  height: 14px;
+  border-radius: 1px;
+  background: var(--lane-eng);
+}
+.mv-caret[data-tone="b"] {
+  margin-left: -2px;
+  background: var(--lane-mcp);
+}
+.mv-caret[data-tone="a"] {
+  margin-left: auto;
+}
+.module-vignette > .mv-desktop {
+  align-items: stretch;
+  height: 132px;
+  padding: 8px;
+}
+.mv-rail {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+.mv-rail > span {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.mv-rail > span[data-active] {
+  background: var(--foreground);
+}
+.mv-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--negative);
+  box-shadow: 0 0 0 2px var(--card);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+.mv-toast {
+  display: grid;
+  align-self: start;
+  align-content: start;
+  gap: 2px;
+  margin-left: auto;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 12px 24px -12px rgb(17 18 20 / 0.3);
+}
+.mv-toast span {
+  color: var(--muted-foreground);
+  font-size: 11.5px;
+}
+
+/* Factory: the runners scene, the autonomy levels beside their copy, then
+   three facts. */
+.runners-scene,
+.branches-scene {
+  margin-top: 56px;
+}
+.factory-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: start;
+  gap: 64px;
+  margin-top: 96px;
+}
+.factory-detail-copy h3 {
+  font-family: var(--font-display), sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+.factory-detail-copy p {
+  margin-top: 16px;
+  max-width: 26rem;
+  color: var(--secondary-text);
+  font-size: 15px;
+  line-height: 24px;
+}
+.autonomy {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 26px;
+  background: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.autonomy li {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: 0 0 0 1px var(--hairline);
+}
+.autonomy p {
+  color: var(--secondary-text);
+  font-size: 14px;
+  line-height: 22px;
+}
+.autonomy .autonomy-name {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  color: var(--foreground);
+  font-size: 16px;
+  font-weight: 600;
+}
+.autonomy-name span {
+  justify-self: start;
+  padding: 0 8px;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px var(--border);
+  color: var(--muted-foreground);
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 20px;
+  text-transform: uppercase;
+}
+.factory-facts,
+.hosting-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 48px;
+  margin-top: 80px;
+}
+.factory-facts > div,
+.hosting-facts > div {
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.factory-facts p,
+.hosting-facts dd {
+  margin-top: 8px;
+  color: var(--secondary-text);
+  font-size: 15px;
+  line-height: 24px;
+}
+.hosting-facts {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 32px;
+  margin-block: 56px;
+}
+.hosting-facts dt {
+  font-size: 16px;
+  font-weight: 500;
+}
+.section code {
+  font-size: 0.92em;
+}
+
+/* Agents you can trust: five rules on the ink band */
+.trust-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 32px;
+  margin-top: 80px;
+}
+.trust-list > div {
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.trust-list dt {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+.trust-list dd {
+  margin-top: 8px;
+  color: var(--secondary-text);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+/* Compared with a tool stack: a table from tablets up, cards on phones */
+.stack-compare {
+  margin-top: 56px;
+}
+.stack-table {
+  width: 100%;
+  overflow: hidden;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 22px;
+}
+.stack-table th,
+.stack-table td {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.stack-table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+.stack-table thead th {
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+}
+.stack-table tbody th {
+  width: 22%;
+  font-weight: 500;
+}
+.stack-table td {
+  width: 39%;
+  color: var(--secondary-text);
+}
+.stack-table :is(td, th):last-child {
+  background: color-mix(in srgb, var(--primary) 4%, transparent);
+  color: var(--foreground);
+}
+.stack-cards {
+  display: none;
+}
+.stack-note {
+  max-width: 720px;
+  margin-top: 16px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 20px;
+}
+
 /* Agents: the one ink band */
 .agents {
   margin-top: 112px;
@@ -602,12 +1039,6 @@ html {
 }
 .agents-scene {
   margin-top: 56px;
-}
-.agent-facts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 48px;
-  margin-top: 80px;
 }
 
 /* Your models: the AI provider section after the agents band */
@@ -638,8 +1069,7 @@ html {
   font-size: 13px;
 }
 
-/* Disciplines and FAQ: heading beside a list. Long lists keep their heading
-   in view. */
+/* FAQ: heading beside a list. Long lists keep their heading in view. */
 @media (min-width: 960px) {
   .split > .section-heading {
     position: sticky;
@@ -651,31 +1081,6 @@ html {
   grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   align-items: start;
   gap: 80px;
-}
-.discipline-list li {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  gap: 16px;
-  align-items: baseline;
-  padding-block: 20px;
-  border-bottom: 1px solid var(--border);
-}
-.discipline-list li:first-child {
-  border-top: 1px solid var(--border);
-}
-.discipline-list span {
-  color: var(--muted-foreground);
-  font-family: var(--font-geist-mono), monospace;
-  font-size: 11.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.discipline-list p {
-  font-family: var(--font-display), sans-serif;
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 28px;
-  letter-spacing: -0.02em;
 }
 
 /* Delivery */
@@ -711,9 +1116,7 @@ html {
 .spaces-editor-scene {
   margin-top: 56px;
 }
-.spaces-stage {
-  margin-top: 112px;
-}
+
 .spaces-facts {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -744,7 +1147,7 @@ html {
   align-items: end;
   justify-content: space-between;
   gap: 40px;
-  margin-top: 128px;
+  margin-top: 96px;
   padding: 40px;
   border: 1px solid var(--border);
   border-radius: 22px;
@@ -887,12 +1290,28 @@ html {
 }
 
 @media (max-width: 1100px) {
-  .shift {
-    gap: 56px;
+  /* Seven sections and two calls to action fit down to the 960px breakpoint. */
+  .header-inner {
+    gap: 12px;
   }
-  .steps,
-  .spaces-facts {
+  .desktop-nav a {
+    padding-inline: 8px;
+  }
+  .spaces-facts,
+  .hosting-facts {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .loop {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .loop-stage:not(:last-child)::after {
+    display: none;
+  }
+  .module-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .trust-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -1010,10 +1429,13 @@ html {
   .hero-copy h1 {
     max-width: 14ch;
   }
-  .shift,
   .split,
-  .review-stage {
+  .review-stage,
+  .factory-detail {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .factory-detail {
+    gap: 32px;
   }
   .review-stage {
     gap: 32px;
@@ -1048,12 +1470,17 @@ html {
   }
   /* Scenes design their own phone gutter: they span the viewport */
   .hero-scene,
+  .branches-scene,
   .review-scene,
+  .runners-scene,
   .agents-scene,
   .models-scene,
-  .spaces-editor-scene,
-  .spaces-review-scene {
+  .spaces-editor-scene {
     margin-inline: -16px;
+  }
+  .branches-scene,
+  .runners-scene {
+    margin-top: 32px;
   }
   .spaces-editor-scene {
     margin-top: 32px;
@@ -1079,33 +1506,20 @@ html {
     font-size: 16px;
     line-height: 26px;
   }
-  .shift-chart {
-    padding: 20px;
-  }
-  .shift-chart figcaption {
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 20px;
-  }
-  .shift-bar > span {
-    padding-inline: 8px;
-    font-size: 11px;
-  }
-  .shift-note {
-    white-space: normal;
-  }
-  .principles,
+
   .review-tools,
   .spaces-facts,
-  .agent-facts,
-  .model-facts {
+  .model-facts,
+  .factory-facts,
+  .hosting-facts,
+  .trust-list,
+  .loop,
+  .module-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
     margin-top: 56px;
   }
-  .steps {
-    grid-template-columns: minmax(0, 1fr);
-  }
+
   .review-stage {
     margin-top: 64px;
   }
@@ -1122,14 +1536,7 @@ html {
   .split {
     gap: 40px;
   }
-  .discipline-list li {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 4px;
-  }
-  .discipline-list p {
-    font-size: 20px;
-    line-height: 28px;
-  }
+
   .delivery-options {
     grid-template-columns: minmax(0, 1fr);
     margin-top: 40px;
@@ -1144,8 +1551,61 @@ html {
     flex-direction: column;
     align-items: start;
     gap: 16px;
-    margin-top: 96px;
+    margin-top: 72px;
     padding: 24px;
+  }
+  .factory-detail {
+    margin-top: 64px;
+  }
+  .factory-detail-copy h3 {
+    font-size: 24px;
+  }
+  .autonomy li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .stack-table {
+    display: none;
+  }
+  .stack-cards {
+    display: grid;
+    gap: 8px;
+  }
+  .stack-cards > li {
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: var(--card);
+  }
+  .stack-need {
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .stack-cards dl {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .stack-cards dl > div {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--muted);
+  }
+  .stack-cards dl > [data-lictory] {
+    background: color-mix(in srgb, var(--primary) 6%, var(--card));
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+  .stack-cards dt {
+    color: var(--muted-foreground);
+    font-family: var(--font-geist-mono), monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .stack-cards dd {
+    margin-top: 2px;
+    font-size: 14px;
+    line-height: 21px;
   }
   .final-cta {
     flex-direction: column;

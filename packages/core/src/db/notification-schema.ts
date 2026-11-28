@@ -44,6 +44,10 @@ export const notification = pgTable(
     // page title or excerpt again.
     spaceId: text("space_id"),
     pageId: text("page_id"),
+    // Channel notifications (mentions, direct messages, thread replies) name
+    // their channel. Reading one requires current access to the channel, so
+    // nobody who left a private conversation sees its excerpt again.
+    channelId: text("channel_id"),
     // Rendering context captured at event time (item key and title, thread
     // excerpt, review responsibility…). Links resolve against live data.
     detail: jsonb("detail")
@@ -172,12 +176,18 @@ export type QueuedNotice = {
   workItemId?: string | null;
   spaceId?: string | null;
   pageId?: string | null;
+  channelId?: string | null;
   detail?: Record<string, unknown>;
   dedupeKey?: string;
   // Also everyone who explicitly watches `workItemId`.
   watchers?: boolean;
   // Ambient update: people who unwatched `workItemId` are left out.
   skipUnwatched?: boolean;
+  // Agent events (docs/internals/agent-events.md): addressed to one of the
+  // person's agents rather than the person, and the agent that acted (an
+  // agent is not woken by its own action, but is by its person's).
+  agentId?: string | null;
+  actorAgentId?: string | null;
 };
 
 // Queue of notification events awaiting fan-out. A command writes one row in

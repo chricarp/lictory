@@ -13,14 +13,16 @@ The `lictory` server administration command is a separate tool. Use the
 
 ## Connect your agent
 
-1. In Lictory, open **Account settings → AI agents (MCP)**.
-2. Choose **New token**, give it an **Agent name**, select **Read & write** or
-   **Read only**, and choose when it **Expires** (7, 30 or 90 days, 1 year,
-   or no expiry). A token is a named agent: create one per agent so activity
-   is attributable.
-3. Copy the token immediately; it is shown only once.
-4. In your MCP client's remote-server settings, use your installation's endpoint
-   and a bearer header:
+1. In Lictory, open **Factory → Agents**, choose **New agent** and
+   **External MCP client**. Give it a name and a scope (**Read and write**
+   or **Read only**, every project or some). It acts as you, narrowed to
+   that scope, in this organization, and history shows it as "Scout via
+   Ada".
+2. Creating it opens its page on **Connection** with its first token. Copy
+   it immediately; it is shown only once. **New token** there makes another
+   (7, 30 or 90 days, 1 year, or no expiry).
+3. In your MCP client's remote-server settings, use your installation's endpoint
+   and a bearer header (the page shows a snippet for your client):
 
 | Setting   | Value                                 |
 | --------- | ------------------------------------- |
@@ -28,15 +30,26 @@ The `lictory` server administration command is a separate tool. Use the
 | URL       | `https://<your-lictory-host>/api/mcp` |
 | Header    | `Authorization: Bearer <your-token>`  |
 
-The endpoint is also displayed in Account settings. Store the token in the
-client's private credential configuration, outside version control. It can
-access the organizations you belong to, subject to your current permissions
-and the token's access level. It is not an organization-scoped credential.
+Store the token in the client's private credential configuration, outside
+version control.
+
+**A script acting as you.** For a script or tool that should work as you,
+across every organization you belong to, with your full permissions, create
+a personal access token instead in **Account settings → Integrations →
+Personal access tokens** (**New token**, a name, the access and the expiry). Prefer an
+agent for anything that works on its own: it has a name, a scope and
+wake-ups of its own, and you can see and stop it in one place.
+
+Do not give an AI client your personal token. The server refuses people's
+decisions (approving, merging, accepting delivery scope, resolving
+discussions, recording decisions, handing off) to an agent's token whatever
+a message, issue or comment says, but it cannot tell an AI client holding
+your personal token from you: that client can make every decision you can,
+held back only by its instructions.
 
 Client configuration formats differ. Choose a client that supports a remote
-Streamable HTTP server and custom authorization headers. Lictory uses personal
-tokens for this connection; signing into Lictory in a browser does not authorize
-your terminal client.
+Streamable HTTP server and custom authorization headers. Signing into
+Lictory in a browser does not authorize your terminal client.
 
 ### Client examples
 
@@ -50,9 +63,14 @@ the settings above.
 
 ```sh
 claude mcp add --transport http lictory https://lictory.example.com/api/mcp \
-  --header "Authorization: Bearer $LICTORY_TOKEN"
+  --header 'Authorization: Bearer ${LICTORY_TOKEN}'
 claude mcp list   # lictory should be listed as connected
 ```
+
+Keep the single quotes: they store `${LICTORY_TOKEN}` itself, which Claude
+Code expands each time it connects. With double quotes the shell would write
+the token into Claude Code's configuration, and an unset variable would store
+an empty `Bearer ` header.
 
 **Codex CLI** (`~/.codex/config.toml`)
 
@@ -77,7 +95,7 @@ bearer_token_env_var = "LICTORY_TOKEN"
     {
       "id": "lictory-token",
       "type": "promptString",
-      "description": "Lictory personal token",
+      "description": "Lictory token",
       "password": true
     }
   ]
@@ -153,9 +171,14 @@ is for an explicitly requested edit to an unprotected draft. Agents cannot
 type into the [live draft](/specifications/live-drafts) people are editing
 together; what people are writing there stays theirs.
 
-Commands can carry a `mutationId`: reusing it for a retry prevents the same
-change from being applied twice. A stale `baseRevisionId` returns a conflict
-with the current revision, so the agent must read and reconcile the new state.
+Write tools that list a `mutationId` (including `postChannelMessage` and
+`replyInThread`) replay their first result when retried with the same value,
+so the change is never applied twice. The [MCP tool reference](/reference/mcp)
+marks each tool that takes one; the others are safe to repeat or say how
+to check first. Fields a tool does not take are refused rather than ignored.
+Wherever a tool takes `workItemId`, a key such as `PAY-142` works too. A
+stale `baseRevisionId` returns a conflict with the current revision, so the
+agent must read and reconcile the new state.
 
 ## Spaces
 
@@ -191,33 +214,94 @@ they contributed to, and that includes an agent acting for them.
 
 ## Permissions and human decisions
 
-An agent acts as the person who created its token. Project disciplines determine
+An agent acts as its owner (the person who created its token), narrowed to
+the agent's scope. Project disciplines determine
 work item permissions; organization or project administrator roles do not grant
 them. Space access (view, comment or edit) determines what it can do in Spaces. A read-only token exposes queries only. Changing memberships or revoking
 the token takes effect on subsequent requests.
 
 Approving reviews, merging, accepting delivery scope, resolving discussions,
 recording decisions, signing off readiness checks, publishing the Definition
-of Ready and handing work to Jira record human decisions. In projects
-delivered in Lictory, an agent cannot start or complete a specification's
-work before someone has accepted a revision for delivery. The MCP
-tools instruct the agent to perform them only when you explicitly ask. A
-read/write token is **not** a technical confirmation gate for each decision:
-use read-only access when the agent should only inspect work. Several agents
-using one person's identity do not count as independent reviewers.
+of Ready and handing work to Jira record human decisions. **An agent never
+makes them**: Lictory refuses them to an agent's token on the server and
+leaves them out of its tool list, whatever a message, issue or comment asks.
+The refusal says where you decide instead, and `listHumanOnlyOperations`
+lists every one. Merging an agent's code pull request can be automated only
+by the project's autonomy policy (Autopilot), never by the agent. In
+projects delivered in Lictory, an agent cannot start or complete a
+specification's work before someone has accepted a revision for delivery.
+Several agents using one person's identity do not count as independent
+reviewers.
+
+A personal access token (Account settings → Integrations) acts as you
+without an agent's limits: its tools include decisions, and the MCP
+instructions tell the client to make one only when you explicitly asked.
+Prefer an agent's token for anything that runs unattended.
 
 Account security, organization membership, administrator roles, token
 creation, integration credentials, the audit log, data exports, organization
 deletion and Litto conversations stay with you in the browser. The agent can call
 `listHumanOnlyOperations` to explain where to complete an unavailable operation.
 
+## Wake your agent when something waits on you
+
+Instead of asking Lictory over and over whether anything changed, an agent
+can be woken when something is waiting on you or on it: a mention in a
+channel or discussion, a direct message, a review request, an approval that
+went stale, a pull request decided or merged, an assignment, a question your
+agent asked that someone resolved, or your agent's claim ending. An event
+carries identifiers and a short title (such as `PAY-142` and its title, or a
+channel's name), never the specification or the message itself: the agent
+reads the details with its tools, with your permissions. Events say what
+happened, never what to do.
+
+Pick the way your agent can listen:
+
+| Your agent                                                    | How it is woken                               |
+| ------------------------------------------------------------- | --------------------------------------------- |
+| Keeps a connection open (a terminal agent, a script)          | `waitForEvents` in a loop                     |
+| Supports MCP Events webhooks (ChatGPT dots, OpenClaw, Hermes) | It subscribes itself with `events/subscribe`  |
+| Runs from a webhook URL and key (Grok, Claude routines)       | A webhook you add in the agent's **Wake-ups** |
+
+**Waiting over MCP.** Call `listEvents` with `after: "latest"` once to get a
+cursor, then `waitForEvents` with that cursor: it returns as soon as an
+event arrives (or after at most 25 seconds with none), with a new cursor
+for the next call. `listEvents` without a cursor reads the last 30 days.
+
+**MCP Events.** Clients that support the MCP Events extension find the
+event types with `events/list` and subscribe on their own; Lictory verifies
+the callback once and signs every delivery (Standard Webhooks). Their
+subscriptions appear under the agent's **Wake-ups** (or, for a personal
+token, under **Account settings → Event webhooks**), where you can pause or
+remove them.
+
+**A webhook.** On the agent's page, under **Wake-ups**, choose **New
+webhook**, enter a name, the URL your agent gave you and its secret (sent as
+`Authorization: Bearer <secret>`) and the event types, then **Test** it. A
+script using a personal token is woken the same way from **Account
+settings → Event webhooks**, where you also choose the organization. Each delivery's body has `text` (one sentence
+describing the event, repeated as `message` for receivers that read that
+field) and `event` (its type, identifiers and a link), and is signed with
+the secret. A failing receiver is retried with backoff (its state reads
+**Retrying**, with the last problem and the next try) and suspended after
+five failures; **Resume** it once it works again. The
+[agent events reference](/reference/agent-events) lists every event type,
+header and payload, the retry schedule and how to verify a signature.
+
+Webhooks reach public HTTPS addresses only. A self-hosted installation can
+allow agents on its own network with `AGENT_EVENTS_ALLOW_PRIVATE_NETWORKS`
+(see [configuration](/self-hosting/configuration)). Organization
+administrators decide in **Organization settings → Security** whether the
+organization's events may be sent to webhooks at all, and to which hosts.
+
 ## Audit and disconnect
 
 Activity attributes changes to the person and named agent. Organization
 administrators can inspect agent calls and their outcomes in the
-[audit log](/organization/audit) (**Agent calls**). Token settings show
-expiry and last use. Choose **Revoke** beside a token to
-disconnect its agent immediately; create a new token to reconnect.
+[audit log](/organization/audit) (**Agents, Autopilot & Done**). Token settings show
+expiry and last use. Choose **Revoke** beside a token (on the agent's page,
+or in Account settings for a personal token) to disconnect it immediately;
+create a new token to reconnect.
 
 Connecting a model client gives that client access to the content it reads.
 Apply your organization's policy for sending product data to that provider.
@@ -226,12 +310,13 @@ Apply your organization's policy for sending product data to that provider.
 
 | Symptom                    | What to check                                                                                                       |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Unauthorized               | Send the bearer header; replace an expired or revoked token.                                                        |
+| Unauthorized               | Send the bearer header; replace an expired or revoked token from the agent's **Connection**.                        |
 | No tools that make changes | The token is read-only; create a read/write token if needed.                                                        |
 | Forbidden operation        | Check current organization membership, project disciplines and the human-only explanation.                          |
 | Organization not found     | Rediscover with `listOrganizations`; use its exact ID or slug.                                                      |
 | Revision conflict          | Read the latest item and branch heads, then reconcile before retrying.                                              |
 | Client cannot connect      | Use `/api/mcp`, remote Streamable HTTP and a reachable HTTPS address; check your reverse proxy and custom CA trust. |
+| Webhook gets no events     | Check its state in the agent's Wake-ups (suspended, last problem) and the organization's webhook policy.            |
 
 For server diagnostics, use `lictory doctor` and `lictory logs api` on the
 installation's host. See [reverse proxies](/self-hosting/reverse-proxy) if

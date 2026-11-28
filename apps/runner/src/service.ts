@@ -1,0 +1,275 @@
+import { spawn } from "node:child_process";
+import { access, mkdir, writeFile } from "node:fs/promises";
+import { homedir, platform, userInfo } from "node:os";
+import { dirname, join } from "node:path";
+import { run } from "@lictory/runner/process";
+import { homeDirectory } from "@lictory/runner/config";
+import { EXIT } from "@lictory/runner/output";
+
+// `lictory-runner install-service`: runs `lictory-runner start` at boot
+// (systemd on Linux, launchd on macOS) and restarts it if it stops. On
+// Windows it prints the commands instead.
+
+export type ServiceOptions = {
+  // A system service (root) instead of the current user's.
+  system: boolean;
+  // Enable and start it now.
+  enable: boolean;
+  log: (line: string) => void;
+};
+
+// The command the service runs: this binary, or bun with this script.
+function command() {
+  const executable = process.execPath;
+  const script = process.argv[1];
+  const compiled =
+    !script || /^\/\$bunfs|^B:\\~BUN/.test(script) || script === executable;
+  return compiled ? [executable, "start"] : [executable, script, "start"];
+}
+
+const quote = (value: string) =>
+  /^[\w@%+=:,./-]+$/.test(value)
+    ? value
+    : `'${value.replaceAll("'", `'\\''`)}'`;
+
+export function systemdUnit(options: {
+  system: boolean;
+  home: string;
+  user: string;
+}) {
+  return [
+    "[Unit]",
+    "Description=Lictory runner (executes agent sessions)",
+    "Wants=network-online.target",
+    "After=network-online.target",
+    "",
+    "[Service]",
+    "Type=simple",
+    `ExecStart=${command().map(quote).join(" ")}`,
+    `Environment=LICTORY_RUNNER_HOME=${options.home}`,
+    ...(options.system ? [`User=${options.user}`] : []),
+    "Restart=always",
+    "RestartSec=5",
+    // Not registered, or the credential was revoked: restarting cannot
+    // help until a person registers the runner again.
+    `RestartPreventExitStatus=${EXIT.needsPerson} ${EXIT.usage}`,
+    // Sessions get time to hand back their work.
+    "TimeoutStopSec=30",
+    "KillSignal=SIGTERM",
+    "",
+    "[Install]",
+    `WantedBy=${options.system ? "multi-user.target" : "default.target"}`,
+    "",
+  ].join("\n");
+}
+
+export function launchdPlist(options: { home: string; logs: string }) {
+  const args = command()
+    .map(
+      (a) =>
+        `    <string>${a.replaceAll("&", "&amp;").replaceAll("<", "&lt;")}</string>`,
+    )
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.lictory.runner</string>
+  <key>ProgramArguments</key>
+  <array>
+${args}
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>LICTORY_RUNNER_HOME</key>
+    <string>${options.home}</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>${options.logs}/runner.log</string>
+  <key>StandardErrorPath</key>
+  <string>${options.logs}/runner.log</string>
+</dict>
+</plist>
+`;
+}
+
+// Where install-service writes the service definition.
+function servicePath(os: string, system: boolean, user = homedir()) {
+  if (os === "linux")
+    return system
+      ? "/etc/systemd/system/lictory-runner.service"
+      : join(user, ".config", "systemd", "user", "lictory-runner.service");
+  if (os === "darwin")
+    return system
+      ? "/Library/LaunchDaemons/com.lictory.runner.plist"
+      : join(user, "Library", "LaunchAgents", "com.lictory.runner.plist");
+  return null;
+}
+
+const exists = (path: string) =>
+  access(path).then(
+    () => true,
+    () => false,
+  );
+
+// The command that prints the installed service's log: the journal on
+// Linux, the file launchd writes on macOS. Null when no service is
+// installed: a runner started by hand logs to its terminal only.
+export async function serviceLogCommand(
+  options: { follow: boolean; lines: number },
+  os = platform(),
+  home = homeDirectory(),
+  user = homedir(),
+) {
+  for (const system of [true, false]) {
+    const path = servicePath(os, system, user);
+    if (!path || !(await exists(path))) continue;
+    if (os === "linux")
+      return [
+        "journalctl",
+        ...(system ? [] : ["--user"]),
+        "-u",
+        "lictory-runner",
+        "-n",
+        String(options.lines),
+        "--no-pager",
+        ...(options.follow ? ["-f"] : []),
+      ];
+    return [
+      "tail",
+      "-n",
+      String(options.lines),
+      ...(options.follow ? ["-f"] : []),
+      join(home, "logs", "runner.log"),
+    ];
+  }
+  return null;
+}
+
+// `lictory-runner logs`: says which log it shows, then shows it.
+export async function showLogs(options: {
+  follow: boolean;
+  lines: number;
+  log: (line: string) => void;
+}) {
+  const command = await serviceLogCommand(options);
+  if (!command) {
+    options.log(
+      [
+        "No runner service is installed on this machine, so there is no log file to show.",
+        "A runner started with `lictory-runner start` writes its log to that terminal; `lictory-runner status` shows its state and last error.",
+        "To keep a log, run it as a service: lictory-runner install-service --enable.",
+      ].join("\n"),
+    );
+    return EXIT.failed;
+  }
+  options.log(`Showing the runner service's log: ${command.join(" ")}`);
+  return new Promise<number>((resolve) => {
+    const child = spawn(command[0]!, command.slice(1), { stdio: "inherit" });
+    child.on("error", (error) => {
+      options.log(`${command[0]} could not run: ${error.message}`);
+      resolve(EXIT.failed);
+    });
+    child.on("close", (code) => resolve(code ?? EXIT.ok));
+  });
+}
+
+export async function installService(options: ServiceOptions) {
+  const home = homeDirectory();
+  const { log } = options;
+  switch (platform()) {
+    case "linux": {
+      const path = servicePath("linux", options.system)!;
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(
+        path,
+        systemdUnit({
+          system: options.system,
+          home,
+          user: userInfo().username,
+        }),
+      );
+      log(`Wrote ${path}.`);
+      const ctl = options.system ? ["systemctl"] : ["systemctl", "--user"];
+      const steps = [
+        [...ctl, "daemon-reload"],
+        [...ctl, "enable", "--now", "lictory-runner.service"],
+      ];
+      if (options.enable) {
+        for (const step of steps) {
+          const result = await run(step[0]!, step.slice(1));
+          if (result.code !== 0)
+            throw new Error(
+              `${step.join(" ")} failed: ${result.stderr.trim()}`,
+            );
+        }
+        log("The runner service is enabled and running.");
+      } else
+        log(`Start it with:\n  ${steps.map((s) => s.join(" ")).join("\n  ")}`);
+      // A user service ends with the last login session unless lingering
+      // is on: on a build server that is the moment its admin logs out.
+      if (!options.system) {
+        const linger = await run("loginctl", [
+          "show-user",
+          userInfo().username,
+          "--property=Linger",
+        ]);
+        if (linger.stdout.trim() !== "Linger=yes")
+          log(
+            "Warning: this user service stops when you log out. Keep it running with `loginctl enable-linger $USER`, or install a system service instead (`install-service --system`; see the runner documentation).",
+          );
+        else
+          log(
+            "Lingering is on for this user, so the service keeps running after you log out.",
+          );
+      }
+      log("Read its log with `lictory-runner logs` (add --follow to watch).");
+      return;
+    }
+    case "darwin": {
+      const path = servicePath("darwin", options.system)!;
+      const logs = join(home, "logs");
+      await mkdir(logs, { recursive: true });
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, launchdPlist({ home, logs }));
+      log(
+        `Wrote ${path}. Logs go to ${logs}/runner.log (\`lictory-runner logs\` shows them).`,
+      );
+      const load = ["launchctl", "load", "-w", path];
+      if (options.enable) {
+        const result = await run(load[0]!, load.slice(1));
+        if (result.code !== 0)
+          throw new Error(`${load.join(" ")} failed: ${result.stderr.trim()}`);
+        log("The runner service is loaded and running.");
+      } else log(`Start it with:\n  ${load.join(" ")}`);
+      return;
+    }
+    case "win32": {
+      const [exe] = command();
+      log(
+        [
+          "Windows has no service installer built in. Run the runner at sign-in with Task Scheduler (from an elevated PowerShell):",
+          "",
+          `  $action = New-ScheduledTaskAction -Execute "${exe}" -Argument "start"`,
+          "  $trigger = New-ScheduledTaskTrigger -AtLogOn",
+          "  $settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1)",
+          '  Register-ScheduledTask -TaskName "Lictory runner" -Action $action -Trigger $trigger -Settings $settings',
+          "",
+          "Or install it as a service with NSSM: nssm install LictoryRunner " +
+            `"${exe}" start`,
+          `Set LICTORY_RUNNER_HOME=${home} for the service account if it differs from yours.`,
+        ].join("\n"),
+      );
+      return;
+    }
+    default:
+      throw new Error(
+        `install-service does not support ${platform()}; run "lictory-runner start" with your init system.`,
+      );
+  }
+}

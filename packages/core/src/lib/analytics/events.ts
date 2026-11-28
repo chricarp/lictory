@@ -113,6 +113,15 @@ export const commandEvents = {
   linkContextPage: "context_page_linked",
   unlinkContextPage: "context_page_unlinked",
   moveContextPage: "context_page_moved",
+  createChannel: "channel_created",
+  openDirectConversation: "direct_conversation_opened",
+  updateChannel: "channel_updated",
+  setChannelArchived: "channel_archived_changed",
+  joinChannel: "channel_joined",
+  leaveChannel: "channel_left",
+  addChannelMembers: "channel_members_added",
+  removeChannelMember: "channel_member_removed",
+  setChannelNotificationLevel: "channel_notification_level_set",
 } satisfies Record<Command["type"], string>;
 
 // Explicit allowlist: never spread a command, form, document or error into events.
@@ -121,6 +130,7 @@ const safeFields = [
   "workItemId",
   "spaceId",
   "pageId",
+  "channelId",
   "teamId",
   "typeId",
   "parentId",

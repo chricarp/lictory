@@ -147,7 +147,7 @@ export function CreateSpaceDialog({
               value={name}
               maxLength={120}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Payments handbook"
+              placeholder="e.g. Payments handbook"
               autoComplete="off"
               className="border-foreground/15"
             />
@@ -160,7 +160,7 @@ export function CreateSpaceDialog({
               <label htmlFor={ids.slug} className="block text-xs font-medium">
                 Address
               </label>
-              <div className="flex h-10 items-center rounded-xl border border-foreground/15 bg-card text-[15px] shadow-xs transition-[border-color,box-shadow] duration-150 focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10 has-[[aria-invalid=true]]:border-destructive/60 touch:text-base">
+              <div className="flex h-10 items-center rounded-lg border border-input bg-card text-[15px] shadow-xs transition-[border-color,box-shadow] duration-150 focus-within:border-primary/60 focus-within:ring-3 focus-within:ring-primary/10 has-[[aria-invalid=true]]:border-destructive/60 touch:text-base">
                 <span
                   aria-hidden
                   className="max-w-[45%] shrink-0 truncate pl-3.5 text-muted-foreground"
@@ -176,12 +176,12 @@ export function CreateSpaceDialog({
                     setSlugEdited(true);
                     setSlug(e.target.value.toLowerCase());
                   }}
-                  placeholder="payments-handbook"
+                  placeholder="e.g. payments-handbook"
                   autoComplete="off"
                   spellCheck={false}
                   aria-invalid={handle !== "" && !handleValid}
                   aria-describedby={`${ids.slug}-hint`}
-                  className="h-full min-w-0 flex-1 bg-transparent pr-3.5 outline-none placeholder:text-muted-foreground/70"
+                  className="h-full min-w-0 flex-1 bg-transparent pr-3.5 outline-none placeholder:text-placeholder"
                 />
               </div>
               <p
@@ -226,7 +226,7 @@ export function CreateSpaceDialog({
             rows={2}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="What belongs in this space?"
-            className="w-full resize-y rounded-xl border border-foreground/15 bg-card px-3.5 py-2 text-[13px] shadow-xs outline-none placeholder:text-muted-foreground focus:border-primary/60 focus:ring-3 focus:ring-primary/10 touch:text-base"
+            className="w-full resize-y rounded-lg border border-input bg-card px-3.5 py-2 text-[13px] shadow-xs outline-none placeholder:text-muted-foreground focus:border-primary/60 focus:ring-3 focus:ring-primary/10 touch:text-base"
           />
         </Field>
         <Collapsible

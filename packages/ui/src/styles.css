@@ -26,6 +26,9 @@
      foregrounds (WCAG 2.2 AA; checked by the browser suite). */
   --success: #15803d;
   --warning: #b45309;
+  /* A merged change (pull requests, proposed changes): the code hosts'
+     violet, >= 4.5:1 on background and card. */
+  --merged: #7c3aed;
   --shell: #f2f3f5;
   /* Recessed groups (trays) hold raised cards. */
   --tray: #f3f4f6;
@@ -46,13 +49,25 @@
   --secondary: #f4f4f6;
   --secondary-foreground: #111214;
   --muted: #f4f4f6;
-  --muted-foreground: #6b6e76;
+  /* 4.5:1 or more on every light surface muted text sits on, hovered rows
+     and hairline-tinted wells included. */
+  --muted-foreground: #63666e;
   --accent: #f1f2f4;
   --accent-foreground: #111214;
+  /* The prompt inside an empty field. Often the only thing that says what a
+     field is for, so it keeps 4.5:1 like any text (WCAG 1.4.3); in dark the
+     muted text has room to step back and still hold it. */
+  --placeholder: var(--muted-foreground);
   --destructive: #c81e1e;
   --destructive-foreground: #ffffff;
+  /* Hairlines between regions: decoration, not a boundary anyone needs to
+     find. */
   --border: #e7e8eb;
-  --input: #dcdee2;
+  /* The edge of a field or control (text fields, selects, radios, the off
+     track of a switch, the selected segment). >= 3:1 on background, card,
+     popover and muted in every theme and mode (WCAG 1.4.11; checked by
+     identity/color.test.ts). */
+  --input: #898a8e;
   --ring: #3b5bdb;
   --chart-1: #4f6ef7;
   --chart-2: #2f9e8f;
@@ -108,10 +123,23 @@
     0 20px 48px -24px rgb(17 18 20 / 0.18);
   --tracking-normal: -0.006em;
   --spacing: 0.25rem;
+  /* Tinted identity tiles (agent avatars): how much of the identity color
+     the tile, its glyph and its edge take. The glyph keeps >= 4.5:1 on its
+     tile in light and dark. */
+  --identity-tile: 22%;
+  --identity-ink: 85%;
+  --identity-edge: 45%;
 }
 
 .dark {
   color-scheme: dark;
+  /* On near-black the light theme's dark ink fades into its tile: the tile
+     takes more color and the glyph is drawn mostly in foreground, so an
+     agent's tile reads as clearly as a person's coloured disc. */
+  --identity-tile: 34%;
+  --identity-ink: 20%;
+  --identity-edge: 60%;
+  --merged: #a78bfa;
   --success: #4ade80;
   --warning: #fbbf24;
   --shell: #0c0d0f;
@@ -128,13 +156,16 @@
   --secondary: #1f2024;
   --secondary-foreground: #eceef1;
   --muted: #1c1d21;
-  --muted-foreground: #a4a7ae;
+  /* Helper and evidence text is read, not skimmed: 7.5:1 or more on every
+     dark surface, popovers included. */
+  --muted-foreground: #b1b4bb;
+  --placeholder: color-mix(in srgb, var(--muted-foreground) 74%, transparent);
   --accent: #222327;
   --accent-foreground: #eceef1;
   --destructive: #f87171;
   --destructive-foreground: #1a0b0b;
   --border: #25272c;
-  --input: #303237;
+  --input: #6c6e73;
   --ring: #7c93ff;
   --chart-1: #7c93ff;
   --chart-2: #4fc2ad;
@@ -225,7 +256,7 @@
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: #e4e4e7;
-  --input: #e4e4e7;
+  --input: #8a8a8d;
   --ring: #71717a;
   --sidebar: #fafafa;
   --sidebar-foreground: #18181b;
@@ -256,7 +287,7 @@
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --border: #232326;
-  --input: #2e2e32;
+  --input: #6d6d70;
   --ring: #a1a1aa;
   --sidebar: #111113;
   --sidebar-foreground: #e4e4e7;
@@ -289,7 +320,7 @@
   --destructive: #d1242f;
   --destructive-foreground: #ffffff;
   --border: #d1d9e0;
-  --input: #d1d9e0;
+  --input: #888e95;
   --ring: #0969da;
   --sidebar: #f6f8fa;
   --sidebar-foreground: #1f2328;
@@ -320,7 +351,7 @@
   --destructive: #f85149;
   --destructive-foreground: #ffffff;
   --border: #30363d;
-  --input: #3d444d;
+  --input: #6d747c;
   --ring: #1f6feb;
   --sidebar: #010409;
   --sidebar-foreground: #f0f6fc;
@@ -353,7 +384,7 @@
   --destructive: #d20f39;
   --destructive-foreground: #eff1f5;
   --border: #ccd0da;
-  --input: #bcc0cc;
+  --input: #7e8296;
   --ring: #8839ef;
   --sidebar: #e6e9ef;
   --sidebar-foreground: #4c4f69;
@@ -384,7 +415,7 @@
   --destructive: #f38ba8;
   --destructive-foreground: #11111b;
   --border: #313244;
-  --input: #45475a;
+  --input: #797d95;
   --ring: #cba6f7;
   --sidebar: #11111b;
   --sidebar-foreground: #cdd6f4;
@@ -417,7 +448,7 @@
   --destructive: #b4637a;
   --destructive-foreground: #fffaf3;
   --border: #dfdad9;
-  --input: #cecacd;
+  --input: #85819a;
   --ring: #286983;
   --sidebar: #f4ede8;
   --sidebar-foreground: #575279;
@@ -448,7 +479,7 @@
   --destructive: #eb6f92;
   --destructive-foreground: #191724;
   --border: #2a273f;
-  --input: #403d52;
+  --input: #726f84;
   --ring: #ebbcba;
   --sidebar: #16141f;
   --sidebar-foreground: #e0def4;
@@ -481,7 +512,7 @@
   --destructive: #bf616a;
   --destructive-foreground: #ffffff;
   --border: #d8dee9;
-  --input: #d8dee9;
+  --input: #7c828e;
   --ring: #5e81ac;
   --sidebar: #e5e9f0;
   --sidebar-foreground: #2e3440;
@@ -512,7 +543,7 @@
   --destructive: #bf616a;
   --destructive-foreground: #eceff4;
   --border: #434c5e;
-  --input: #4c566a;
+  --input: #969ca9;
   --ring: #88c0d0;
   --sidebar: #292e39;
   --sidebar-foreground: #e5e9f0;
@@ -537,11 +568,13 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-placeholder: var(--placeholder);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-success: var(--success);
   --color-warning: var(--warning);
+  --color-merged: var(--merged);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
@@ -597,6 +630,12 @@
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
+    /* Fractional glyph advances. Without it Chromium on Linux rounds each
+       advance to a whole pixel at UI sizes: Geist's word space shrinks with
+       weight (about 3.4px in 14px semibold) and rounds down while the wider
+       letters round up, so medium and semibold words run together
+       ("BrunoLind"). Other platforms already position glyphs this way. */
+    text-rendering: geometricPrecision;
   }
   button,
   a {
@@ -612,8 +651,23 @@
   [role="button"] {
     touch-action: manipulation;
   }
+  /* Selected text in the focus colour (blue in the default themes), so it
+     reads apart from grey fills; a neutral primary at 20% was a pale grey. */
   ::selection {
-    @apply bg-primary/20 text-foreground;
+    @apply bg-ring/30 text-foreground;
+  }
+  /* Date fields: the browser's calendar button as a quiet icon, like the
+     chevrons of the app's selects, and no extra inner padding. */
+  input[type="date"]::-webkit-datetime-edit {
+    padding: 0;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.55;
+    margin-inline-end: -2px;
+  }
+  input[type="date"]:hover::-webkit-calendar-picker-indicator {
+    opacity: 0.9;
   }
 }
 
@@ -840,6 +894,21 @@
     background-position: 0 0;
   }
 }
+/* The one focus indicator: a 2px ring in the theme's focus color, offset
+   from the control so it reads on any surface. Use `focus-ring-inset` for
+   full-bleed rows that sit flush against a clipping scroll container. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+@utility focus-ring-inset {
+  &:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
+  }
+}
 @utility shimmer {
   --_spread: var(--shimmer-spread, calc(3ch + 40px));
   --_base: currentColor;
@@ -930,6 +999,8 @@
     animation-fill-mode: both;
   }
 }
+/* A horizontal strip (tabs, chips) that scrolls: its ends fade while more
+   lies beyond them, so a clipped tab reads as "scroll for more". */
 @utility scroll-fade-x {
   mask-image: linear-gradient(
     to right,

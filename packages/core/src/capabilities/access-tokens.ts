@@ -11,10 +11,12 @@ import {
   type Database,
 } from "@lictory/core/capabilities/core";
 import { recordAccountAuditEvent } from "@lictory/core/domain/audit";
+import type { AgentScope } from "@lictory/core/factory/authority";
 
-// Personal access tokens for external agents (MCP clients). A token is one
-// named agent acting for its owner: its name and id identify the agent in
-// activity history. It is a bearer credential for its owner: it grants exactly the owner's current
+// Personal access tokens: a script or tool (an MCP client) acting as the
+// person, in every organization they belong to. A token's name and id
+// identify it in activity history. An agent with a name, scope and wake-ups
+// of its own is a Factory agent; its tokens live on its page. It is a bearer credential for its owner: it grants exactly the owner's current
 // permissions, never more, and `read` tokens only reach queries. Tokens are
 // created, listed and revoked by the signed-in person in the browser; agents
 // cannot manage credentials.
@@ -32,7 +34,11 @@ export type AuthenticatedToken = {
   // The agent this token identifies in activity history.
   name: string;
   access: "read" | "write";
+  // The Factory agent the token is bound to, with its scope.
+  agent: AgentScope | null;
 };
+
+const activeSessionStatuses = ["assigned", "running", "waiting"];
 
 export async function authenticateAccessToken(
   db: Database,
@@ -45,9 +51,16 @@ export async function authenticateAccessToken(
     .select({
       token: s.accessToken,
       deactivatedAt: s.user.deactivatedAt,
+      agent: s.agent,
+      sessionStatus: s.agentSession.status,
     })
     .from(s.accessToken)
     .innerJoin(s.user, eq(s.user.id, s.accessToken.userId))
+    .leftJoin(s.agent, eq(s.agent.id, s.accessToken.agentId))
+    .leftJoin(
+      s.agentSession,
+      eq(s.agentSession.id, s.accessToken.agentSessionId),
+    )
     .where(eq(s.accessToken.tokenHash, digest));
   const row = found?.token;
   if (
@@ -60,17 +73,43 @@ export async function authenticateAccessToken(
     (row.expiresAt && row.expiresAt <= now)
   )
     return null;
+  const agent = found.agent;
+  if (row.agentId) {
+    // An agent's token stops working when the agent is archived or changes
+    // owner, and a session's token when the session ends.
+    if (!agent || agent.archivedAt || agent.ownerId !== row.userId) return null;
+    if (
+      row.agentSessionId &&
+      !activeSessionStatuses.includes(found.sessionStatus ?? "")
+    )
+      return null;
+  }
   // Coarse last-use tracking: at most one write a minute per token.
   if (!row.lastUsedAt || now.getTime() - row.lastUsedAt.getTime() > 60_000)
     await db
       .update(s.accessToken)
       .set({ lastUsedAt: now })
       .where(eq(s.accessToken.id, row.id));
+  const tokenAccess = row.scope === "write" ? "write" : "read";
   return {
     tokenId: row.id,
     userId: row.userId,
-    name: row.name,
-    access: row.scope === "write" ? "write" : "read",
+    name: agent && row.agentId ? agent.name : row.name,
+    // Owner ∩ scope: a read agent or a read token only reaches queries.
+    access:
+      agent && row.agentId && agent.access === "read" ? "read" : tokenAccess,
+    agent:
+      agent && row.agentId
+        ? {
+            id: agent.id,
+            organizationId: agent.organizationId,
+            name: agent.name,
+            handle: agent.handle,
+            access: agent.access === "read" ? "read" : "write",
+            projectIds: agent.projectIds ?? null,
+            sessionId: row.agentSessionId ?? null,
+          }
+        : null,
   };
 }
 
@@ -102,14 +141,20 @@ const listAccessTokens = defineCapability({
   surfaces: webOnly,
   humanOnly: {
     reason: "credentials",
-    where: "Account settings → Integrations → AI agents (MCP)",
+    where: "Account settings → Access tokens",
   },
   input: z.object({}),
   async run(ctx) {
     const rows = await ctx.db
       .select()
       .from(s.accessToken)
-      .where(eq(s.accessToken.userId, ctx.principal.userId))
+      .where(
+        and(
+          eq(s.accessToken.userId, ctx.principal.userId),
+          // Agent tokens are listed with their agent (Factory → Agents).
+          isNull(s.accessToken.agentId),
+        ),
+      )
       .orderBy(desc(s.accessToken.createdAt));
     return { tokens: rows.map(summary) };
   },
@@ -124,7 +169,7 @@ const createAccessToken = defineCapability({
   surfaces: webOnly,
   humanOnly: {
     reason: "credentials",
-    where: "Account settings → Integrations → AI agents (MCP)",
+    where: "Account settings → Access tokens",
   },
   input: z.object({
     name: z.string().trim().min(1, "Name the token.").max(80),
@@ -141,6 +186,7 @@ const createAccessToken = defineCapability({
       .where(
         and(
           eq(s.accessToken.userId, userId),
+          isNull(s.accessToken.agentId),
           isNull(s.accessToken.revokedAt),
           sql`(${s.accessToken.expiresAt} is null or ${s.accessToken.expiresAt} > now())`,
         ),
@@ -153,6 +199,7 @@ const createAccessToken = defineCapability({
       .where(
         and(
           eq(s.accessToken.userId, userId),
+          isNull(s.accessToken.agentId),
           sql`lower(${s.accessToken.name}) = lower(${input.name})`,
           isNull(s.accessToken.revokedAt),
           sql`(${s.accessToken.expiresAt} is null or ${s.accessToken.expiresAt} > now())`,
@@ -211,7 +258,7 @@ const revokeAccessToken = defineCapability({
   surfaces: webOnly,
   humanOnly: {
     reason: "credentials",
-    where: "Account settings → Integrations → AI agents (MCP)",
+    where: "Account settings → Access tokens",
   },
   destructive: true,
   idempotent: true,

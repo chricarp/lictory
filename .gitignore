@@ -23,6 +23,7 @@ next-env.d.ts
 
 # Testing
 /coverage
+/.load-test/
 
 # Environment files (commit .env.example only, if one exists)
 .env

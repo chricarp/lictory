@@ -1,3 +1,7 @@
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test, expect, type Page } from "@playwright/test";
 import { appAlert } from "../helpers/live-regions";
 import { paths } from "@lictory/core/lib/paths";
@@ -7,13 +11,24 @@ import {
   seedItem,
   seedWorkspace,
   signIn,
+  withDb,
   type Seeded,
 } from "../helpers/seed";
+import { createAgent } from "@lictory/core/factory/agents";
+import { createRunnerRegistration } from "@lictory/core/factory/runners";
+import {
+  FAKE_GITHUB_SITE,
+  FAKE_GITHUB_TOKEN,
+} from "../../scripts/e2e-fakes/code-hosts";
+import { richEditor } from "../helpers/editor";
+import { createPage, createSpace, paragraph, text } from "../helpers/knowledge";
 import { clientAddress } from "../helpers/client-address";
 import { openDiscussions } from "../helpers/discussions";
 
 // Automated WCAG 2.2 AA checks (axe-core) on the main flows: account pages,
-// specification review, native delivery and settings. A new serious or critical
+// specification review, native delivery, settings, Home and the Inbox,
+// channels with an agent's thread, the Factory (light and dark), Code and a
+// space page. A new serious or critical
 // violation fails the suite; see docs/internals/accessibility.md.
 
 // Each test signs in from its own client address: sign-in is rate limited per
@@ -70,6 +85,24 @@ test("account pages meet WCAG 2.2 AA automated checks", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(appAlert(page)).toBeVisible();
   await expectNoAccessibilityViolations(page, "sign-in with an error");
+  // Every field says what is wrong next to it and keeps saying it; the
+  // first field to fix takes focus and is described by its message.
+  await page.goto("/sign-up");
+  await page.getByLabel("Work email").fill("not-an-email");
+  await page.getByRole("button", { name: "Create account" }).click();
+  const name = page.getByLabel("Full name");
+  await expect(name).toBeFocused();
+  await expect(name).toHaveAttribute("aria-invalid", "true");
+  await expect(name).toHaveAccessibleDescription("Full name is required.");
+  await expect(page.getByLabel("Work email")).toHaveAccessibleDescription(
+    "Enter an email address like name@company.com.",
+  );
+  await expect(page.getByText("3 fields need attention.")).toBeVisible();
+  await expectNoAccessibilityViolations(page, "sign-up with field errors");
+  // A fixed field drops its message as soon as it is valid.
+  await name.fill("Alex Example");
+  await expect(name).not.toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("Full name is required.")).toHaveCount(0);
 });
 
 test("specification review meets WCAG 2.2 AA automated checks", async ({
@@ -161,11 +194,58 @@ test("board and backlog meet WCAG 2.2 AA automated checks", async ({
   await expect(page.getByText("Partial refunds")).toBeVisible();
   await settled(page);
   await expectNoAccessibilityViolations(page, "board");
+  // Names are the words shown, without the initial tile or the count.
+  await expect(
+    page.getByRole("button", { name: "Access AXB", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Inbox", exact: true }),
+  ).toBeVisible();
+
+  // Every drag has a keyboard and single-pointer alternative (WCAG 2.5.7):
+  // a card moves to another column from its Move button, and focus stays on
+  // it in the new column, which its name reads out.
+  const card = page.locator("[data-card]", { hasText: "Add a refunds column" });
+  await card
+    .getByRole("button", { name: "Move AXB-2, 2 of 2 in Backlog" })
+    .focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("menuitemradio", { name: "Done", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Move AXB-2, 1 of 1 in Done" }),
+  ).toBeFocused();
+  await expectNoAccessibilityViolations(page, "board after a move");
 
   await page.goto(seeded.projectPath("/backlog"));
   await expect(page.getByText("Refund email is late")).toBeVisible();
   await settled(page);
   await expectNoAccessibilityViolations(page, "backlog");
+  // Backlog rows rank from Move too: the second row of the sprint to the top.
+  const sprintRows = page
+    .getByRole("region", { name: "Iteration" })
+    .locator("[data-row]");
+  await expect(sprintRows).toHaveCount(2);
+  const second = (await sprintRows
+    .nth(1)
+    .locator("span.font-mono")
+    .first()
+    .textContent())!;
+  await sprintRows
+    .nth(1)
+    .getByRole("button", { name: new RegExp(`^Move ${second}, 2 of 2 in `) })
+    .focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu", { name: `Move ${second}` });
+  await expect(
+    menu.getByRole("menuitem", { name: "Move down" }),
+  ).toBeDisabled();
+  await menu.getByRole("menuitem", { name: "Move to top" }).click();
+  await expect(sprintRows.nth(0)).toContainText(second);
+  await expect(
+    sprintRows
+      .nth(0)
+      .getByRole("button", { name: new RegExp(`^Move ${second}, 1 of 2 in `) }),
+  ).toBeFocused();
 });
 
 test("settings meet WCAG 2.2 AA automated checks", async ({ page }) => {
@@ -179,6 +259,34 @@ test("settings meet WCAG 2.2 AA automated checks", async ({ page }) => {
   await settled(page);
   await expectNoAccessibilityViolations(page, "account settings");
 
+  // Single-key shortcuts can be turned off (WCAG 2.1.4); Mod shortcuts stay.
+  const singleKeys = page.getByRole("switch", { name: "Single-key shortcuts" });
+  const saved = () =>
+    page.waitForResponse((r) => r.url().endsWith("/api/preferences") && r.ok());
+  await expect(singleKeys).toBeChecked();
+  await Promise.all([saved(), singleKeys.click()]);
+  await expect(singleKeys).not.toBeChecked();
+  await page.goto(seeded.projectPath("/items"));
+  await expect(
+    page.getByRole("heading", { name: "All items", level: 1 }),
+  ).toBeVisible();
+  await page.keyboard.press("c");
+  await page.keyboard.press("/");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.keyboard.press("ControlOrMeta+k");
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await page.goto(paths.account());
+  await expect(singleKeys).not.toBeChecked();
+  await Promise.all([saved(), singleKeys.click()]);
+  await expect(singleKeys).toBeChecked();
+  await page.goto(seeded.projectPath("/items"));
+  await expect(
+    page.getByRole("heading", { name: "All items", level: 1 }),
+  ).toBeVisible();
+  await page.keyboard.press("c");
+  await expect(page.getByRole("dialog", { name: /^Create/ })).toBeVisible();
+
   for (const section of [
     "general",
     "members",
@@ -189,7 +297,9 @@ test("settings meet WCAG 2.2 AA automated checks", async ({ page }) => {
   ]) {
     await page.goto(paths.settings(seeded.slug, section));
     await expect(
-      page.getByRole("heading", { name: "Organization settings" }),
+      page
+        .getByRole("navigation", { name: "Breadcrumb" })
+        .getByRole("link", { name: "Organization settings" }),
     ).toBeVisible();
     await settled(page);
     await expectNoAccessibilityViolations(
@@ -217,4 +327,333 @@ test("settings meet WCAG 2.2 AA automated checks", async ({ page }) => {
     await settled(page);
     await expectNoAccessibilityViolations(page, `project settings: ${section}`);
   }
+});
+
+test("channels and the factory meet WCAG 2.2 AA automated checks", async ({
+  page,
+}) => {
+  const { seeded } = await seed("AXF");
+  await signIn(page, seeded.owner.email);
+  const channelId = crypto.randomUUID();
+  await seeded.command({
+    type: "createChannel",
+    channelId,
+    kind: "public",
+    name: "payments",
+    topic: "Refunds and payouts",
+  });
+  await withDb((db) =>
+    createAgent(db, seeded.owner.id, seeded.organizationId, {
+      name: "Forge",
+      handle: `forge${crypto.randomUUID().slice(0, 6)}`,
+      avatar: "🛠️",
+      kind: "runner",
+      harness: "claude-code",
+      access: "write",
+    }),
+  );
+
+  await page.goto(paths.channels(seeded.slug));
+  await expect(
+    page
+      .getByRole("list", { name: "Channels" })
+      .getByRole("link", { name: "payments" }),
+  ).toBeVisible();
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "channels index");
+
+  await page.goto(paths.channel(seeded.slug, channelId));
+  await expect(
+    page.getByRole("heading", { name: "payments", level: 1 }),
+  ).toBeVisible();
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "channel");
+
+  // No runner yet: the Factory is one setup path; its agents and runners.
+  await page.goto(paths.factory(seeded.slug));
+  await expect(page.getByText("Set up the factory")).toBeVisible();
+  // An empty state under the page header is not a second page title.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "factory setup");
+  for (const [tab, text] of [
+    ["agents", "Forge"],
+    ["runners", "No runners yet"],
+  ] as const) {
+    await page.goto(`${paths.factory(seeded.slug)}/${tab}`);
+    await expect(page.getByText(text, { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    await settled(page);
+    await expectNoAccessibilityViolations(page, `factory ${tab}`);
+  }
+});
+
+// Registers and starts a runner whose scripted agent asks for approval, so
+// the conversation, the Factory and the person's queues all hold a live
+// request (see factory-channels.spec.ts for the loop itself).
+const cli = join(process.cwd(), "apps", "runner", "src", "cli.ts");
+let runner: ChildProcess | undefined;
+let runnerHome: string | undefined;
+
+test.afterEach(async () => {
+  const child = runner;
+  if (child?.exitCode === null) {
+    child.kill("SIGTERM");
+    await new Promise((resolve) => child.once("exit", resolve));
+  }
+  runner = undefined;
+  if (runnerHome) rmSync(runnerHome, { recursive: true, force: true });
+  runnerHome = undefined;
+});
+
+async function startRunner(seeded: Seeded, baseURL: string) {
+  const { token } = await withDb((db) =>
+    createRunnerRegistration(db, seeded.owner.id, seeded.organizationId, {
+      personal: false,
+    }),
+  );
+  runnerHome = mkdtempSync(join(tmpdir(), "lictory-runner-axe-"));
+  const script = join(runnerHome, "script.json");
+  writeFileSync(
+    script,
+    JSON.stringify([
+      { say: "Reading the refunds module." },
+      {
+        ask: "Write CHANGES.md",
+        action: { tool: "Write", input: { file_path: "CHANGES.md" } },
+      },
+      { summary: "Added CHANGES.md." },
+    ]),
+  );
+  const env = { ...process.env, LICTORY_RUNNER_HOME: runnerHome };
+  const registered = spawnSync(
+    "bun",
+    [cli, "register", "--url", baseURL, "--token", token, "--name", "axe"],
+    { env, encoding: "utf8" },
+  );
+  expect(registered.status, registered.stderr + registered.stdout).toBe(0);
+  runner = spawn("bun", [cli, "start", "--test-harness", script], { env });
+}
+
+test("the shell, a conversation with an agent session, the Factory and the person's queues meet WCAG 2.2 AA automated checks, light and dark", async ({
+  page,
+  baseURL,
+}) => {
+  test.slow();
+  const { seeded } = await seed("AXA");
+  const [ari, eve] = seeded.users as [
+    (typeof seeded.users)[number],
+    (typeof seeded.users)[number],
+  ];
+  const handle = `forge${crypto.randomUUID().slice(0, 6)}`;
+  await withDb((db) =>
+    createAgent(db, seeded.owner.id, seeded.organizationId, {
+      name: "Forge",
+      handle,
+      kind: "runner",
+      harness: "claude-code",
+      access: "write",
+    }),
+  );
+  const channelId = crypto.randomUUID();
+  await seeded.command({
+    type: "createChannel",
+    channelId,
+    kind: "public",
+    name: "payments",
+    topic: "Refunds and payouts",
+  });
+  for (const user of [ari, eve])
+    await seeded.command({ type: "joinChannel", channelId }, user.id);
+  await startRunner(seeded, baseURL!);
+  await signIn(page, seeded.owner.email);
+
+  // A conversation: people talk, then ask the agent in a thread.
+  await page.goto(paths.channel(seeded.slug, channelId));
+  const composer = await richEditor(page, "Message #payments");
+  await composer.click();
+  await page.keyboard.type("Refunds go out on Friday.");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(`@${handle} add a changelog for refunds`);
+  await expect(
+    composer.locator(`[data-type="mention"][data-kind="agent"]`),
+  ).toBeVisible();
+  await page.keyboard.press("Enter");
+  const asked = page
+    .locator("[data-message-id]")
+    .filter({ hasText: "add a changelog for refunds" })
+    .first();
+  await asked.getByRole("button", { name: /repl(y|ies)/ }).click();
+  const thread = page.getByRole("complementary", { name: /thread/i });
+  const card = thread.getByRole("article", { name: /^Forge session/ });
+  // The request is answered on the session's card, beside its state.
+  const request = card.locator("[data-approval-request]");
+  await expect(request.getByRole("button", { name: "Approve" })).toBeVisible({
+    timeout: 60_000,
+  });
+  // Several requests can be open at once: each decision names its request,
+  // starting with the word it shows.
+  await expect(
+    request.getByRole("button", { name: /^Approve: Write CHANGES\.md$/ }),
+  ).toBeVisible();
+  await expect(
+    request.getByRole("button", { name: /^Deny: Write CHANGES\.md$/ }),
+  ).toBeVisible();
+  const threadPath = `${paths.channel(seeded.slug, channelId)}?thread=${await asked.getAttribute("data-message-id")}`;
+  const sessionPath = await card
+    .getByRole("link", { name: /Open session/ })
+    .getAttribute("href");
+
+  const scan = async (state: string) => {
+    await settled(page);
+    await expectNoAccessibilityViolations(page, state);
+  };
+  const surfaces = async (scheme: "light" | "dark") => {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.goto(threadPath);
+    await expect(
+      request.getByRole("button", { name: "Approve" }),
+    ).toBeVisible();
+    await scan(`${scheme}: channel with a thread holding an agent's request`);
+
+    await page.goto(paths.channels(seeded.slug));
+    await expect(
+      page.getByRole("list", { name: "Channels" }).getByRole("link", {
+        name: "payments",
+      }),
+    ).toBeVisible();
+    await scan(`${scheme}: channels index`);
+
+    await page.goto(`/${seeded.slug}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByText("Write CHANGES.md").first()).toBeVisible();
+    await scan(`${scheme}: home`);
+
+    await page.goto(`/${seeded.slug}/inbox?view=todo`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await scan(`${scheme}: inbox`);
+    // The request opened in place, with its context.
+    const todo = page.getByRole("list", { name: "Waiting on you" });
+    await todo
+      .getByRole("button", { name: /^Review/ })
+      .first()
+      .click();
+    await expect(todo.getByRole("button", { name: "Approve" })).toBeVisible();
+    await scan(`${scheme}: inbox with a request open`);
+
+    // The factory lists the same requests as the Inbox, answered in place.
+    await page.goto(paths.factory(seeded.slug));
+    const needs = page.getByRole("region", { name: "Agents need you" });
+    await expect(
+      needs.getByRole("button", { name: /^Review/ }).first(),
+    ).toBeVisible();
+    await expect(needs.getByRole("link", { name: /Inbox/ })).toHaveAttribute(
+      "href",
+      paths.inbox(seeded.slug, "todo"),
+    );
+    await scan(`${scheme}: factory overview`);
+
+    await page.goto(`${paths.factory(seeded.slug)}/agents`);
+    await expect(
+      page.getByText("Forge", { exact: true }).first(),
+    ).toBeVisible();
+    await scan(`${scheme}: factory agents`);
+
+    await page.goto(sessionPath!);
+    await expect(page.getByText("Write CHANGES.md").first()).toBeVisible();
+    await scan(`${scheme}: agent session`);
+  };
+  await surfaces("light");
+  await surfaces("dark");
+
+  // The design-system gallery shows each example on both themes; the dark
+  // copy is for the eye only, so its landmarks are not announced twice.
+  await page.goto(`/${seeded.slug}/design-system`);
+  await expect(
+    page.getByRole("heading", { name: "Design system", level: 1 }),
+  ).toBeVisible();
+  await expectNoAccessibilityViolations(page, "design-system gallery");
+});
+
+test("a code pull request and a space page meet WCAG 2.2 AA automated checks", async ({
+  page,
+}) => {
+  test.slow();
+  const { seeded } = await seed("AXC");
+  const repository = `acme/axe-${crypto.randomUUID().slice(0, 8)}`;
+  const github = async (path: string, body: unknown) => {
+    const response = await fetch(`${process.env.E2E_FAKE_GITHUB_URL}${path}`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    expect(response.ok, await response.clone().text()).toBeTruthy();
+  };
+  await github("/__fake/repos", { fullName: repository });
+  await signIn(page, seeded.owner.email);
+
+  await page.goto(`/${seeded.slug}/settings/code`);
+  await page.getByRole("button", { name: "Connect a host" }).click();
+  await page.getByRole("radio", { name: "Fine-grained token" }).click();
+  await page.getByLabel("Host address").fill(FAKE_GITHUB_SITE);
+  await page.getByLabel("Token", { exact: true }).fill(FAKE_GITHUB_TOKEN);
+  await page.getByRole("button", { name: "Verify and connect" }).click();
+  await expect(page.getByText("the secret is shown only once")).toBeVisible();
+  const details = page.locator("code");
+  await github("/__fake/hooks", {
+    url: await details.nth(0).textContent(),
+    secret: await details.nth(1).textContent(),
+  });
+  await expect(page.getByText("as @lictory-bot")).toBeVisible();
+  await page.getByRole("button", { name: "Link a repository" }).click();
+  await page.getByLabel("Find a repository").fill(repository);
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("radio", { name: repository }).check();
+  await page.getByRole("button", { name: "Link to project" }).click();
+  await expect(page.getByRole("link", { name: repository })).toBeVisible();
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "code host settings");
+
+  await github(`/__fake/repos/${repository}/pulls`, {
+    head: "axc-1-refunds",
+    title: "AXC-1: partial refunds",
+    body: "Caps a refund at the payment.",
+  });
+  await github(`/__fake/repos/${repository}/pulls/1/checks`, {
+    name: "ci",
+    state: "failure",
+  });
+  await page.goto(`/${seeded.slug}/code`);
+  const pull = page.getByRole("link", { name: /AXC-1: partial refunds/ });
+  await expect(pull.first()).toBeVisible({ timeout: 30_000 });
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "code index");
+  await pull.first().click();
+  await expect(
+    page.getByRole("heading", { name: "AXC-1: partial refunds" }),
+  ).toBeVisible();
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "code pull request");
+  await page.getByRole("tab", { name: "Files changed" }).click();
+  await expect(page.getByText("src/refunds.ts").first()).toBeVisible();
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "code pull request files");
+
+  // The item the pull request delivers, with its Code panel.
+  await page.goto(seeded.itemPath(1));
+  await expect(
+    page.locator("[data-item-code]").getByRole("link", {
+      name: /AXC-1: partial refunds/,
+    }),
+  ).toBeVisible({ timeout: 30_000 });
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "item with a pull request");
+
+  const space = await createSpace(seeded, "Payments handbook");
+  const runbook = await createPage(seeded, space, "Refund runbook", [
+    paragraph("p1", text("Refunds go out on Fridays.")),
+  ]);
+  await page.goto(paths.spacePage(seeded.slug, space.slug, runbook.pageId));
+  await expect(page.getByText("Refunds go out on Fridays.")).toBeVisible();
+  await settled(page);
+  await expectNoAccessibilityViolations(page, "space page");
 });

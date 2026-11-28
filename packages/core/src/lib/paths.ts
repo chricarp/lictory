@@ -16,7 +16,10 @@ export const paths = {
     `/${org}/intelligence/${chat}`,
   // Resolves any work item identifier (PAY-142) to its project route.
   itemByKey: (org: string, key: string) => `/${org}/items/${key}`,
-  inbox: (org: string) => `/${org}/inbox`,
+  // The Inbox opens on To do when something waits on me, else on Updates;
+  // `view` names one.
+  inbox: (org: string, view?: "todo" | "updates") =>
+    `/${org}/inbox${view ? `?view=${view}` : ""}`,
   // Content search results: `q`, and optionally `kind` and `project`.
   search: (org: string, params: Record<string, string>) =>
     withSearchParams(`/${org}/search`, new URLSearchParams(params)),
@@ -34,6 +37,18 @@ export const paths = {
     `/${org}/spaces/${encodeURIComponent(space)}/settings`,
   spacePage: (org: string, space: string, page: string) =>
     `/${org}/spaces/${encodeURIComponent(space)}/pages/${page}`,
+  // The Factory: agents, runners and one agent session.
+  factory: (org: string) => `/${org}/factory`,
+  factorySession: (org: string, session: string) =>
+    `/${org}/factory/sessions/${session}`,
+  // One code pull request of the Code module.
+  codePullRequest: (org: string, pullRequest: string) =>
+    `/${org}/code/pull-requests/${pullRequest}`,
+  // Lictory Channels: the channel browser and one conversation (addressed
+  // by its id, which never changes when it is renamed).
+  channels: (org: string) => `/${org}/channels`,
+  channel: (org: string, channel: string) =>
+    `/${org}/channels/${encodeURIComponent(channel)}`,
   account: (returnTo?: string) =>
     returnTo ? `/account?returnTo=${encodeURIComponent(returnTo)}` : "/account",
   project: (org: string, project: string) => `/${org}/${project.toLowerCase()}`,
@@ -74,10 +89,17 @@ export const paths = {
   // what Jira reports back.
   handoff: (org: string, project: string) =>
     `/${org}/${project.toLowerCase()}/handoff`,
+  // The factory queue: what agents can claim, hold, wait on and why work is
+  // blocked (docs/internals/claims.md).
+  factoryQueue: (org: string, project: string) =>
+    `/${org}/${project.toLowerCase()}/queue`,
   // Project settings: general, members, disciplines, teams, workflow,
   // planning, delivery, labels, context.
   projectSettings: (org: string, project: string, section?: string) =>
     `/${org}/${project.toLowerCase()}/settings${section ? `/${section}` : ""}`,
+  // Code hosts (repositories, branches, pull requests). Home is the
+  // organization's own address (`org`).
+  code: (org: string) => `/${org}/code`,
 };
 
 // Top-level segments that are not workspace pages.

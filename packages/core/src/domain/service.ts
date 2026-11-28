@@ -14,6 +14,7 @@ import {
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import * as s from "@lictory/core/db/schema";
+import { typeLevels } from "@lictory/core/lib/work-items";
 import {
   PROTOCOL,
   applicationRoleOf,
@@ -23,6 +24,7 @@ import {
   entitySchema,
   estimateOptions,
   isKnowledgeCommand,
+  isChannelCommand,
   isProjectConfigurationCommand,
   isSpaceCommand,
   isTypeCommand,
@@ -120,6 +122,7 @@ import {
 export type Database = PostgresJsDatabase<typeof s>;
 export type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 import { DomainError, requireStep } from "@lictory/core/domain/errors";
+import { applyChannelCommand } from "@lictory/core/channels/commands";
 import {
   chosenRefinementStates,
   iteration as iterationMachine,
@@ -139,6 +142,22 @@ import {
   isOwnerRole,
 } from "@lictory/core/domain/organization-access";
 import { logoUrl, type LogoKind } from "@lictory/core/branding/logo";
+import {
+  claimOrganizationEntities,
+  doneEvaluationEntities,
+  syncDoneProjections,
+} from "@lictory/core/claims/projections";
+import { claimQuestionResolved } from "@lictory/core/claims/questions";
+import {
+  followItemClaim,
+  refuseClaimedCompletion,
+} from "@lictory/core/claims/follow";
+import { signalWork } from "@lictory/core/jobs/signal";
+import {
+  assertAgentOrganization,
+  assertAgentProject,
+  type AgentScope,
+} from "@lictory/core/factory/authority";
 import {
   advanceProjectSchedule,
   automaticProjects,
@@ -853,7 +872,8 @@ export async function searchEpics(
             .where(
               and(
                 eq(s.workItemType.organizationId, organizationId),
-                gt(s.workItemType.level, childType?.level ?? 1),
+                // Without a child type: grouping types (Epic and above).
+                gt(s.workItemType.level, childType?.level ?? typeLevels.story),
               ),
             ),
         ),
@@ -1310,6 +1330,7 @@ function summarize(
       approved: (ctx.approvalsByReview.get(r.id) ?? []).some(
         (a) => a.status === "granted",
       ),
+      requestedById: r.requestedById ?? null,
     })),
     readinessPassed: checks.filter((c) => c.passed).length,
     readinessTotal: checks.length,
@@ -1618,6 +1639,9 @@ async function snapshotItems(
       serialize("relation", { ...r, projectId: itemProject.get(r.fromId) }),
     ),
     ...links,
+    // Live claims, autonomy policies and Definitions of Done
+    // (docs/internals/claims.md).
+    ...(await claimOrganizationEntities(tx, organizationId, projectId)),
   ];
   if (!workItemIds.length) return entities;
   const detailItems = workItemIds.map((id) =>
@@ -1732,6 +1756,22 @@ async function snapshotItems(
   );
   entities.push(
     ...detailItems.map((item) => readinessEntity(item, items, ctx)),
+  );
+  entities.push(
+    ...(await doneEvaluationEntities(
+      tx,
+      organizationId,
+      detailItems.map((item) => ({
+        id: item.id,
+        projectId: item.projectId,
+        category: ctx.categories.get(item.statusId),
+        committedRevisionId: item.committedRevisionId,
+        currentRevisionId: ctx.revisions.get(item.id)?.[0]?.id ?? null,
+        deliveryMode:
+          projects.find((p) => p.id === item.projectId)?.deliveryMode ??
+          "native",
+      })),
+    )),
   );
   entities.push(...runs);
   entities.push(
@@ -1938,24 +1978,41 @@ export async function followReadinessChecks(
 
 export type Actor = {
   userId: string;
-  surface?: "web" | "mcp" | "agent";
+  // `runner`: a runner agent's session started by the factory dispatcher
+  // (docs/internals/claims.md).
+  surface?: "web" | "mcp" | "agent" | "runner";
   client?: string | null;
   // The named agent executing for the person: the access token for MCP
   // (`agentId` is its id), Litto for the embedded agent. Agents are
   // delegations, not principals: authority and authorship stay the person's.
   agentId?: string | null;
   agentName?: string | null;
+  // The agent session the change belongs to, when the agent runs one.
+  agentSessionId?: string | null;
+  // Set when Lictory acts by itself for the person (the dispatcher, the
+  // Definition of Done, an expired lease), so history says it was automatic.
+  automation?: string | null;
+  // A Factory agent's scope narrows the person's authority
+  // (factory/authority.ts).
+  agentScope?: AgentScope | null;
 };
 
 // Activity detail that identifies delegated execution, so history shows which
 // of a person's agents produced a change. Empty for the person's own actions.
-function delegation(actor: Actor): Record<string, string | null> {
-  if (!actor.surface || actor.surface === "web") return {};
+export function delegation(actor: Actor): Record<string, string | null> {
+  const automatic: Record<string, string> = actor.automation
+    ? { automation: actor.automation }
+    : {};
+  if (!actor.surface || actor.surface === "web") return automatic;
   return {
+    ...automatic,
     performedVia: actor.surface,
     agentId: actor.agentId ?? null,
     agentName: actor.agentName?.slice(0, 80) ?? null,
     agentClient: actor.client?.slice(0, 200) ?? null,
+    ...(actor.agentSessionId ? { agentSessionId: actor.agentSessionId } : {}),
+    // Factory agents are named by their handle as well ("Forge via Ada").
+    ...(actor.agentScope ? { agentHandle: actor.agentScope.handle } : {}),
   };
 }
 export type MutationResult = {
@@ -1996,7 +2053,9 @@ export async function applyMutation(
     after: Entity[];
     directory?: Directory;
   } = { before: [], after: [] };
+  const agentScope = actor.agentScope;
   const result = await (async (): Promise<MutationResult> => {
+    assertAgentOrganization(agentScope, organizationId);
     await lock(tx, organizationId);
     const fingerprint = createHash("sha256")
       .update(JSON.stringify(c))
@@ -2030,6 +2089,14 @@ export async function applyMutation(
       };
     }
     const admin = isAdmin(membership);
+    // Organization-wide commands are outside a project-limited agent's scope.
+    if (
+      isTypeCommand(c) ||
+      isSpaceCommand(c) ||
+      isKnowledgeCommand(c) ||
+      c.type === "setAiPolicy"
+    )
+      assertAgentProject(agentScope, null);
     if (isTypeCommand(c)) {
       await applyTypeCommand(tx, { organizationId, userId, admin, roster }, c);
       return receipt(tx, organizationId, mutation.id, userId, fingerprint);
@@ -2089,6 +2156,24 @@ export async function applyMutation(
         summary,
       );
     }
+    if (isChannelCommand(c)) {
+      // Channel structure and membership write channel rows, which are
+      // themselves synchronized (authorized by channel access): no
+      // `sync_entity` row and no directory input changes.
+      const summary = await applyChannelCommand(
+        tx,
+        { organizationId, userId, admin },
+        c,
+      );
+      return receipt(
+        tx,
+        organizationId,
+        mutation.id,
+        userId,
+        fingerprint,
+        summary,
+      );
+    }
     if (c.type === "setAiPolicy") {
       require(admin, "An organization administrator must decide whether Lictory Intelligence may be used.");
       await setAiPolicy(tx, organizationId, userId, c.enabled);
@@ -2098,6 +2183,7 @@ export async function applyMutation(
       // Configuration lives in the directory; commands that also move
       // items (status replacement, iteration carry-over, automatic
       // cycles) or change the project emit those entities.
+      assertAgentProject(agentScope, c.projectId);
       const scope = { organizationId, projectId: c.projectId };
       requireValue(
         roster.projects.find((p) => p.id === c.projectId),
@@ -2173,6 +2259,15 @@ export async function applyMutation(
           scope: { projectId: c.projectId, workItemId },
         })),
       );
+      // Workflow changes can move items into or out of progress, which is
+      // where the Definition of Done is evaluated (docs/internals/claims.md).
+      await syncDoneProjections(
+        tx,
+        organizationId,
+        after
+          .filter((e) => e.type === "workItem" && e.projectId === c.projectId)
+          .map((e) => e.id),
+      );
       return receipt(tx, organizationId, mutation.id, userId, fingerprint);
     }
     let projectId: string;
@@ -2213,6 +2308,10 @@ export async function applyMutation(
           `${itemType?.name ?? "This type"} items have no specification to review. Change the type to one with a specification first.`,
         );
     }
+    assertAgentProject(
+      agentScope,
+      c.type === "createProject" ? null : projectId,
+    );
     if (c.type !== "createProject")
       projectRow = requireValue(
         (
@@ -2276,13 +2375,13 @@ export async function applyMutation(
       action: string;
       detail?: Record<string, unknown>;
     }[] = [];
+    const delegated = delegation(actor);
     const log = (action: string, detail?: Record<string, unknown>) =>
       activities.push({
         action,
-        detail:
-          actor.surface && actor.surface !== "web"
-            ? { ...detail, ...delegation(actor) }
-            : detail,
+        detail: Object.keys(delegated).length
+          ? { ...detail, ...delegated }
+          : detail,
       });
     // Lictory Intelligence runs owned by other items (an Epic review
     // covering this Story) whose projection this command changed.
@@ -2355,6 +2454,36 @@ export async function applyMutation(
         // approved by the pull request's required reviewers.
         const textUnchanged =
           previous.title === title && previous.content === content;
+        // What the new revision did to the approvals in force, for the
+        // item's history: outdated by a text change, or carried over.
+        const granted = before.filter(
+          (e): e is EntityOf<"approval"> =>
+            e.type === "approval" &&
+            e.workItemId === workItemId &&
+            e.status === "granted",
+        );
+        const approvalEffect = !granted.length
+          ? {}
+          : textUnchanged
+            ? { carriedApprovals: granted.length }
+            : {
+                outdatedApprovals: granted.map((a) => ({
+                  reviewerId: a.reviewerId,
+                  responsibility:
+                    before.find(
+                      (e): e is EntityOf<"review"> =>
+                        e.type === "review" && e.id === a.reviewId,
+                    )?.responsibility ?? null,
+                  revision: (() => {
+                    const approved = before.find(
+                      (e) => e.type === "revision" && e.id === a.revisionId,
+                    );
+                    return approved?.type === "revision"
+                      ? approved.number
+                      : previous.number;
+                  })(),
+                })),
+              };
         await tx
           .update(s.approval)
           .set({
@@ -2449,6 +2578,7 @@ export async function applyMutation(
         log("revised", {
           number,
           summary: summary?.trim() ? summary.trim() : null,
+          ...approvalEffect,
         });
       }
       return revisionId;
@@ -2459,7 +2589,8 @@ export async function applyMutation(
         "The work item type is unavailable.",
       );
     // Hierarchy follows type levels: a parent sits strictly above its
-    // children (Epic > Story/Task/Bug > Subtask).
+    // children (Epic > Story > Task/Bug > Subtask; a Task or Bug may also
+    // sit directly under an Epic).
     const validateParent = async (parentId: string | null, typeId: string) => {
       if (!parentId) return;
       const child = typeOf(typeId);
@@ -3288,6 +3419,15 @@ export async function applyMutation(
               });
             }
             if (to.category === "done" && from?.category !== "done") {
+              // Claimed work reaches Done through its Definition of Done,
+              // never because an agent reports it finished.
+              if (actor.surface && actor.surface !== "web" && !actor.automation)
+                await refuseClaimedCompletion(
+                  tx,
+                  organizationId,
+                  workItemId!,
+                  `${projectRow!.key}-${item!.number}`,
+                );
               patch.deliveredRevisionId = committed;
               log("delivery_scope_completed", {
                 revision: revisionNumber,
@@ -3321,6 +3461,7 @@ export async function applyMutation(
             automatic: false,
           });
         }
+        let movedIteration = false;
         if (c.iterationId !== undefined && c.iterationId !== iterationId) {
           if (c.iterationId) {
             if (projectRow!.deliveryMode === "external")
@@ -3331,11 +3472,16 @@ export async function applyMutation(
             openIteration(c.iterationId);
           }
           await iterationEvent(iterationId, "removed", item!.estimate);
-          await iterationEvent(c.iterationId, "added", item!.estimate);
+          // Planned and sized in one change: the iteration receives the
+          // item at its new estimate (no separate estimate change follows).
+          const estimate =
+            c.estimate !== undefined ? c.estimate : item!.estimate;
+          await iterationEvent(c.iterationId, "added", estimate);
           // Already-finished work counts as completed scope, not remaining.
           const category = statuses.find((x) => x.id === statusId)?.category;
           if (category && closedCategories.includes(category))
-            await iterationEvent(c.iterationId, "completed", item!.estimate);
+            await iterationEvent(c.iterationId, "completed", estimate);
+          movedIteration = true;
           patch.iterationId = c.iterationId;
           log("iteration_changed", {
             from: iterationId,
@@ -3350,7 +3496,7 @@ export async function applyMutation(
               `${projectRow!.name} does not estimate work in Lictory.`,
             );
           rejectEstimate(projectRow!.estimateScale, c.estimate);
-          if (iterationId && c.iterationId === undefined)
+          if (iterationId && !movedIteration)
             await iterationEvent(
               iterationId,
               "estimate_changed",
@@ -3498,6 +3644,10 @@ export async function applyMutation(
           failingChecks,
           automatic: false,
         });
+        // Accepted scope is what Build and Autopilot dispatch: wake the
+        // dispatcher on commit rather than leave the item waiting for its
+        // next minute (docs/internals/claims.md#the-dispatcher).
+        await signalWork(tx, "factory");
         if (unstarted)
           log("status_changed", {
             from: projectStatuses().find((s) => s.id === item!.statusId)?.name,
@@ -3930,7 +4080,7 @@ export async function applyMutation(
           if (!branch || branch.name === "main")
             throw new DomainError(
               "not_found",
-              "This branch or pull request is unavailable.",
+              "This proposed change or its review is unavailable.",
             );
           require(branch.authorId === userId ||
             branch.collaboratorIds.includes(
@@ -4147,6 +4297,15 @@ export async function applyMutation(
             log(c.resolved ? "thread_resolved" : "thread_reopened", {
               threadId: c.threadId,
             });
+          // An agent's question (docs/internals/claims.md): resolving it
+          // resumes the claim that asked.
+          if (c.resolved && !wasResolved)
+            await claimQuestionResolved(tx, {
+              organizationId,
+              threadId: c.threadId,
+              userId,
+              now,
+            });
           if (thread.blocking !== c.blocking)
             log("thread_blocking_changed", {
               threadId: c.threadId,
@@ -4304,7 +4463,14 @@ export async function applyMutation(
             break;
           }
           case "setSuggestionReviewer": {
-            require(isAuthor, "Only the author can choose reviewers for a suggestion.");
+            // The author chooses who accepts it. A suggestion nobody is
+            // asked to accept would otherwise wait on its author: someone
+            // who can accept it may take it themselves.
+            require(isAuthor ||
+              (c.assigned &&
+                c.userId === userId &&
+                reviewers.length ===
+                  0), "Only the author can choose reviewers for a suggestion. Someone who can accept it may take one nobody is asked to accept yet.");
             requireStep(suggestionMachine, suggestion.status, "setReviewer");
             requireValue(
               roster.members.find((m) => m.id === c.userId),
@@ -4317,7 +4483,8 @@ export async function applyMutation(
                 c.userId,
                 projectId,
               ), "Suggestion reviewers need a discipline in this project that can both edit specifications and be asked to review.", "validation");
-              require(c.userId !== userId ||
+              require(!isAuthor ||
+                c.userId !== userId ||
                 roster.members.length ===
                   1, "You cannot review your own suggestion.", "validation");
               if (existing) break;
@@ -4405,6 +4572,13 @@ export async function applyMutation(
             // the editing capability they were chosen for.
             requireCapability(capabilities, "editSpecifications");
             requireStep(suggestionMachine, suggestion.status, "merge");
+            // A suggestion writes main like an edit does: once readiness
+            // protected main, changes go through a branch's pull request.
+            if (item!.mainProtected)
+              throw new DomainError(
+                "conflict",
+                "This specification is ready. Use a branch and pull request to change main.",
+              );
             if (suggestion.revisionId !== latest?.id)
               throw new DomainError(
                 "conflict",
@@ -4695,6 +4869,17 @@ export async function applyMutation(
         break;
       }
     }
+    // A claim follows its item: closing, archiving or moving it back out
+    // of progress ends the claim (docs/internals/claims.md).
+    if (workItemId && c.type !== "createWorkItem")
+      for (const entry of await followItemClaim(tx, {
+        organizationId,
+        workItemId,
+        userId,
+        now,
+        automation: actor.automation ?? null,
+      }))
+        log(entry.action, entry.detail);
     if (item && (branchCommands.has(c.type) || aiCommands.has(c.type)))
       await scheduleActionRuns(tx, {
         organizationId,
@@ -5033,6 +5218,8 @@ const spaceAccessCommands = new Set<string>([
   "setDisciplineMember",
   "setTeamMembership",
 ]);
+// Organization-level page segments (`/{org}/{segment}`) a project key would
+// otherwise share with its address.
 const reservedKeys = new Set([
   "INBOX",
   "SETTINGS",
@@ -5042,6 +5229,12 @@ const reservedKeys = new Set([
   "PROJECTS",
   "INTELLIGENCE",
   "NOTIFICATIONS",
+  "SEARCH",
+  "SPACES",
+  // Lictory Channels lives at /{org}/channels.
+  "CHANNELS",
+  "FACTORY",
+  "CODE",
 ]);
 // Commands that operate on a specification and its review. Types without a
 // specification still keep a revisioned description, but are not reviewed.

@@ -252,7 +252,7 @@ export const declarations: readonly Declaration[] = [
     services: ["database"],
     secret: "issued",
     description:
-      "An administrator connection (a role with CREATEROLE and CREATEDB, such as a managed provider's master user) used once by `database.mjs setup` (`lictory database setup`) to create Lictory's roles and databases. Passed for that command only, never stored. See docs/operations/external-database.md.",
+      "An administrator connection (a role with CREATEROLE and CREATEDB, such as a managed provider's master user) used once by `database.mjs setup` (`lictory database setup`) to create Lictory's roles and databases. Passed for that command only, never stored. See https://docs.lictory.com/self-hosting/database.",
   },
   {
     name: "DATABASE_MIGRATION_TARGET",
@@ -589,7 +589,25 @@ export const declarations: readonly Declaration[] = [
     default: "Derived from BETTER_AUTH_SECRET (see below)",
     secret: "generated",
     description:
-      "Encrypts stored delivery credentials (Jira API tokens). Never rotate it once credentials are stored. Required in production before the first Jira connection; see the note below.",
+      "Encrypts stored delivery credentials (Jira API tokens) and the secrets of agent event webhooks. Never rotate it once credentials are stored. Required in production before the first Jira connection or webhook; see the note below.",
+  },
+
+  // ---------------------------------------------------------- agent events
+  {
+    name: "AGENT_EVENTS_ALLOW_PRIVATE_NETWORKS",
+    group: "Agent events",
+    services: server,
+    default: "`false`",
+    value: { type: "boolean" },
+    description:
+      "Lets agent event webhooks reach loopback and private-network addresses (10/8, 172.16/12, 192.168/16, 100.64/10, fc00::/7, single-label and `.internal`/`.local`/`.lan` names), and plain http there, for self-hosted agents on your LAN. Link-local and cloud metadata addresses stay refused. See docs/internals/agent-events.md.",
+  },
+  {
+    name: "CODE_HOST_PRIVATE_HOSTS",
+    group: "Delivery integrations",
+    services: server,
+    description:
+      "Comma-separated host names (or addresses) of self-managed code hosts on private networks that Lictory may call, such as `gitlab.internal`. Without it, GitHub Enterprise Server and GitLab connections must use public https addresses; cloud metadata and link-local addresses are always refused. See docs/internals/code-hosts.md#egress.",
   },
 
   // ----------------------------------------------------------------- files
@@ -983,12 +1001,29 @@ export const declarations: readonly Declaration[] = [
 
   // ------------------------------------------------------- website and build
   {
+    name: "APP_VERSION",
+    group: "Builds",
+    services: ["api"],
+    default: "`development`",
+    description:
+      "Release the server runs, reported to MCP clients and shown in organization settings. Set by `deploy/compose.production.yaml` from `LICTORY_VERSION`; not configured by hand.",
+  },
+  {
     name: "NEXT_PUBLIC_APP_VERSION",
     group: "Builds",
     services: ["platform"],
     default: "`package.json` version",
     description:
       "Version shown in the platform. Set by the build; not configured by hand.",
+  },
+  {
+    name: "NEXT_PUBLIC_RELEASE_ASSETS",
+    group: "Builds",
+    services: ["website"],
+    default:
+      "empty: every download is offered, with a note that the page cannot tell which the release carries",
+    description:
+      "Comma-separated file names of the stable release the website's /download page links to. Set by the website's deploy from the GitHub Release; a file not listed is shown as not in that release.",
   },
   {
     name: "MARKETING_STATIC_EXPORT",
@@ -1039,6 +1074,12 @@ export const declarations: readonly Declaration[] = [
         "300000",
         1,
         "How often automatic cycles are advanced.",
+      ],
+      [
+        "WORKER_FACTORY_INTERVAL_MS",
+        "60000",
+        1,
+        "How often the factory dispatcher expires claims and starts claimable work.",
       ],
       [
         "WORKER_SHUTDOWN_TIMEOUT_MS",

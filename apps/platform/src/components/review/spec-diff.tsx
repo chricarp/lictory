@@ -33,6 +33,7 @@ export function SpecDiff({
   view: controlled,
   onViewChange,
   className,
+  compact = false,
 }: {
   before: string;
   after: string;
@@ -41,6 +42,9 @@ export function SpecDiff({
   view?: DiffView;
   onViewChange?: (view: DiffView) => void;
   className?: string;
+  // Only the changed blocks, without the count and the view toggle (a
+  // suggested change beside the text, which the reader shows in full).
+  compact?: boolean;
 }) {
   const [own, setOwn] = useState<DiffView>("changes");
   const view = controlled ?? own;
@@ -53,6 +57,25 @@ export function SpecDiff({
         : sum + (change.kind === "changed" ? 1 : change.blocks.length),
     0,
   );
+  if (compact)
+    return (
+      <div className={cn("space-y-2", className)}>
+        {changes.map((change, index) =>
+          change.kind === "unchanged" ? null : (
+            <Change
+              key={index}
+              change={change}
+              view="changes"
+              first={index === 0}
+              last={index === changes.length - 1}
+              beforeLabel={beforeLabel}
+              afterLabel={afterLabel}
+              compact
+            />
+          ),
+        )}
+      </div>
+    );
   return (
     <div className={cn("space-y-3", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -126,6 +149,7 @@ function Change({
   last,
   beforeLabel,
   afterLabel,
+  compact = false,
 }: {
   change: BlockChange;
   view: DiffView;
@@ -133,6 +157,7 @@ function Change({
   last: boolean;
   beforeLabel: string;
   afterLabel: string;
+  compact?: boolean;
 }) {
   if (change.kind === "unchanged") {
     // The full text reads straight through; changes keep one block of
@@ -183,14 +208,19 @@ function Change({
       : change.kind === "added"
         ? "Added"
         : "Removed";
+  // A group, not a region: a diff holds many of these, and landmarks are
+  // for the page's few major parts.
   return (
-    <section
+    <div
+      role="group"
       aria-label={`${label} text`}
       className="overflow-hidden rounded-xl ring-1 ring-foreground/10"
     >
-      <div className="border-b bg-muted/40 px-4 py-1.5 text-xs font-medium">
-        {label}
-      </div>
+      {!compact && (
+        <div className="border-b bg-muted/40 px-4 py-1.5 text-xs font-medium">
+          {label}
+        </div>
+      )}
       {change.kind === "changed" ? (
         <>
           <Side
@@ -198,12 +228,14 @@ function Change({
             kind="removed"
             label={beforeLabel}
             ranges={change.words.before}
+            compact={compact}
           />
           <Side
             blocks={[change.after]}
             kind="added"
             label={afterLabel}
             ranges={change.words.after}
+            compact={compact}
           />
         </>
       ) : (
@@ -211,9 +243,10 @@ function Change({
           blocks={change.blocks}
           kind={change.kind}
           label={change.kind === "added" ? afterLabel : beforeLabel}
+          compact={compact}
         />
       )}
-    </section>
+    </div>
   );
 }
 
@@ -230,11 +263,13 @@ function Side({
   kind,
   label,
   ranges,
+  compact = false,
 }: {
   blocks: DiffBlock[];
   kind: "added" | "removed";
   label: string;
   ranges?: TextRange[];
+  compact?: boolean;
 }) {
   const marks = useMemo(
     () => (ranges?.length ? [wordMarks(ranges, kind)] : undefined),
@@ -243,7 +278,8 @@ function Side({
   return (
     <div
       className={cn(
-        "relative border-l-2 py-3 pr-5 pl-10",
+        "relative border-l-2",
+        compact ? "py-2 pr-3 pl-8 text-[13px]" : "py-3 pr-5 pl-10",
         kind === "added"
           ? "border-l-success bg-success/5"
           : "border-l-destructive bg-destructive/5",
@@ -251,11 +287,19 @@ function Side({
     >
       <span
         aria-hidden
-        className="absolute top-3 left-3.5 font-mono text-sm text-muted-foreground"
+        className={cn(
+          "absolute font-mono text-sm text-muted-foreground",
+          compact ? "top-2 left-3" : "top-3 left-3.5",
+        )}
       >
         {kind === "added" ? "+" : "−"}
       </span>
-      <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+      <p
+        className={cn(
+          "text-xs font-medium text-muted-foreground",
+          compact ? "sr-only" : "mb-1.5",
+        )}
+      >
         {kind === "added" ? "After" : "Before"} · {label}
       </p>
       {blocks.map((block, i) => (

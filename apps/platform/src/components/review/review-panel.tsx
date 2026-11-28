@@ -1,3 +1,4 @@
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { useState } from "react";
 import {
   Check,
@@ -22,7 +23,89 @@ import { Picker, Popover } from "@lictory/ui/popover";
 import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { useShell } from "@lictory/platform/components/workspace/shell";
 import { PullRequestsWaiting } from "@lictory/platform/components/review/pull-requests-waiting";
+import { SuggestionsWaiting } from "@lictory/platform/components/review/inline-suggestions";
+
+// The review asked of me on the current revision that I have not approved
+// yet (a review someone else already completed for my discipline is not
+// mine to give again), and my latest approval that a later revision made
+// outdated. The status card leads with them.
+export function useMyReview() {
+  const {
+    reviews,
+    assignments,
+    approvals,
+    current,
+    revisions,
+    userId,
+    disciplineIds,
+    mutateConfirmed,
+    base,
+    readOnly,
+  } = useItem();
+  const { toast } = useShell();
+  const review = readOnly
+    ? undefined
+    : reviews.find(
+        (r) =>
+          r.revisionId === current?.id &&
+          r.status !== "cancelled" &&
+          r.status !== "completed" &&
+          assignments.some(
+            (a) =>
+              a.reviewId === r.id &&
+              !a.withdrawnAt &&
+              (a.userId === userId ||
+                (a.disciplineId && disciplineIds.includes(a.disciplineId))),
+          ) &&
+          !approvals.some(
+            (a) =>
+              a.reviewId === r.id &&
+              a.status === "granted" &&
+              a.reviewerId === userId,
+          ),
+      );
+  const staleRevision = approvals
+    .filter(
+      (a) =>
+        a.reviewerId === userId &&
+        a.status === "stale" &&
+        !isCarriedApproval(a.endReason),
+    )
+    .map((a) => revisions.find((r) => r.id === a.revisionId))
+    .filter(
+      (r): r is NonNullable<typeof r> =>
+        Boolean(r) && (current ? r!.number < current.number : false),
+    )
+    .sort((a, b) => b.number - a.number)[0];
+  // The card's decision is confirmed in words once the server recorded
+  // it: the card itself moves on to the item's next step.
+  const decide = (decision: "approve" | "changes_requested") => {
+    if (!review) return;
+    const number = current?.number;
+    mutateConfirmed({
+      type: "decideReview",
+      ...base,
+      reviewId: review.id,
+      decision,
+    }).then(
+      () =>
+        toast(
+          decision === "approve"
+            ? `You approved revision ${number} for ${review.responsibility}`
+            : `You requested changes to revision ${number} for ${review.responsibility}`,
+        ),
+      (e: unknown) =>
+        toast(
+          e instanceof Error
+            ? e.message
+            : "Your decision was not recorded. Try again.",
+        ),
+    );
+  };
+  return { review, staleRevision, decide };
+}
 
 // Reviews live on the item. Each row is one responsibility on the current
 // revision; decisions are only offered to assigned reviewers and always name
@@ -53,6 +136,17 @@ export function ReviewPanel() {
   const history = approvals
     .filter((a) => a.status !== "granted")
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  // Each reviewer's latest outdated approval of this responsibility.
+  const outdatedFor = (review: EntityOf<"review">) => {
+    const latest = new Map<string, EntityOf<"approval">>();
+    for (const a of history) {
+      if (a.status !== "stale" || isCarriedApproval(a.endReason)) continue;
+      const of = reviews.find((r) => r.id === a.reviewId);
+      if (of?.responsibility !== review.responsibility) continue;
+      if (!latest.has(a.reviewerId)) latest.set(a.reviewerId, a);
+    }
+    return [...latest.values()];
+  };
   const assigneesOf = (review: EntityOf<"review">) =>
     assignments.filter((a) => a.reviewId === review.id && !a.withdrawnAt);
   const canDecide = (review: EntityOf<"review">) =>
@@ -62,8 +156,9 @@ export function ReviewPanel() {
         (a.disciplineId && disciplineIds.includes(a.disciplineId)),
     );
   return (
-    <section>
+    <section data-rail-section="review" className="scroll-mt-4">
       <PullRequestsWaiting />
+      <SuggestionsWaiting />
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>Review</SectionLabel>
         {active.length > 0 && (
@@ -155,20 +250,27 @@ export function ReviewPanel() {
                   )}
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-6 text-xs text-muted-foreground">
-                  {assigneesOf(review).map((a) => (
-                    <span key={a.id} className="inline-flex items-center gap-1">
-                      {a.userId ? (
-                        <Avatar
-                          userId={a.userId}
-                          name={memberName(a.userId)}
-                          size="xs"
-                        />
-                      ) : null}
-                      {a.userId
-                        ? memberName(a.userId)
-                        : `Anyone in ${disciplineName(a.disciplineId)}`}
-                    </span>
-                  ))}
+                  {/* Who is asked, until they have answered: an approval
+                      names its reviewer once, on its own line below. */}
+                  {assigneesOf(review)
+                    .filter((a) =>
+                      a.userId
+                        ? !granted.some((g) => g.reviewerId === a.userId)
+                        : granted.length === 0,
+                    )
+                    .map((a) => (
+                      <span
+                        key={a.id}
+                        className="inline-flex items-center gap-1"
+                      >
+                        {a.userId ? (
+                          <Actor userId={a.userId} label="none" size={16} />
+                        ) : null}
+                        {a.userId
+                          ? memberName(a.userId)
+                          : `Anyone in ${disciplineName(a.disciplineId)}`}
+                      </span>
+                    ))}
                   {granted.map((a) => (
                     <span
                       key={a.id}
@@ -178,6 +280,23 @@ export function ReviewPanel() {
                       revision {revisionNumber(a.revisionId)}
                     </span>
                   ))}
+                  {/* An approval of an earlier revision for the same
+                      responsibility, which this revision made outdated. */}
+                  {outdatedFor(review)
+                    .filter(
+                      (a) =>
+                        !granted.some((g) => g.reviewerId === a.reviewerId),
+                    )
+                    .map((a) => (
+                      <span
+                        key={a.id}
+                        title={a.endReason ?? undefined}
+                        className="inline-flex items-center gap-1"
+                      >
+                        {memberName(a.reviewerId)} approved revision{" "}
+                        {revisionNumber(a.revisionId)} · outdated
+                      </span>
+                    ))}
                 </div>
                 {!readOnly && canDecide(review) && (
                   <div className="mt-2 flex flex-wrap gap-1 pl-6">
@@ -223,24 +342,28 @@ export function ReviewPanel() {
             render={<ul />}
             className="mt-1 space-y-1 text-xs text-muted-foreground"
           >
+            {/* One entry each: who approved which revision, and a short
+                outcome, wrapping rather than cutting the revision number;
+                the full reason is the entry's title. */}
             {history.map((a) => {
               const review = reviews.find((r) => r.id === a.reviewId);
+              const outcome = isCarriedApproval(a.endReason)
+                ? "carried over"
+                : a.status === "stale"
+                  ? "outdated"
+                  : "revoked";
               return (
-                <li key={a.id}>
-                  {review?.responsibility ?? "Review"} ·{" "}
-                  {memberName(a.reviewerId)} approved revision{" "}
-                  {revisionNumber(a.revisionId)} ·{" "}
-                  {isCarriedApproval(a.endReason) ? (
-                    <span>{a.endReason!.toLowerCase()}</span>
-                  ) : (
-                    <span
-                      className={a.status === "stale" ? "text-warning" : ""}
-                    >
-                      {a.status === "stale"
-                        ? `outdated (${a.endReason ?? "specification revised"})`
-                        : "revoked"}
-                    </span>
-                  )}
+                <li
+                  key={a.id}
+                  title={a.endReason ?? undefined}
+                  className="flex min-w-0 flex-wrap items-baseline gap-x-1.5"
+                >
+                  <span className="min-w-0">
+                    {review?.responsibility ?? "Review"} ·{" "}
+                    {memberName(a.reviewerId)} approved revision{" "}
+                    {revisionNumber(a.revisionId)}
+                  </span>
+                  <span className="ml-auto shrink-0">{outcome}</span>
                 </li>
               );
             })}
@@ -248,7 +371,7 @@ export function ReviewPanel() {
         </Collapsible>
       )}
       {current && (
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground">
           Approvals apply to revision {current.number} ·{" "}
           {relativeTime(current.createdAt)}
         </p>
@@ -382,7 +505,7 @@ export function RequestReview({
                   ? `Requesting ${listNames(requestingAll)} reviews…`
                   : `Request ${listNames(missing.map((r) => r.name))} reviews`}
               </Button>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Required, from anyone in each discipline. Or choose one
                 discipline and reviewer below.
               </p>
@@ -435,7 +558,7 @@ export function RequestReview({
                   )}
                 </Popover>
                 {role && used.has(role.name) && (
-                  <span className="mt-1 block text-[11px] text-warning">
+                  <span className="mt-1 block text-xs text-warning">
                     A {role.name} review already exists on this revision;
                     another reviewer will be added.
                   </span>
@@ -481,7 +604,12 @@ export function RequestReview({
                           hint: m.email,
                           keywords: m.email,
                           icon: (
-                            <Avatar image={m.image} name={m.name} size="xs" />
+                            <Avatar
+                              userId={m.id}
+                              image={m.image}
+                              name={m.name}
+                              size="xs"
+                            />
                           ),
                         })),
                       ]}

@@ -1,3 +1,4 @@
+import { absoluteTime } from "@lictory/core/lib/work-items";
 import { useEffect, useState } from "react";
 import {
   Collapsible,
@@ -26,10 +27,14 @@ import {
 const categories: { value: AuditCategory | "all"; label: string }[] = [
   { value: "all", label: "All activity" },
   { value: "membership", label: "Members & roles" },
-  { value: "access", label: "Access tokens" },
+  // Who and what can act or read: tokens, agents, runners, private
+  // channels, Slack and event webhooks.
+  { value: "access", label: "Access" },
   { value: "organization", label: "Organization" },
   { value: "configuration", label: "Configuration" },
-  { value: "agent", label: "Agent calls" },
+  // Agents' calls, Autopilot's merges and Definition of Done checks people
+  // passed by hand: what acted in place of a person or of evidence.
+  { value: "agent", label: "Agents, Autopilot & Done" },
 ];
 const categoryLabel = Object.fromEntries(
   categories.map((c) => [c.value, c.label]),
@@ -43,14 +48,7 @@ type Filters = {
 };
 type Page = { entries: AuditEntry[]; nextCursor: string | null };
 
-const time = (iso: string) =>
-  new Date(iso).toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const time = absoluteTime;
 
 function query(filters: Filters) {
   return {
@@ -63,6 +61,13 @@ function query(filters: Filters) {
 
 // The organization audit log for administrators: newest first, filtered on
 // the server, paged, and exportable as CSV with the same filters.
+// The date filters take the shape of the selects beside them (a 32px pill,
+// 13px medium text, the surface's edge), not the browser's own field; an
+// empty date reads as a placeholder. The calendar button is styled in
+// @lictory/ui's styles.css.
+const dateFilterClass =
+  "mt-1.5 h-8 w-full rounded-full border-0 px-3 text-[13px] font-medium shadow-(--shadow-border) hover:bg-muted/60 data-empty:text-muted-foreground/70";
+
 export function OrganizationAudit() {
   const { isAdmin } = useWorkspace();
   if (!isAdmin)
@@ -147,7 +152,8 @@ function AuditLog() {
       id="audit"
       icon={<ScrollText />}
       title="Audit log"
-      description="Who changed membership, application roles, invitations, access tokens and configuration, and what agents did on someone's behalf. Entries cannot be edited or deleted."
+      description="Who changed what in this organization, and what agents did on someone's behalf. Entries cannot be edited or deleted."
+      footer="Membership, application roles, invitations, access tokens, configuration, agents' calls and Definition of Done checks passed by hand are recorded."
       action={
         <Button
           size="sm"
@@ -158,12 +164,15 @@ function AuditLog() {
         </Button>
       }
     >
-      <SettingsBody className="flex flex-wrap items-end gap-3 py-3">
-        <div className="text-[13px] font-medium">
+      {/* One row of four equal fields on wide screens, two by two on
+          phones: no field wraps alone, and each label sits above its
+          control with the same gap. */}
+      <SettingsBody className="grid grid-cols-2 items-end gap-x-3 gap-y-4 py-3 md:grid-cols-4">
+        <div className="min-w-0 text-[13px] font-medium">
           <span id="audit-category-label">Activity</span>
           <DropdownSelect
             aria-labelledby="audit-category-label"
-            className="mt-1.5 w-44"
+            className="mt-1.5 w-full"
             value={filters.category}
             onValueChange={(v) => set({ category: v as Filters["category"] })}
           >
@@ -174,11 +183,11 @@ function AuditLog() {
             ))}
           </DropdownSelect>
         </div>
-        <div className="text-[13px] font-medium">
+        <div className="min-w-0 text-[13px] font-medium">
           <span id="audit-actor-label">Person</span>
           <DropdownSelect
             aria-labelledby="audit-actor-label"
-            className="mt-1.5 w-44"
+            className="mt-1.5 w-full"
             value={filters.actorId}
             onValueChange={(v) => set({ actorId: v })}
           >
@@ -190,24 +199,26 @@ function AuditLog() {
             ))}
           </DropdownSelect>
         </div>
-        <label className="block text-[13px] font-medium">
-          From
+        <label className="block min-w-0 text-[13px] font-medium">
+          From (UTC)
           <Input
             type="date"
             value={filters.from}
             max={filters.to || undefined}
             onChange={(e) => set({ from: e.target.value })}
-            className="mt-1.5 h-8 w-36 rounded-md text-sm"
+            data-empty={!filters.from || undefined}
+            className={dateFilterClass}
           />
         </label>
-        <label className="block text-[13px] font-medium">
-          To
+        <label className="block min-w-0 text-[13px] font-medium">
+          To (UTC)
           <Input
             type="date"
             value={filters.to}
             min={filters.from || undefined}
             onChange={(e) => set({ to: e.target.value })}
-            className="mt-1.5 h-8 w-36 rounded-md text-sm"
+            data-empty={!filters.to || undefined}
+            className={dateFilterClass}
           />
         </label>
       </SettingsBody>

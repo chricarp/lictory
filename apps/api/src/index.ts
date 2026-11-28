@@ -1,9 +1,12 @@
 // First: stops with every configuration problem before other modules load.
+import { jsonLog } from "@lictory/api/log";
 import "@lictory/api/configuration";
 
 import { serve } from "@hono/node-server";
 import { closeDatabase, db } from "@lictory/core/db";
 import { refreshAiAvailability } from "@lictory/core/domain/ai";
+import { installCodeLoop } from "@lictory/core/code/loop";
+import { installFactoryLoop } from "@lictory/core/factory/loop";
 import {
   refreshAiState,
   watchAiSettings,
@@ -20,6 +23,13 @@ import { closeEventStreams } from "@lictory/api/routes/events";
 // mutate endpoints, event streams and the SPA document. Background work runs
 // in the worker, never here.
 
+// The factory loop's ports: agents in channels, session threads, claims
+// following their sessions (docs/internals/factory.md#the-factory-loop).
+installFactoryLoop(db);
+// The code loop's ports: session workspaces and pull requests, Definition
+// of Done evidence and Autopilot merges (docs/internals/code-hosts.md).
+installCodeLoop(db);
+
 const port = envInteger("PORT") ?? 3002;
 const hostname = env("HOST") ?? "0.0.0.0";
 const DRAIN_MS = envInteger("SHUTDOWN_TIMEOUT_MS") ?? 25_000;
@@ -31,44 +41,36 @@ const mail = mailTransportSummary();
 // it configures AI, is already in effect). A database that cannot be read yet
 // leaves AI as the environment says and the watcher retries.
 await refreshAiState(db).catch((error: unknown) =>
-  console.warn(
-    JSON.stringify({
-      event: "api.ai_settings_load_failed",
-      reason: error instanceof Error ? error.message : String(error),
-    }),
-  ),
+  jsonLog("warn", "api.ai_settings_load_failed", {
+    reason: error instanceof Error ? error.message : String(error),
+  }),
 );
 watchAiSettings(db, {
-  log: (event, detail) => console.info(JSON.stringify({ event, ...detail })),
+  log: (event, detail) => jsonLog("info", event, { ...detail }),
 });
 
 // File storage is optional: without it attachments are disabled. A partial or
 // malformed configuration stops the API with the variables to fix.
 try {
   const files = storageConfiguration();
-  console.info(
-    JSON.stringify(
-      files
-        ? {
-            event: "api.storage",
-            preset: files.preset,
-            endpoint: files.endpoint ?? `aws:${files.region}`,
-            bucket: files.bucket,
-          }
-        : {
-            event: "api.storage",
-            attachments: "disabled",
-            reason: "No S3_* or R2_* storage settings.",
-          },
-    ),
+  jsonLog(
+    "info",
+    "api.storage",
+    files
+      ? {
+          preset: files.preset,
+          endpoint: files.endpoint ?? `aws:${files.region}`,
+          bucket: files.bucket,
+        }
+      : {
+          attachments: "disabled",
+          reason: "No S3_* or R2_* storage settings.",
+        },
   );
 } catch (error) {
-  console.error(
-    JSON.stringify({
-      event: "api.storage_invalid",
-      message: error instanceof Error ? error.message : String(error),
-    }),
-  );
+  jsonLog("error", "api.storage_invalid", {
+    message: error instanceof Error ? error.message : String(error),
+  });
   process.exit(1);
 }
 
@@ -90,30 +92,18 @@ const server = serve(
     hostname,
   },
   (info) =>
-    console.info(
-      JSON.stringify({
-        event: "api.listening",
-        port: info.port,
-        hostname,
-        mail,
-      }),
-    ),
+    jsonLog("info", "api.listening", { port: info.port, hostname, mail }),
 );
 
 // Organizations still showing the AI provider state from before this start.
 void refreshAiAvailability(db).then(
   (refreshed) =>
     refreshed &&
-    console.info(
-      JSON.stringify({ event: "api.ai_availability_refreshed", refreshed }),
-    ),
+    jsonLog("info", "api.ai_availability_refreshed", { refreshed }),
   (error: unknown) =>
-    console.warn(
-      JSON.stringify({
-        event: "api.ai_availability_refresh_failed",
-        reason: error instanceof Error ? error.message : String(error),
-      }),
-    ),
+    jsonLog("warn", "api.ai_availability_refresh_failed", {
+      reason: error instanceof Error ? error.message : String(error),
+    }),
 );
 
 // SIGTERM: stop accepting, end event streams (clients reconnect elsewhere),
@@ -121,9 +111,9 @@ void refreshAiAvailability(db).then(
 async function shutdown(signal: string) {
   if (draining) return;
   draining = true;
-  console.info(JSON.stringify({ event: "api.shutdown", signal, inflight }));
+  jsonLog("info", "api.shutdown", { signal, inflight });
   const forced = setTimeout(() => {
-    console.error(JSON.stringify({ event: "api.shutdown_timeout", inflight }));
+    jsonLog("error", "api.shutdown_timeout", { inflight });
     process.exit(1);
   }, DRAIN_MS + 5_000);
   forced.unref();

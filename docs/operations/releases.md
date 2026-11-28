@@ -9,10 +9,10 @@ publishes nightlies. The release decision is a release manager pressing
 **Actions → Release → Run workflow** on `main`.
 
 ```text
-Conventional PR title → merge → daily nightly: full verification, images, prerelease
+Conventional PR title → merge → daily nightly: full verification, images, downloads, prerelease
                                                    ↓
                                  Release (one button, release managers)
-                     ├─ platform changed?    → stable images + GitHub Release (release.env)
+                     ├─ platform changed?    → stable images + downloads + GitHub Release
                      ├─ lictory.com changed? → deploy the marketing website
                      └─ docs changed?        → deploy docs.lictory.com
 ```
@@ -115,12 +115,14 @@ passed the complete suite.
 3. Build the four backend images natively on `linux/amd64` and `linux/arm64`
    runners, join them into multi-platform images in the registry
    (`IMAGE_REGISTRY`), tagged with the version; the deployment journal records
-   their digests. No release job holds a deployment credential.
+   their digests. No release job holds a deployment credential. In parallel,
+   build the [runner and desktop downloads](#runner-and-desktop-app) of the
+   same source and version.
 4. Reserve the immutable tag/manifest and attach `release.env` (the exact
    image digests self-hosted installations pull; its `MARKETING_IMAGE` equals
    `API_IMAGE` on purpose: no marketing image is built since the website moved
    to Cloudflare, and installed `deploy.sh` versions still require the key, see
-   [deployment](deployment.md)), publish a GitHub prerelease
+   [deployment](deployment.md)) and the runner and desktop downloads, publish a GitHub prerelease
    (never latest), and record success. The complete workflow must succeed before
    a stable release treats the nightly as eligible.
 5. Run the [laptop trial](self-hosting.md#try-lictory-on-a-laptop) on the
@@ -139,7 +141,10 @@ rebuilding. Nightly runs are serialized with retained queues. A failed build or
 publication changes nothing any installation can pull. A maintenance-only nightly remains useful
 for testing but cannot become stable without a semantic version increment.
 
-`package.json` in Git remains the development baseline. Build checkouts receive
+`package.json` in Git remains the development baseline, `0.0.0-dev`: no
+release has that version, so builds from source say they are development
+builds (the account menu, `lictory-runner --version`) and the add-runner
+dialog of such a server installs the latest stable runner. Build checkouts receive
 the calculated version without commits to `main`; images embed it, and the
 platform's account menu shows `X.Y.Z-nightly.*` on nightlies and the clean
 `X.Y.Z` on stable releases; the marketing website shows the latest stable. Release manifests and image labels record
@@ -252,9 +257,10 @@ appear. The selected SHA passes CI again (static checks, domain tests and the
 smoke workflows) with the stable version; its nightly already passed every
 browser workflow. The release controller comes from the dispatch's protected
 `main` commit; the application code is checked out separately at the
-nightly's exact SHA. Stable images are **rebuilt** from that commit with the
-stable version, then the tag is reserved, release.env attached, and the
-GitHub Release published as latest. The original nightly remains unchanged.
+nightly's exact SHA. Stable images and the runner and desktop downloads are
+**rebuilt** from that commit with the stable version, then the tag is
+reserved, release.env and the downloads attached, and the GitHub Release
+published as latest. The original nightly remains unchanged.
 
 Nightly and Stable share a verified source commit, not byte-identical images:
 their versions differ. Neither embeds a domain or analytics setting; each
@@ -315,6 +321,123 @@ Operators verify a release before installing it with `gh attestation verify`
 or `cosign verify`; see [verify release images](self-hosting.md#verify-release-images).
 A fork that publishes its own releases signs with its own repository's
 identity and must document that identity for its users.
+
+## Runner and desktop app
+
+Every release, nightly and stable, also carries the two programs people
+install on their own computers: `lictory-runner` (the
+[factory's runner](../internals/factory.md#distribution)) and the
+[desktop app](../internals/desktop.md). **Release clients**
+(`.github/workflows/release-clients.yml`) builds them from the candidate's
+exact source with its version, in parallel with the images, and the publish
+job attaches them to the draft before it publishes:
+
+| Download                                                                                                                               | Built                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `lictory-runner-{linux,darwin}-{x64,arm64}`, `lictory-runner-windows-{x64,arm64}.exe`                                                  | `bun build --compile` cross-compiles all six on one Linux runner |
+| `lictory-runner-install.sh`, `lictory-runner-install.ps1`                                                                              | `apps/runner/install.sh` and `install.ps1`, copied               |
+| `Lictory-<version>-mac-universal.dmg` and `.zip` (+ `.zip.blockmap`), `latest-mac.yml`                                                 | macOS runner, Intel and Apple silicon in one app                 |
+| `Lictory-<version>-windows-setup.exe` (+ `.blockmap`), `latest.yml`                                                                    | Windows runner, one installer for x64 and arm64                  |
+| `Lictory-<version>-linux-{x86_64,arm64}.AppImage`, `lictory_<version>_{amd64,arm64}.deb`, `latest-linux.yml`, `latest-linux-arm64.yml` | Linux runner, both architectures                                 |
+| `Lictory-mac-universal.dmg`, `Lictory-windows-setup.exe`, `Lictory-linux-{x64,arm64}.AppImage`, `lictory_{amd64,arm64}.deb`            | Copies of the installers above, without the version              |
+| `SHA256SUMS`, `SHA256SUMS.sigstore.json`                                                                                               | The publish job                                                  |
+
+The names are a contract (`packages/core/src/release/downloads.ts`): the
+add-runner dialog runs the installer of the latest release with the
+server's own version (`lictory-runner-install.sh --version <server version>`),
+the installers download `lictory-runner-<os>-<arch>` of that release,
+installed desktop apps read `latest*.yml`, which names their versioned
+installers, and [lictory.com/download](https://lictory.com/download) links to
+`https://github.com/chricarp/lictory/releases/latest/download/<name>` of the
+names without a version. GitHub resolves `latest` to the newest stable
+release (nightlies are prereleases), so those links serve each new stable
+release without a website deployment:
+
+| Version-free name              | Copy of                                   |
+| ------------------------------ | ----------------------------------------- |
+| `Lictory-mac-universal.dmg`    | `Lictory-<version>-mac-universal.dmg`     |
+| `Lictory-windows-setup.exe`    | `Lictory-<version>-windows-setup.exe`     |
+| `Lictory-linux-x64.AppImage`   | `Lictory-<version>-linux-x86_64.AppImage` |
+| `Lictory-linux-arm64.AppImage` | `Lictory-<version>-linux-arm64.AppImage`  |
+| `lictory_amd64.deb`            | `lictory_<version>_amd64.deb`             |
+| `lictory_arm64.deb`            | `lictory_<version>_arm64.deb`             |
+
+The runner binaries, its installers and `SHA256SUMS` have no version in
+their names already. Keep every name, add new ones rather than renaming,
+and keep the installers able to install any earlier release.
+
+**Both channels.** Nightlies carry the downloads too. A stable release
+rebuilds a nightly's source, so the packaging is proven on every candidate
+before promotion; testers install nightly apps and runners; and a server on
+the nightly channel gets the runner of its own nightly. Desktop apps update
+only to stable releases: electron-updater reads GitHub's latest release,
+which is never a prerelease. A nightly's downloads go when the nightly is
+[pruned](#nightly-retention); the installer then says so and offers the latest
+stable runner (`--version latest`), whose protocol (`/api/runner/v1`) the
+server still speaks.
+
+**Checked, signed and attested before publication.** The publish job:
+
+1. downloads the build jobs' artifacts and runs `bun run release clients`
+   (the control checkout's code: nothing the downloads contain runs in a job
+   that can sign), which refuses an incomplete set, a file it does not
+   expect, a version-free installer that is not a copy of this version's,
+   or a `latest*.yml` that is for another version or does not describe its
+   installer by SHA-512 and size; installed apps would otherwise fail every
+   update. It writes `SHA256SUMS` over every download, the copies included;
+2. signs `SHA256SUMS` keylessly with cosign (`SHA256SUMS.sigstore.json`, a
+   Sigstore bundle) and attests every file it lists with a GitHub artifact
+   attestation (SLSA build provenance) (`.github/actions/sign-clients`);
+3. attaches the downloads, `SHA256SUMS` and its bundle with the other release
+   files, then publishes.
+
+A failed build or check publishes nothing, like a failed image build. "Re-run
+failed jobs" reuses the downloads already built; re-running a build job
+produces other bytes (packages are not reproducible), which replace the
+earlier upload while the release is still a draft, and are signed and
+attested again. A published release is never changed.
+
+The installers check every runner download against `SHA256SUMS` before
+installing it. To verify a download yourself:
+
+```sh
+gh attestation verify lictory-runner-linux-x64 --repo chricarp/lictory
+# or, without a GitHub login:
+cosign verify-blob SHA256SUMS --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity https://github.com/chricarp/lictory/.github/workflows/release.yml@refs/heads/main \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+The identity is the publishing workflow, as for the
+[images](#signatures-and-attestations): `release.yml` for stable releases,
+`nightly.yml` for nightlies.
+
+**Operating system signing** is separate and optional:
+
+- The runner's macOS binaries carry Bun's ad hoc signature, which is all
+  macOS asks of a binary downloaded with `curl` or the installer (neither
+  sets the quarantine flag). Its Windows binaries are not Authenticode
+  signed; `Invoke-WebRequest` does not mark them as downloaded from the
+  internet, so SmartScreen does not stop them.
+- The desktop app is signed, and on macOS notarized, when the
+  **desktop-signing** environment has certificates (see
+  [one-time configuration](#one-time-github-configuration)). Without them it
+  is built unsigned (ad hoc on macOS, so it starts on Apple silicon) and
+  records that it does not update itself: macOS shows the "unidentified
+  developer" warning and Windows SmartScreen asks before running it. Linux
+  AppImages update either way; they are checked against the SHA-512 in
+  `latest-linux*.yml`.
+
+Release clients ends with the same check (`scripts/check-client-downloads.ts`,
+unprivileged, before anything is signed), so a broken set fails where it was
+built. To try the packaging of a branch without releasing anything, run
+**Actions → Release clients → Run workflow** on it: every download is built
+unsigned with the version given and kept as workflow artifacts for a week.
+Pull requests that change the runner, the desktop app or this contract run
+the same workflow from CI (**Runner and desktop packages**, part of
+`Verify`): every download on macOS, Windows and Linux runners, unsigned,
+with the version `0.0.0-nightly.20260101.1`, and the whole set checked.
 
 ## Hotfixes
 
@@ -383,13 +506,33 @@ Repository variables:
 | `IMAGE_REGISTRY`            | Registry namespace for images, for example `ghcr.io/<owner>`                    |
 | `IMAGE_CACHE_REGISTRY`      | Optional BuildKit cache repository, for example `ghcr.io/<owner>/lictory-cache` |
 
-Environments, both with deployment branch `main` only:
+Environments:
 
 - **release**: holds nothing; add required reviewers to approve each stable
   publication. Packages and the GitHub Release are written with the
   workflow's `GITHUB_TOKEN` (`packages: write`, `contents: write`).
 - **websites**: the Cloudflare token and the websites' public build variables
   ([websites](websites.md#github-configuration)).
+- **desktop-signing** (optional): the desktop app's certificates, read only
+  by the desktop packaging step of [Release clients](#runner-and-desktop-app).
+  Deployment branches `main` and `release/*` (nightlies of maintenance
+  branches are signed too), no required reviewers (nightlies run
+  unattended). Without it, or with some secrets missing, that platform is
+  built unsigned. Secrets:
+
+  | Secret                                                     | Value                                                                                             |
+  | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+  | `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`                     | Developer ID Application certificate as a base64 `.p12`, and its password                         |
+  | `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` | App Store Connect API key (the `.p8` file's contents), its key ID and issuer ID, for notarization |
+  | `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`                     | Authenticode code signing certificate as a base64 `.pfx`, and its password                        |
+
+  A Windows certificate kept in a hardware token or a cloud signing service
+  (as most are issued now) needs that service configured in
+  `apps/desktop/package.mjs` (`win.azureSignOptions` or a custom `sign`
+  hook) instead of `WIN_CSC_LINK`.
+
+The release and websites environments both have deployment branch `main`
+only.
 
 Make the image packages public (GitHub → Packages → each `lictory-*` package →
 Package settings → Change visibility) so installations can pull without a

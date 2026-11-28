@@ -2,8 +2,9 @@
 // (`node --import`), never by a production process: production images do not
 // contain scripts/, and nothing else names this file.
 //
-// It routes requests for the fake Jira Cloud site to the browser suite's
-// local stand-in (scripts/e2e-fakes/jira.ts), the way /etc/hosts would. The
+// It routes requests for the fake Jira Cloud site and for Slack's Web API to
+// the browser suite's local stand-ins (scripts/e2e-fakes/jira.ts and
+// slack.ts), the way /etc/hosts would. The
 // Jira adapter keeps every production check: the site still has to be an
 // https Atlassian host, so the site allowlist that blocks server-side request
 // forgery is exercised, not relaxed. Only the transport is swapped, for

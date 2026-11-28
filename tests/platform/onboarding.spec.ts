@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as s from "@lictory/core/db/schema";
 import { platformOrigin } from "../helpers/app-urls";
 import { seedOrganization } from "@lictory/core/domain/organization";
@@ -16,6 +16,7 @@ import { reloadWhenSaved } from "../helpers/sync-helpers";
 import { controlZeroConnection } from "../helpers/zero-socket";
 import { consentStatePath } from "../consent-setup";
 import { clientAddress } from "../helpers/client-address";
+import { expectNoAccessibilityViolations } from "../helpers/accessibility";
 const password = "Onboarding-test-password-123";
 
 test.beforeEach(async ({ page, context }) => {
@@ -54,13 +55,18 @@ for (const mode of ["native", "external"] as const)
   test(`${mode} onboarding resumes, invites reviewers, and saves the complete setup @smoke`, async ({
     page,
   }) => {
-    if (mode === "native") {
+    if (mode === "native")
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.emulateMedia({ reducedMotion: "reduce" });
-    }
+    // Settled frames for the accessibility checks below (WCAG 2.2 AA), on
+    // a phone (native) and a laptop (external).
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expectNoAccessibilityViolations(page, `welcome (${mode})`);
     await page
-      .getByRole("button", { name: "Create a workspace", exact: false })
+      .getByRole("button", { name: "Create an organization", exact: false })
       .click();
+    // Creating the workspace is the first counted step of setup.
+    await expect(page.getByText("1 of 4")).toBeVisible();
+    await expectNoAccessibilityViolations(page, `organization step (${mode})`);
     await page
       .getByLabel("Organization", { exact: true })
       .fill(`Onboarding ${mode}`);
@@ -75,6 +81,7 @@ for (const mode of ["native", "external"] as const)
     await expect(
       page.getByRole("button", { name: "Continue", exact: true }),
     ).toBeDisabled();
+    await expectNoAccessibilityViolations(page, `delivery step (${mode})`);
     const zero = await controlZeroConnection(page);
     await page.reload();
     await page.getByRole("button", { name: "Back", exact: true }).click();
@@ -82,7 +89,7 @@ for (const mode of ["native", "external"] as const)
       "Payments",
     );
     await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await configureFirstProject(page, mode, "off", mode === "native");
+    await configureFirstProject(page, mode, mode === "native");
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await reloadWhenSaved(page);
     await expect(
@@ -104,6 +111,16 @@ for (const mode of ["native", "external"] as const)
     await expect(
       page.getByRole("list", { name: "People to invite" }).getByText(invitee),
     ).toBeVisible();
+    await expectNoAccessibilityViolations(
+      page,
+      `invite step with an error (${mode})`,
+    );
+    // Each invitation names the discipline the person starts with, so a
+    // review can be asked of them on their first day.
+    await page
+      .getByRole("combobox", { name: `Discipline for ${invitee}` })
+      .click();
+    await page.getByRole("option", { name: "QA", exact: true }).click();
     // Lose the connection right after the setup was sent: Zero reconnects and
     // the server answers the same mutation from its receipt, once.
     let interrupted = false;
@@ -115,7 +132,16 @@ for (const mode of ["native", "external"] as const)
     await page
       .getByRole("button", { name: "Invite 1 and finish", exact: true })
       .click();
-    await expect(page).toHaveURL(/\/pay\/proposals$/);
+    // Setup ends on Home: its checklist names what setup did not ask
+    // (code host, runner, agent), and counts the invitation just sent.
+    await expect(
+      page.getByRole("heading", { name: "Home", level: 1 }),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\/[^/]+$/);
+    await expect(
+      page.locator('[data-setup-step="team"][data-done]'),
+    ).toContainText("1 invited");
+    await expect(page.locator('[data-setup-step="runner"]')).toBeVisible();
     expect(interrupted).toBe(true);
     const client = postgres(process.env.DATABASE_URL!, { max: 1 });
     const db = drizzle(client);
@@ -163,6 +189,27 @@ for (const mode of ["native", "external"] as const)
       .where(eq(s.organizationAiPolicy.organizationId, org.id));
     expect(aiPolicy!.enabled).toBe(mode === "native");
     expect(invitations.map((i) => i.email)).toEqual([invitee]);
+    // The invitee joins the first project, not only the organization.
+    const placements = await db
+      .select()
+      .from(s.invitationPlacement)
+      .where(eq(s.invitationPlacement.organizationId, org.id));
+    const [qa] = await db
+      .select()
+      .from(s.discipline)
+      .where(
+        and(
+          eq(s.discipline.projectId, projects[0]!.id),
+          eq(s.discipline.name, "QA"),
+        ),
+      );
+    expect(placements).toMatchObject([
+      {
+        invitationId: invitations[0]!.id,
+        projectId: projects[0]!.id,
+        disciplineIds: [qa!.id],
+      },
+    ]);
     await client.end();
   });
 
@@ -174,7 +221,7 @@ test("organizations choose and change URL handles with server validation and adm
   const handle = `chosen-${suffix}`;
   const nextHandle = `renamed-${suffix}`;
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await page
     .getByLabel("Organization", { exact: true })
@@ -354,6 +401,8 @@ test("organizations choose and change URL handles with server validation and adm
     await expect(
       page.getByLabel("Organization handle", { exact: true }),
     ).toHaveValue(nextHandle);
+    // Settings are outside the project, so its pages are folded.
+    await page.getByRole("button", { name: /pages$/ }).click();
     await expect(
       page.getByRole("link", { name: "Proposals", exact: true }),
     ).toHaveAttribute("href", paths.proposals(nextHandle, "PAY"));
@@ -449,9 +498,15 @@ test("joining waits without creating an organization, discovers invitations, and
   });
   await page.getByRole("button", { name: "Check invitations" }).click();
   await page.getByRole("button", { name: "Join", exact: true }).click();
-  // Joining an organization with projects lands in its project: without an AI
-  // provider, Litto would only say it is unavailable.
-  await expect(page).toHaveURL(/\/exist\/(board|refinement|items)$/);
+  // Joining an organization with projects lands on its Home, with its
+  // project in the sidebar.
+  await expect(page).toHaveURL(new RegExp(`/${orgId}$`));
+  await expect(
+    page.getByRole("heading", { name: "Home", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Switch project: Existing project" }),
+  ).toBeVisible();
   expect(
     await db
       .select()
@@ -473,44 +528,15 @@ test("cycle selects support keyboard choices, numeric zero, and persisted projec
   page,
 }) => {
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
+  // Setup no longer asks how the project plans: it starts continuous with
+  // story points, and the project's planning settings change that.
   await createWorkspace(page, {
     organization: "Cycle select verification",
     project: "Payments",
     key: "PAY",
-    finish: false,
   });
-  // Revisit planning to exercise the conditional cycle controls.
-  await page.getByRole("button", { name: "Back", exact: true }).click();
-  await page.getByRole("button", { name: "Back", exact: true }).click();
-  for (const [name, description] of [
-    ["None", "Items have no estimates."],
-    ["Linear", "Points from 0 to 8 in equal steps."],
-    ["T-shirt", "Sizes: XS, S, M, L, XL."],
-    ["Fibonacci", "Bigger gaps reflect more uncertainty in larger work."],
-  ]) {
-    await page.getByRole("radio", { name, exact: true }).click();
-    await expect(page.getByText(description!, { exact: false })).toBeVisible();
-  }
-  await page.getByRole("radio", { name: "Cycles", exact: true }).click();
-  const length = page.getByRole("combobox", { name: "Length" });
-  await length.click();
-  await page.getByRole("option", { name: "3 weeks", exact: true }).click();
-  const startDay = page.getByRole("combobox", { name: "Starts on" });
-  await expect(startDay).toHaveText("Monday");
-  await startDay.focus();
-  await startDay.press("Enter");
-  await page.getByRole("option", { name: "Sunday", exact: true }).click();
-  await expect(startDay).toHaveText("Sunday");
-  await expect(startDay).toBeFocused();
-  await expect(startDay).toHaveCSS("height", "40px");
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Skip and finish", exact: true })
-    .click();
-  await expect(page).toHaveURL(/\/pay\/proposals$/);
   const orgSlug = new URL(page.url()).pathname.split("/")[1]!;
   const client = postgres(process.env.DATABASE_URL!, { max: 1 });
   const db = drizzle(client);
@@ -523,11 +549,32 @@ test("cycle selects support keyboard choices, numeric zero, and persisted projec
     .from(s.project)
     .where(eq(s.project.organizationId, organization!.id));
   expect(project).toMatchObject({
-    iterationWeeks: 3,
-    iterationStartDay: 0,
+    iterationMode: "off",
+    readinessPolicy: "warn",
     estimateScale: "fibonacci",
   });
   await page.goto(paths.projectSettings(orgSlug, "PAY", "planning"));
+  await page.getByRole("radio", { name: /^Cycles/ }).click();
+  const length = page.getByRole("combobox", { name: "Iteration length" });
+  await length.click();
+  await page.getByRole("option", { name: "3 weeks", exact: true }).click();
+  await expect(length).toHaveText("3 weeks");
+  const startDay = page.getByRole("combobox", { name: "Cycle start day" });
+  await expect(startDay).toHaveText("Monday");
+  await startDay.focus();
+  await startDay.press("Enter");
+  await page.getByRole("option", { name: "Sunday", exact: true }).click();
+  await expect(startDay).toHaveText("Sunday");
+  await expect(startDay).toBeFocused();
+  await expect
+    .poll(async () => {
+      const [saved] = await db
+        .select()
+        .from(s.project)
+        .where(eq(s.project.id, project!.id));
+      return saved && [saved.iterationWeeks, saved.iterationStartDay];
+    })
+    .toEqual([3, 0]);
   const upcoming = page.getByRole("combobox", { name: "Upcoming cycles" });
   await expect(upcoming).toHaveCSS("height", "32px");
   await upcoming.click();

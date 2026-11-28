@@ -101,8 +101,8 @@ const diffPageCommitsCapability = defineCapability({
   input: z.object({
     organizationId,
     pageId: id,
-    fromCommitId: id,
-    toCommitId: id,
+    fromCommitId: id.describe("The earlier commit (listPageCommits)."),
+    toCommitId: id.describe("The later commit (listPageCommits)."),
   }),
   run: (ctx, q) =>
     diffPageCommits(
@@ -157,7 +157,10 @@ const listPageThreadsCapability = defineCapability({
   input: z.object({
     organizationId,
     pageId: id,
-    includeResolved: z.boolean().default(false),
+    includeResolved: z
+      .boolean()
+      .default(false)
+      .describe("true also lists resolved discussions."),
   }),
   run: (ctx, q) =>
     listPageThreads(ctx.db, ctx.principal.userId, q.organizationId, q.pageId, {

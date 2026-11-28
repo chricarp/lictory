@@ -40,20 +40,23 @@ outside production.
 
 ## Delivery credentials key
 
-`DELIVERY_CREDENTIALS_KEY` encrypts stored Jira API tokens. Without it the key
-is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
+`DELIVERY_CREDENTIALS_KEY` encrypts stored Jira API tokens and the Slack
+app's secrets and bot token. Without it the key is derived from
+`BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
-- **New installations** must set it before connecting Jira. In production,
-  connecting Jira is refused while the key is unset and no delivery
-  credentials are stored yet (no `delivery_connection` row exists, including
-  archived ones). The rest of Lictory works without it.
+- **New installations** must set it before connecting Jira or Slack. In
+  production, connecting Jira or saving a Slack app is refused while the key
+  is unset and no credentials are stored yet (no `delivery_connection` or
+  `slack_installation` row exists, including archived ones). The rest of
+  Lictory works without it.
 - **Existing installations** that already stored credentials with the derived
   key keep working unchanged. The API and the worker log a `config.warning` at
   startup. To decouple the two secrets without re-entering tokens, set
   `DELIVERY_CREDENTIALS_KEY` to the current `BETTER_AUTH_SECRET` value (it
   derives the same key); `BETTER_AUTH_SECRET` can then rotate on its own.
 - Never rotate `DELIVERY_CREDENTIALS_KEY` once credentials are stored: they
-  become unreadable and every Jira connection must be reconnected.
+  become unreadable and every Jira connection and the Slack app must be
+  reconnected.
 
 ## Services
 
@@ -96,14 +99,14 @@ is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
 ## Database
 
-| Variable                  | Required                         | Default        | Read by                                                            | Secret | Description                                                                                                                                                                                                                                                                                             |
-| ------------------------- | -------------------------------- | -------------- | ------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`            | Yes (api, worker, collaboration) |                | api, worker, collaboration, migrate, rebuild-projections, database | Yes    | PostgreSQL connection of the application role. The migration runner uses it only for the `local` target.                                                                                                                                                                                                |
-| `DATABASE_URL_UNPOOLED`   | No                               | `DATABASE_URL` | api, worker, collaboration, migrate, rebuild-projections           | Yes    | Direct connection (never a transaction pooler) for LISTEN/NOTIFY when `DATABASE_URL` is pooled, and for the collaboration service's single-instance lock.                                                                                                                                               |
-| `ZERO_UPSTREAM_DB`        | No                               |                | database                                                           | Yes    | zero-cache's direct (never pooled) replication connection; the compatibility checks use it to verify replication privileges, a free slot and event triggers. zero-cache itself reads it as documented by Zero.                                                                                          |
-| `ZERO_CVR_DB`             | No                               |                | database                                                           | Yes    | zero-cache's own database for client view records and its change log (`<database>_zero`).                                                                                                                                                                                                               |
-| `DATABASE_MONITORING_URL` | No                               |                | database                                                           | Yes    | Connection of the read-only backup and monitoring role (`lictory_ops`); role setup and grants include it when set.                                                                                                                                                                                      |
-| `DATABASE_ADMIN_URL`      | No                               |                | database                                                           | Yes    | An administrator connection (a role with CREATEROLE and CREATEDB, such as a managed provider's master user) used once by `database.mjs setup` (`lictory database setup`) to create Lictory's roles and databases. Passed for that command only, never stored. See docs/operations/external-database.md. |
+| Variable                  | Required                         | Default        | Read by                                                            | Secret | Description                                                                                                                                                                                                                                                                                                       |
+| ------------------------- | -------------------------------- | -------------- | ------------------------------------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`            | Yes (api, worker, collaboration) |                | api, worker, collaboration, migrate, rebuild-projections, database | Yes    | PostgreSQL connection of the application role. The migration runner uses it only for the `local` target.                                                                                                                                                                                                          |
+| `DATABASE_URL_UNPOOLED`   | No                               | `DATABASE_URL` | api, worker, collaboration, migrate, rebuild-projections           | Yes    | Direct connection (never a transaction pooler) for LISTEN/NOTIFY when `DATABASE_URL` is pooled, and for the collaboration service's single-instance lock.                                                                                                                                                         |
+| `ZERO_UPSTREAM_DB`        | No                               |                | database                                                           | Yes    | zero-cache's direct (never pooled) replication connection; the compatibility checks use it to verify replication privileges, a free slot and event triggers. zero-cache itself reads it as documented by Zero.                                                                                                    |
+| `ZERO_CVR_DB`             | No                               |                | database                                                           | Yes    | zero-cache's own database for client view records and its change log (`<database>_zero`).                                                                                                                                                                                                                         |
+| `DATABASE_MONITORING_URL` | No                               |                | database                                                           | Yes    | Connection of the read-only backup and monitoring role (`lictory_ops`); role setup and grants include it when set.                                                                                                                                                                                                |
+| `DATABASE_ADMIN_URL`      | No                               |                | database                                                           | Yes    | An administrator connection (a role with CREATEROLE and CREATEDB, such as a managed provider's master user) used once by `database.mjs setup` (`lictory database setup`) to create Lictory's roles and databases. Passed for that command only, never stored. See https://docs.lictory.com/self-hosting/database. |
 
 ## Database migrations
 
@@ -172,9 +175,16 @@ is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
 ## Delivery integrations
 
-| Variable                   | Required | Default                                       | Read by     | Secret          | Description                                                                                                                                                                       |
-| -------------------------- | -------- | --------------------------------------------- | ----------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DELIVERY_CREDENTIALS_KEY` | No       | Derived from `BETTER_AUTH_SECRET` (see below) | api, worker | Yes, ≥ 32 bytes | Encrypts stored delivery credentials (Jira API tokens). Never rotate it once credentials are stored. Required in production before the first Jira connection; see the note below. |
+| Variable                   | Required | Default                                       | Read by     | Secret          | Description                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------- | -------- | --------------------------------------------- | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DELIVERY_CREDENTIALS_KEY` | No       | Derived from `BETTER_AUTH_SECRET` (see below) | api, worker | Yes, ≥ 32 bytes | Encrypts stored delivery credentials (Jira API tokens) and the secrets of agent event webhooks. Never rotate it once credentials are stored. Required in production before the first Jira connection or webhook; see the note below.                                                                                                         |
+| `CODE_HOST_PRIVATE_HOSTS`  | No       |                                               | api, worker | No              | Comma-separated host names (or addresses) of self-managed code hosts on private networks that Lictory may call, such as `gitlab.internal`. Without it, GitHub Enterprise Server and GitLab connections must use public https addresses; cloud metadata and link-local addresses are always refused. See docs/internals/code-hosts.md#egress. |
+
+## Agent events
+
+| Variable                              | Required | Default | Read by     | Secret | Description                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------- | -------- | ------- | ----------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENT_EVENTS_ALLOW_PRIVATE_NETWORKS` | No       | `false` | api, worker | No     | Lets agent event webhooks reach loopback and private-network addresses (10/8, 172.16/12, 192.168/16, 100.64/10, fc00::/7, single-label and `.internal`/`.local`/`.lan` names), and plain http there, for self-hosted agents on your LAN. Link-local and cloud metadata addresses stay refused. See docs/internals/agent-events.md. |
 
 ## File storage
 
@@ -239,27 +249,30 @@ is derived from `BETTER_AUTH_SECRET`, which ties rotating one to the other.
 
 ## Builds
 
-| Variable                  | Required | Default                | Read by  | Secret | Description                                                                           |
-| ------------------------- | -------- | ---------------------- | -------- | ------ | ------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_APP_VERSION` | No       | `package.json` version | platform | No     | Version shown in the platform. Set by the build; not configured by hand.              |
-| `MARKETING_STATIC_EXPORT` | No       | `false`                | website  | No     | `true` builds the website as static HTML (Cloudflare) instead of a standalone server. |
-| `NEXT_DIST_DIR`           | No       | `.next`                | website  | No     | Build output directory of the website.                                                |
+| Variable                     | Required | Default                                                                                           | Read by  | Secret | Description                                                                                                                                                                                     |
+| ---------------------------- | -------- | ------------------------------------------------------------------------------------------------- | -------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `APP_VERSION`                | No       | `development`                                                                                     | api      | No     | Release the server runs, reported to MCP clients and shown in organization settings. Set by `deploy/compose.production.yaml` from `LICTORY_VERSION`; not configured by hand.                    |
+| `NEXT_PUBLIC_APP_VERSION`    | No       | `package.json` version                                                                            | platform | No     | Version shown in the platform. Set by the build; not configured by hand.                                                                                                                        |
+| `NEXT_PUBLIC_RELEASE_ASSETS` | No       | empty: every download is offered, with a note that the page cannot tell which the release carries | website  | No     | Comma-separated file names of the stable release the website's /download page links to. Set by the website's deploy from the GitHub Release; a file not listed is shown as not in that release. |
+| `MARKETING_STATIC_EXPORT`    | No       | `false`                                                                                           | website  | No     | `true` builds the website as static HTML (Cloudflare) instead of a standalone server.                                                                                                           |
+| `NEXT_DIST_DIR`              | No       | `.next`                                                                                           | website  | No     | Build output directory of the website.                                                                                                                                                          |
 
 ## Worker
 
-| Variable                              | Required | Default     | Read by | Secret | Description                                                   |
-| ------------------------------------- | -------- | ----------- | ------- | ------ | ------------------------------------------------------------- |
-| `WORKER_AI_INTERVAL_MS`               | No       | `30000`     | worker  | No     | Polling interval for AI runs.                                 |
-| `WORKER_EMAIL_INTERVAL_MS`            | No       | `30000`     | worker  | No     | Polling interval for notification email.                      |
-| `WORKER_DELIVERY_INTERVAL_MS`         | No       | `30000`     | worker  | No     | Polling interval for delivery exports.                        |
-| `WORKER_DELIVERY_REFRESH_INTERVAL_MS` | No       | `600000`    | worker  | No     | How often delivery status is refreshed from external systems. |
-| `WORKER_DELIVERY_REFRESH_LIMIT`       | No       | `200`       | worker  | No     | Items refreshed per delivery status run.                      |
-| `WORKER_SCHEDULES_INTERVAL_MS`        | No       | `300000`    | worker  | No     | How often automatic cycles are advanced.                      |
-| `WORKER_SHUTDOWN_TIMEOUT_MS`          | No       | `25000`     | worker  | No     | How long running jobs may finish after SIGTERM.               |
-| `WORKER_STUCK_MS`                     | No       | `1800000`   | worker  | No     | A job run longer than this marks the worker unhealthy.        |
-| `WORKER_HEALTH_PORT`                  | No       | `3003`      | worker  | No     | Port of the loopback health endpoint (`/healthz`).            |
-| `WORKER_DB_POOL_MAX`                  | No       | `4`         | worker  | No     | Maximum database connections of the worker.                   |
-| `WORKER_HEALTH_HOST`                  | No       | `127.0.0.1` | worker  | No     | Interface of the health endpoint.                             |
+| Variable                              | Required | Default     | Read by | Secret | Description                                                                |
+| ------------------------------------- | -------- | ----------- | ------- | ------ | -------------------------------------------------------------------------- |
+| `WORKER_AI_INTERVAL_MS`               | No       | `30000`     | worker  | No     | Polling interval for AI runs.                                              |
+| `WORKER_EMAIL_INTERVAL_MS`            | No       | `30000`     | worker  | No     | Polling interval for notification email.                                   |
+| `WORKER_DELIVERY_INTERVAL_MS`         | No       | `30000`     | worker  | No     | Polling interval for delivery exports.                                     |
+| `WORKER_DELIVERY_REFRESH_INTERVAL_MS` | No       | `600000`    | worker  | No     | How often delivery status is refreshed from external systems.              |
+| `WORKER_DELIVERY_REFRESH_LIMIT`       | No       | `200`       | worker  | No     | Items refreshed per delivery status run.                                   |
+| `WORKER_SCHEDULES_INTERVAL_MS`        | No       | `300000`    | worker  | No     | How often automatic cycles are advanced.                                   |
+| `WORKER_FACTORY_INTERVAL_MS`          | No       | `60000`     | worker  | No     | How often the factory dispatcher expires claims and starts claimable work. |
+| `WORKER_SHUTDOWN_TIMEOUT_MS`          | No       | `25000`     | worker  | No     | How long running jobs may finish after SIGTERM.                            |
+| `WORKER_STUCK_MS`                     | No       | `1800000`   | worker  | No     | A job run longer than this marks the worker unhealthy.                     |
+| `WORKER_HEALTH_PORT`                  | No       | `3003`      | worker  | No     | Port of the loopback health endpoint (`/healthz`).                         |
+| `WORKER_DB_POOL_MAX`                  | No       | `4`         | worker  | No     | Maximum database connections of the worker.                                |
+| `WORKER_HEALTH_HOST`                  | No       | `127.0.0.1` | worker  | No     | Interface of the health endpoint.                                          |
 
 ## Collaboration service
 

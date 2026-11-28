@@ -13,7 +13,7 @@
 // documentation is built and served only when the selected tests include it.
 //
 // External services are local stand-ins (scripts/e2e-fakes): a Jira Cloud
-// site and, for the workflows of Lictory Intelligence (*.ai.spec.ts), a
+// site, a Slack workspace and, for the workflows of Lictory Intelligence (*.ai.spec.ts), a
 // scripted AI provider. Those workflows run last, against the API and worker
 // restarted with the provider configured: every other workflow keeps a
 // server without AI, as a default installation has.
@@ -33,6 +33,15 @@ import {
 import { busyPorts, e2ePorts } from "./e2e-ports";
 import { FAKE_JIRA_SITE, startFakeJira } from "./e2e-fakes/jira";
 import { startScriptedAi } from "./e2e-fakes/openai";
+import {
+  FAKE_BITBUCKET_API,
+  FAKE_GITHUB_SITE,
+  FAKE_GITLAB_SITE,
+  startFakeBitbucket,
+  startFakeGitHub,
+  startFakeGitLab,
+} from "./e2e-fakes/code-hosts";
+import { startFakeSlack } from "./e2e-fakes/slack";
 
 const adminUrl =
   process.env.SCHEMA_TEST_DATABASE_URL ??
@@ -98,6 +107,9 @@ const appEnv = {
   // Production requires an explicit key before Jira can be connected (the
   // fake Jira site in tests/platform/knowledge-handoff.spec.ts).
   DELIVERY_CREDENTIALS_KEY: "e2e-delivery-credentials-key-local-only",
+  // Agent event webhooks reach the specs' local fake receivers
+  // (tests/platform/agent-events.spec.ts).
+  AGENT_EVENTS_ALLOW_PRIVATE_NETWORKS: "true",
   // No AI provider, except for the workflows of Lictory Intelligence (the
   // scripted provider below).
   OPENAI_API_KEY: "",
@@ -339,6 +351,8 @@ const reportDir = process.env.E2E_UPDATE_TIMINGS
 
 let fakeJira: Awaited<ReturnType<typeof startFakeJira>> | undefined;
 let scriptedAi: Awaited<ReturnType<typeof startScriptedAi>> | undefined;
+let fakeCodeHosts: Awaited<ReturnType<typeof startFakeGitHub>>[] | undefined;
+let fakeSlack: Awaited<ReturnType<typeof startFakeSlack>> | undefined;
 let aiEnv: (ai: boolean) => Record<string, string> = () => ({});
 const admin = postgres(adminUrl, { max: 1, onnotice: () => undefined });
 await admin`CREATE DATABASE ${admin(name)}`;
@@ -404,6 +418,15 @@ try {
   // Stand-ins for external services, local to this run (scripts/e2e-fakes).
   fakeJira = await startFakeJira(ports.fakeJira);
   scriptedAi = await startScriptedAi(ports.scriptedAi);
+  // Code hosts (tests/platform/code.spec.ts): GitHub Enterprise Server and
+  // self-managed GitLab shapes on their own fake sites, Bitbucket Cloud on
+  // its fixed API address.
+  fakeCodeHosts = await Promise.all([
+    startFakeGitHub(ports.fakeGitHub),
+    startFakeGitLab(ports.fakeGitLab),
+    startFakeBitbucket(ports.fakeBitbucket),
+  ]);
+  fakeSlack = await startFakeSlack(ports.fakeSlack);
   // The API and the worker reach the fake Jira site through a preloaded
   // route that only this script passes; with `ai`, the scripted provider
   // through the AI SDK's OPENAI_BASE_URL.
@@ -420,7 +443,13 @@ try {
       : { OPENAI_API_KEY: "" };
   const backendEnv = (ai: boolean): NodeJS.ProcessEnv => ({
     ...appEnv,
-    E2E_FAKE_ROUTES: JSON.stringify({ [FAKE_JIRA_SITE]: fakeJira!.url }),
+    E2E_FAKE_ROUTES: JSON.stringify({
+      [FAKE_JIRA_SITE]: fakeJira!.url,
+      [FAKE_GITHUB_SITE]: fakeCodeHosts![0]!.url,
+      [FAKE_GITLAB_SITE]: fakeCodeHosts![1]!.url,
+      [FAKE_BITBUCKET_API]: fakeCodeHosts![2]!.url,
+      "https://slack.com": fakeSlack!.url,
+    }),
     ...aiEnv(ai),
   });
   const preload = ["--import", "./scripts/e2e-fakes/route-fake-sites.ts"];
@@ -553,6 +582,10 @@ try {
         // The test's side of the fakes (what people do in Jira, what was
         // sent to the AI provider).
         E2E_FAKE_JIRA_URL: fakeJira.url,
+        E2E_FAKE_GITHUB_URL: fakeCodeHosts[0]!.url,
+        E2E_FAKE_GITLAB_URL: fakeCodeHosts[1]!.url,
+        E2E_FAKE_BITBUCKET_URL: fakeCodeHosts[2]!.url,
+        E2E_FAKE_SLACK_URL: fakeSlack.url,
         ...((phase.ai || "console" in phase) && {
           E2E_SCRIPTED_AI_URL: scriptedAi.url,
         }),
@@ -584,7 +617,12 @@ try {
 } finally {
   if (interrupted) process.exitCode = 130;
   await stopAll();
-  await Promise.all([fakeJira?.close(), scriptedAi?.close()]);
+  await Promise.all([
+    fakeJira?.close(),
+    scriptedAi?.close(),
+    ...(fakeCodeHosts ?? []).map((host) => host.close()),
+    fakeSlack?.close(),
+  ]);
   // zero-cache holds a logical replication slot in the test database; it must
   // go before the database can be dropped.
   await admin`

@@ -148,7 +148,7 @@ async function toError(response: Response, email: string) {
     case 401:
       return new DeliveryError(
         "authentication",
-        `Jira rejected the API token for ${email}. Reconnect Jira with a valid token.`,
+        `Jira rejected the API token for ${email}: it is wrong, expired or revoked, or belongs to another Atlassian account.`,
       );
     case 403:
       return new DeliveryError(

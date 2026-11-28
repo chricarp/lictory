@@ -36,6 +36,11 @@ import {
   type Manifest,
 } from "@lictory/core/release/model";
 import { injectVersion } from "@lictory/core/release/build";
+import { clientAssets, writeChecksums } from "@lictory/core/release/clients";
+import {
+  checksumsName,
+  checksumsSignatureName,
+} from "@lictory/core/release/downloads";
 import {
   assertRun,
   nightlyDue,
@@ -236,6 +241,13 @@ async function publish(
   if ((await git(root, "rev-parse", "HEAD")) !== manifest.sha)
     throw new Error("Source checkout is not the selected release commit.");
   const licenses = optional("LICENSE_REPORT_DIRECTORY");
+  // The runner and desktop downloads, checked against the SHA256SUMS the
+  // workflow signed and attested (`release clients`) before anything is
+  // reserved. Local and fork runs publish without them.
+  const clientsDirectory = optional("CLIENT_ASSETS_DIRECTORY");
+  const clients = clientsDirectory
+    ? await signedClientAssets(clientsDirectory, manifest.version)
+    : [];
   const releaseUrl = `https://github.com/${github.repository}/releases/tag/${manifest.tag}`;
   const build = await executeRelease(manifest, {
     validate: () => validateCandidate(github, graphRoot, manifest, registry),
@@ -289,6 +301,17 @@ async function publish(
             ? "application/json"
             : "text/plain; charset=utf-8",
         );
+      // Rebuilt by a re-run with other bytes (and a new signature), so they
+      // may replace an earlier attempt's upload while the release is a draft.
+      for (const asset of clients)
+        await github.attach(
+          manifest,
+          asset.name,
+          new Uint8Array(await readFile(asset.path)),
+          reserved,
+          clientContentType(asset.name),
+          { replaceInDraft: true },
+        );
     },
     publish: async () => {
       await github.publish(manifest);
@@ -305,6 +328,31 @@ async function publish(
       process.env.GITHUB_STEP_SUMMARY,
       `Published **${manifest.tag}**.\n\n${imageNames.map((name) => `- ${name}: \`${build.images[name]}\``).join("\n")}\n`,
     );
+}
+
+/** The client downloads with the SHA256SUMS and signature they were signed with, those last. */
+async function signedClientAssets(directory: string, version: string) {
+  const assets = await clientAssets(directory, version);
+  const evidence = [checksumsName, checksumsSignatureName].map((name) => ({
+    name,
+    path: resolve(directory, name),
+  }));
+  for (const file of evidence)
+    await readFile(file.path).catch(() => {
+      throw new Error(
+        `${file.name} is missing from the client downloads: they were not signed. Retry the failed job.`,
+      );
+    });
+  return [...assets, ...evidence];
+}
+
+function clientContentType(name: string) {
+  if (name.endsWith(".yml")) return "text/yaml; charset=utf-8";
+  if (name.endsWith(".json")) return "application/json";
+  if (name.endsWith(".sh")) return "text/x-shellscript; charset=utf-8";
+  if (name.endsWith(".ps1") || name === checksumsName)
+    return "text/plain; charset=utf-8";
+  return "application/octet-stream";
 }
 
 /** The commit a website was last deployed from (its deployment journal). */
@@ -401,12 +449,25 @@ async function planRelease(
     );
 }
 
+const usage = `Usage: bun run release <command> <plan.json> [source-directory|client-directory]
+
+Commands: plan-nightly, plan-release, build, assemble, clients, publish.
+
+The release workflows run these steps with GitHub credentials
+(GITHUB_REPOSITORY, GH_TOKEN, GITHUB_RUN_ID); they are not meant to be run by
+hand. See docs/operations/releases.md.`;
+
+if (process.argv.slice(2).some((a) => a === "--help" || a === "-h")) {
+  console.log(usage);
+  process.exit(0);
+}
+
 try {
   const [command, planPath, sourcePath, ...extra] = process.argv.slice(2);
-  if (!command || !planPath || extra.length)
-    throw new Error(
-      "Usage: bun run release <plan-nightly|plan-release|build|assemble|publish> <plan.json> [source-directory]",
-    );
+  if (!command || !planPath || extra.length) {
+    console.error(usage);
+    process.exit(64);
+  }
   const graphRoot = resolve(import.meta.dirname, "..");
   const github = new GitHub(
     required("GITHUB_REPOSITORY"),
@@ -497,6 +558,23 @@ try {
         images,
       }),
     );
+  } else if (command === "clients") {
+    // Checks the client downloads of the plan's version and writes the
+    // SHA256SUMS the workflow then signs and attests.
+    if (!sourcePath)
+      throw new Error("Give the directory of the client downloads.");
+    const manifest = manifestSchema.parse(
+      JSON.parse(await readFile(planPath, "utf8")),
+    );
+    const assets = await writeChecksums(resolve(sourcePath), manifest.version);
+    console.log(
+      assets.map((asset) => `${asset.sha256}  ${asset.name}`).join("\n"),
+    );
+    if (process.env.GITHUB_STEP_SUMMARY)
+      await appendFile(
+        process.env.GITHUB_STEP_SUMMARY,
+        `Client downloads of **${manifest.tag}**: ${assets.length} files.\n`,
+      );
   } else if (command === "assemble" || command === "publish") {
     const manifest = manifestSchema.parse(
       JSON.parse(await readFile(planPath, "utf8")),

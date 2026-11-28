@@ -115,8 +115,10 @@ sudo lictory install --email smtp
 lictory logs worker --tail 100
 ```
 
-Without email, create accounts with a password from the server:
-`sudo lictory admin create-user <email> --name <name>`.
+Without email, Lictory says so where it matters: inviting someone shows the
+invitation link to send them yourself (it was not emailed), and notification
+settings say email choices wait for outbound email. Create accounts with a
+password from the server: `sudo lictory admin create-user <email> --name <name>`.
 
 ### A person cannot create an account
 

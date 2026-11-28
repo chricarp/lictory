@@ -368,7 +368,7 @@ function inline(
         if (
           value.endsWith("@") &&
           next?.type === "link" &&
-          /^mention:[A-Za-z0-9_-]+$/.test(next.url)
+          /^(mention|agent):[A-Za-z0-9_-]+$/.test(next.url)
         )
           value = value.slice(0, -1);
         out.push(...legacyPageLinks(value, marks));
@@ -418,7 +418,7 @@ function inline(
         return;
       case "link": {
         const previous = nodes[index - 1];
-        const mention = /^mention:([A-Za-z0-9_-]+)$/.exec(node.url);
+        const mention = /^(mention|agent):([A-Za-z0-9_-]+)$/.exec(node.url);
         if (
           mention &&
           previous?.type === "text" &&
@@ -428,7 +428,11 @@ function inline(
             withMarks(
               {
                 type: "mention",
-                attrs: { id: mention[1]!, label: plain(node) },
+                attrs: {
+                  id: mention[2]!,
+                  label: plain(node),
+                  ...(mention[1] === "agent" ? { kind: "agent" } : {}),
+                },
               },
               marks,
             ),
@@ -577,7 +581,9 @@ function block(node: RootContent, context: Context): MarkdownJSON {
 
 // ---------------------------------------------------------------- writing
 
-type Inline = { table: boolean };
+// `heading`: the text follows "## " on one line, where nothing can start a
+// block, so line-start escapes would only change the heading's text.
+type Inline = { table: boolean; heading?: boolean };
 
 function escapeText(text: string, inTable: boolean) {
   let out = "";
@@ -770,7 +776,7 @@ function renderLeaf(
             i > 0 ? line.replace(/^[ \t]+/, "") : line,
             false,
           );
-          if (atStart)
+          if (atStart && !options.heading)
             escaped = escapeLineStart(escaped.replace(/^[ \t]+/, ""));
           return escaped;
         })
@@ -788,7 +794,7 @@ function renderLeaf(
         str(a.label)
           .replace(/[[\]\n]/g, "")
           .trim() || "member";
-      return `@[${label}](mention:${String(a.id)})`;
+      return `@[${label}](${a.kind === "agent" ? "agent" : "mention"}:${String(a.id)})`;
     }
     case "workItemRef":
       return formatReference(
@@ -857,7 +863,7 @@ export function renderBlock(
         "",
       );
     case "heading": {
-      const text = renderInline(node.content, { table: false })
+      const text = renderInline(node.content, { table: false, heading: true })
         .replace(/\\\n|\n/g, " ")
         .trimEnd()
         .replace(/#+$/, (m) => `\\${m}`);

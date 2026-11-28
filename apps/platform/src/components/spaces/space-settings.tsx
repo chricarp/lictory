@@ -39,7 +39,7 @@ import {
   useSpaces,
 } from "@lictory/platform/components/spaces/store";
 import { useSpace } from "@lictory/platform/components/spaces/space-gate";
-import { SpaceBreadcrumbs } from "@lictory/platform/components/spaces/breadcrumbs";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import {
   Dialog,
   SegmentedChoice,
@@ -145,42 +145,45 @@ export function SpaceSettings() {
   const canEditDetails =
     spaceLevelAtLeast(levelOf(space.id), "edit") && !space.archivedAt;
   const manage = canManageSpace(space);
+  const org = useWorkspace().organization.slug;
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-2xl px-4 pt-5 pb-16 sm:px-8 sm:pt-7">
-        <SpaceBreadcrumbs space={space} />
-        <header className="mt-4 flex items-center gap-3">
-          <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted">
-            <SpaceIcon space={space} className="size-5 text-lg" />
+    <div className="flex h-full flex-col">
+      <PageHeader
+        title="Space settings"
+        icon={<SpaceIcon space={space} className="text-sm" />}
+        back={{
+          label: `Back to ${space.name}`,
+          href: paths.space(org, space.slug),
+        }}
+        breadcrumbs={[
+          { label: "Spaces", href: paths.spaces(org) },
+          { label: space.name, href: paths.space(org, space.slug) },
+        ]}
+        meta={(manage || canEditDetails) && "Changes save as you make them"}
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-2xl px-4 pt-2 pb-16 sm:px-8 sm:pt-4">
+          {!manage && (
+            <div className="mt-5">
+              <ReadOnlyNotice>
+                {canEditDetails
+                  ? "You can change the details. The space’s administrators decide its location, publishing and access."
+                  : "You can view these settings. Ask an administrator of this space to change them."}
+              </ReadOnlyNotice>
+            </div>
+          )}
+          <div className="mt-8 space-y-9">
+            <DetailsSection space={space} canEdit={canEditDetails} />
+            <LocationSection
+              space={space}
+              canEdit={manage && !space.archivedAt}
+            />
+            <AccessSection
+              space={space}
+              canEdit={manage && !space.archivedAt}
+            />
+            <ArchiveSection space={space} canEdit={manage} />
           </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-lg leading-tight font-semibold tracking-tight">
-              Space settings
-            </h1>
-            {(manage || canEditDetails) && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Changes save as you make them.
-              </p>
-            )}
-          </div>
-        </header>
-        {!manage && (
-          <div className="mt-5">
-            <ReadOnlyNotice>
-              {canEditDetails
-                ? "You can change the details. The space’s administrators decide its location, publishing and access."
-                : "You can view these settings. Ask an administrator of this space to change them."}
-            </ReadOnlyNotice>
-          </div>
-        )}
-        <div className="mt-8 space-y-9">
-          <DetailsSection space={space} canEdit={canEditDetails} />
-          <LocationSection
-            space={space}
-            canEdit={manage && !space.archivedAt}
-          />
-          <AccessSection space={space} canEdit={manage && !space.archivedAt} />
-          <ArchiveSection space={space} canEdit={manage} />
         </div>
       </div>
     </div>
@@ -236,8 +239,7 @@ function Setting({
   );
 }
 
-const field =
-  "border-foreground/15 focus-visible:border-ring/60 disabled:opacity-60";
+const field = "border-input focus-visible:border-ring/60 disabled:opacity-60";
 
 function DetailsSection({
   space,
@@ -737,7 +739,7 @@ function GrantRow({
     });
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-[13px]">
-      <Avatar image={image} name={name} size="md" />
+      <Avatar userId={grant.userId} image={image} name={name} size="md" />
       <div className="min-w-0 flex-1 basis-56">
         <div className="flex min-w-0 items-baseline gap-2">
           <span className="shrink-0 font-medium">

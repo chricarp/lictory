@@ -101,7 +101,7 @@ export function EpicPicker({
         ref={setField}
         data-state={open ? "open" : "closed"}
         className={cn(
-          "flex h-9 w-full min-w-0 cursor-text items-center gap-2 rounded-md border bg-card px-2.5 transition-[border-color,box-shadow] duration-100 ease-out focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10 hover:border-foreground/20",
+          "flex h-9 w-full min-w-0 cursor-text items-center gap-2 rounded-md border border-input bg-card px-2.5 transition-[border-color,box-shadow] duration-100 ease-out focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10 hover:border-foreground/20",
           className,
         )}
         onMouseDown={(event) => {
@@ -119,7 +119,7 @@ export function EpicPicker({
           placeholder="Search for a parent…"
           autoComplete="off"
           spellCheck={false}
-          className="h-8 min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground touch:text-base"
+          className="h-8 min-w-0 flex-1 bg-transparent text-[13px] text-ellipsis outline-none placeholder:text-muted-foreground touch:text-base"
           onFocus={show}
           onClick={show}
           onKeyDown={(event) => {

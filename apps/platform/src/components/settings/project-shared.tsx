@@ -68,17 +68,41 @@ export function Choice<T extends string>({
         <Radio
           key={o.value}
           value={o.value}
-          className="block h-auto w-auto cursor-default rounded-lg px-3 py-2 text-left text-[13px] shadow-(--shadow-border) data-checked:bg-primary/6 data-checked:ring-1 data-checked:ring-primary/40 data-unchecked:not-data-disabled:hover:bg-muted/60 data-disabled:data-unchecked:opacity-60"
+          className="group/choice flex h-auto w-auto cursor-default items-start gap-2.5 rounded-lg px-3 py-2.5 text-left text-[13px] shadow-(--shadow-border) focus-ring outline-none data-checked:ring-2 data-checked:ring-foreground data-disabled:data-checked:ring-foreground/25 data-unchecked:not-data-disabled:hover:bg-muted/60 data-disabled:data-unchecked:opacity-60"
         >
-          <span className="font-medium">{o.label}</span>
-          {o.description && (
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              {o.description}
-            </span>
-          )}
+          <ChoiceMark />
+          <span className="min-w-0">
+            <span className="block font-medium">{o.label}</span>
+            {o.description && (
+              <span className="mt-0.5 block text-xs leading-[18px] text-muted-foreground">
+                {o.description}
+              </span>
+            )}
+          </span>
         </Radio>
       ))}
     </RadioGroup>
+  );
+}
+
+// The chosen option card says so with a filled radio and a 2px outline in
+// the text colour, the same outline as onboarding's choice cards (never a
+// grey fill, which reads as disabled). A choice that cannot be changed, or
+// cannot take effect yet, keeps its radio but only a faint outline, so it
+// never looks like the active setting. Put it in a `Radio` with the
+// `group/choice` and `data-checked:ring-2 data-checked:ring-foreground`
+// classes.
+export function ChoiceMark({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "mt-0.5 grid size-4 shrink-0 place-items-center rounded-full border border-input bg-background group-data-checked/choice:border-primary",
+        className,
+      )}
+    >
+      <span className="size-2 rounded-full bg-primary opacity-0 group-data-checked/choice:opacity-100" />
+    </span>
   );
 }
 

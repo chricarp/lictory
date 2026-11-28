@@ -1,3 +1,4 @@
+import { jsonLog } from "@lictory/api/log";
 import { timingSafeEqual } from "node:crypto";
 import {
   ApplicationError,
@@ -14,6 +15,22 @@ import { queries } from "@lictory/zero/queries";
 import { schema } from "@lictory/zero/schema";
 import { toCapabilityError } from "@lictory/core/capabilities/errors";
 import { mutationSchema } from "@lictory/core/contracts/protocol";
+import {
+  deleteMessageArgs,
+  editMessageArgs,
+  markReadArgs,
+  reactArgs,
+  sendMessageArgs,
+  threadArgs,
+} from "@lictory/core/channels/protocol";
+import {
+  deleteMessage,
+  editMessage,
+  markChannelRead,
+  postMessage,
+  reactToMessage,
+  updateThreadParticipation,
+} from "@lictory/core/channels/writer";
 import { env } from "@lictory/core/lib/env";
 import {
   applyMutation,
@@ -57,15 +74,12 @@ function isRetryable(error: unknown): boolean {
 function applicationError(error: unknown) {
   const normalized = toCapabilityError(error);
   if (normalized.category === "server")
-    console.error(
-      JSON.stringify({
-        event: "zero.mutate.error",
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      }),
-    );
+    jsonLog("error", "zero.mutate.error", {
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
   return new ApplicationError(normalized.message, {
     details: normalized.toJSON(),
   });
@@ -74,7 +88,62 @@ function applicationError(error: unknown) {
 // The shared mutators with `workspace.apply` replaced by the domain command,
 // run inside Zero's transaction so domain writes, projections, the
 // idempotency receipt and Zero's own bookkeeping commit together.
+// The conversation writer's operations (Lictory Channels), run inside Zero's
+// transaction with the verified user; refusals become application errors.
+function channelMutator<A>(
+  parse: (
+    args: unknown,
+  ) => { success: true; data: A } | { success: false; error: unknown },
+  run: (tx: Tx, actor: { userId: string }, args: A) => Promise<unknown>,
+) {
+  return defineMutator(async ({ tx, args, ctx }) => {
+    if (tx.location !== "server")
+      throw new Error(
+        "channels mutators on the server need a server transaction.",
+      );
+    tx.retryOn((error) => isRetryable(error));
+    const parsed = parse(args);
+    if (!parsed.success) throw applicationError(parsed.error);
+    try {
+      await run(
+        tx.dbTransaction.wrappedTransaction as Tx,
+        { userId: (ctx as ServerContext).userID },
+        parsed.data,
+      );
+    } catch (error) {
+      if (isRetryable(error)) throw error;
+      throw applicationError(error);
+    }
+  });
+}
+
 export const serverMutators = defineMutators(mutators, {
+  channels: {
+    send: channelMutator(
+      (a) => sendMessageArgs.safeParse(a),
+      (tx, actor, a) => postMessage(tx, actor, a),
+    ),
+    edit: channelMutator(
+      (a) => editMessageArgs.safeParse(a),
+      (tx, actor, a) => editMessage(tx, actor, a),
+    ),
+    remove: channelMutator(
+      (a) => deleteMessageArgs.safeParse(a),
+      (tx, actor, a) => deleteMessage(tx, actor, a),
+    ),
+    react: channelMutator(
+      (a) => reactArgs.safeParse(a),
+      (tx, actor, a) => reactToMessage(tx, actor, a),
+    ),
+    markRead: channelMutator(
+      (a) => markReadArgs.safeParse(a),
+      (tx, actor, a) => markChannelRead(tx, actor, a),
+    ),
+    thread: channelMutator(
+      (a) => threadArgs.safeParse(a),
+      (tx, actor, a) => updateThreadParticipation(tx, actor, a),
+    ),
+  },
   workspace: {
     apply: defineMutator(async ({ tx, args, ctx }) => {
       if (tx.location !== "server")

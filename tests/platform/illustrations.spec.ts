@@ -73,7 +73,7 @@ test("empty states show theme-aware artwork that reacts to the pointer and stays
   await page.getByLabel("Password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(appHome);
-  await page.getByRole("button", { name: /^Create a workspace/ }).click();
+  await page.getByRole("button", { name: /^Create an organization/ }).click();
   await createWorkspace(page, {
     organization: "Illustration States",
     project: "Design",
@@ -96,7 +96,7 @@ test("empty states show theme-aware artwork that reacts to the pointer and stays
   // The accent follows the theme's interactive color.
   const colors = await accentColors(artwork);
   expect(colors.stroke).toBe(colors.ring);
-  await page.getByRole("link", { name: "Reviews", exact: true }).click();
+  await page.getByRole("link", { name: "My reviews", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "No reviews waiting for you" }),
   ).toBeVisible();

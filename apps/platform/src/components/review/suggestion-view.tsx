@@ -1,3 +1,4 @@
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { useState } from "react";
 import {
   ArrowLeft,
@@ -137,7 +138,7 @@ function SuggestionBody({
           v{suggestion.version} · against revision{" "}
           {revisionNumber(suggestion.revisionId) ?? "?"}
           {suggestion.status === "merged" && suggestion.mergedRevisionId
-            ? ` · merged as revision ${revisionNumber(suggestion.mergedRevisionId) ?? ""}`
+            ? ` · accepted as revision ${revisionNumber(suggestion.mergedRevisionId) ?? ""}`
             : ""}
         </span>
       </div>
@@ -146,11 +147,7 @@ function SuggestionBody({
           {suggestion.title ?? suggestion.rationale ?? "Proposed change"}
         </h2>
         <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <Avatar
-            userId={suggestion.authorId}
-            name={memberName(suggestion.authorId)}
-            size="xs"
-          />
+          <Actor userId={suggestion.authorId} label="none" size={16} />
           <span className="font-medium text-foreground">
             {memberName(suggestion.authorId)}
           </span>
@@ -184,8 +181,8 @@ function SuggestionBody({
             The specification moved to revision {current?.number} since this was
             written against revision {target?.number}.{" "}
             {isAuthor
-              ? "Update the suggestion against the current text before it can be merged."
-              : "The author must update it before it can be merged."}
+              ? "Update the suggestion against the current text before it can be accepted."
+              : "The author must update it before it can be accepted."}
           </span>
           {isAuthor && !readOnly && !editing && (
             <Button
@@ -243,7 +240,7 @@ function SuggestionBody({
               title={
                 state.mergeable
                   ? `Create revision ${(current?.number ?? 0) + 1} from this suggestion`
-                  : `Cannot merge: ${mergeBlockers.join("; ")}.`
+                  : `Cannot accept yet: ${mergeBlockers.join("; ")}.`
               }
               onClick={() =>
                 run({
@@ -253,7 +250,7 @@ function SuggestionBody({
                 })
               }
             >
-              <GitMerge className="size-3.5" /> Merge as revision{" "}
+              <GitMerge className="size-3.5" /> Accept as revision{" "}
               {(current?.number ?? 0) + 1}
             </Button>
           )}
@@ -460,7 +457,14 @@ function Reviewers({
                     label: m.name,
                     hint: m.email,
                     keywords: m.email,
-                    icon: <Avatar image={m.image} name={m.name} size="xs" />,
+                    icon: (
+                      <Avatar
+                        userId={m.id}
+                        image={m.image}
+                        name={m.name}
+                        size="xs"
+                      />
+                    ),
                   }))}
                   onSelect={(id) => {
                     close();
@@ -487,8 +491,8 @@ function Reviewers({
       {state.reviewers.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">
           {isAuthor
-            ? "Nobody has been asked yet. Add a reviewer who can edit specifications; their approval lets them merge this into the specification."
-            : "No reviewer assigned yet. Only an assigned reviewer can approve and merge this suggestion."}
+            ? "Nobody has been asked yet. Add a reviewer who can edit specifications; once they approve, they can accept it into the specification."
+            : "No reviewer assigned yet. Only an assigned reviewer can approve and accept this suggestion."}
         </p>
       ) : (
         <ul className="space-y-1">
@@ -509,11 +513,7 @@ function Reviewers({
                 ) : (
                   <span className="grid size-4 place-items-center rounded-full border border-dashed border-muted-foreground/60" />
                 )}
-                <Avatar
-                  userId={r.userId}
-                  name={memberName(r.userId)}
-                  size="xs"
-                />
+                <Actor userId={r.userId} label="none" size={16} />
                 <span className="font-medium">
                   {memberName(r.userId)}
                   {r.userId === userId ? " (me)" : ""}

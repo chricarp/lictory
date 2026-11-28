@@ -7,6 +7,10 @@ import { Logo } from "@lictory/ui/logo";
 import { HeaderGetStartedLinks } from "@lictory/marketing/components/marketing/get-started-cta";
 import { MobileNav } from "@lictory/marketing/components/marketing/mobile-nav";
 import type { CtaPageType } from "@lictory/marketing/lib/cta-analytics";
+import {
+  downloadLabel,
+  downloadPath,
+} from "@lictory/marketing/lib/get-started";
 
 /** Section anchors point home when this header appears on an article. */
 export function MarketingHeader({
@@ -21,12 +25,13 @@ export function MarketingHeader({
   const links = useMemo(
     () =>
       [
-        ["Workflow", `${sections}#features`],
+        ["How it works", `${sections}#how-it-works`],
+        ["Modules", `${sections}#modules`],
+        ["Factory", `${sections}#factory`],
         ["Agents", `${sections}#agents`],
-        ["Delivery", `${sections}#delivery`],
-        ["Spaces", `${sections}#spaces`],
         ["Open source", `${sections}#open-source`],
         ["Guides", "/guides"],
+        [downloadLabel, downloadPath],
       ] as const,
     [sections],
   );
@@ -48,9 +53,11 @@ export function MarketingHeader({
       let nextHref =
         pathname === "/guides" || pathname.startsWith("/guides/")
           ? "/guides"
-          : null;
+          : pathname === downloadPath
+            ? downloadPath
+            : null;
       // Read only the navigation targets, once per frame. Nested sections
-      // (Agents inside Workflow) win once their heading clears the dock.
+      // (Open source inside Self-hosted) win once their heading clears the dock.
       for (const { href, element } of targets) {
         if (element.getBoundingClientRect().top <= 160) nextHref = href;
       }

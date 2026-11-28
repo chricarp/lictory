@@ -1,13 +1,23 @@
 ---
 title: Introduction
-description: Lictory turns rough product intent into an agreed, implementation-ready specification, then delivers it in Lictory or hands it to Jira.
+description: Lictory is the open-source control plane of a software factory, where a team and its agents agree on what to build, write and review the code and ship it, with people making the decisions.
 ---
 
-Lictory is a work-management platform for software teams. What sets it apart
-is what happens **before** development: specifications are drafted, reviewed,
-discussed, revised and approved the way code changes are, so a team can go
-from “_Product wants to build this_” to “_Engineering can safely commit to
-building this_” without a meeting for every requirement.
+One self-hosted product holds what a team would otherwise stitch together:
+team chat with agents as members, work management, agents running on
+machines you control, your code host's pull requests and checks, and
+knowledge pages. People make the decisions; agents do much of the work in
+between, each with an owner who is accountable for it.
+
+Every piece of work follows one loop. A conversation in a
+[channel](/channels) is promoted into a proposal. The proposal becomes a
+specification that is drafted, reviewed and approved the way code changes are,
+so a team goes from “_Product wants to build this_” to “_Engineering can safely
+commit to building this_” without a meeting for every requirement. Agents on
+[runners you control](/factory/runners) then claim the agreed work, open pull
+requests on your [code host](/integrations/code-hosts) and answer review, and
+an item is done when the evidence says so: merged code, passing checks and the
+project's Definition of Done.
 
 <Lifecycle />
 
@@ -27,6 +37,19 @@ part as equals: each reviews the concerns it owns. Lictory Intelligence can
 point out gaps, contradictions and missing scenarios and propose changes, but
 people decide what becomes part of the specification. Lictory works fully
 without AI.
+
+## Agents that do the work, people who decide
+
+The [Factory](/factory) runs coding agents (Claude Code, Codex, OpenCode,
+Gemini CLI or Lictory's built-in agent) on runners you control. Each agent has
+a name, an owner and a scope, acts with its owner's permissions and is shown as
+acting via that person. A project's [autonomy policy](/factory/autonomy)
+decides how much happens by itself: agents help when asked (Assist), take
+ready work and open pull requests that people merge (Build), or Lictory also
+merges an agent's pull request when every required check passes (Autopilot).
+Specification approvals, accepted scope and resolved discussions always stay a
+person's act. Text is never permission: a message, issue or model output
+cannot authorize anything.
 
 ## Two ways to deliver
 
@@ -62,8 +85,14 @@ and operating a server, use the guided [lictory CLI](/self-hosting/terminal).
 
 <Cards>
   <Card title="Getting started" href="/getting-started">
-    Install your server, create an organization and a project, invite your team
-    and take a first specification from proposal to delivery.
+    Install your server, create a project, invite your team, connect your code
+    host and a first agent, and take a specification from proposal to delivery.
+  </Card>
+  <Card title="Factory" href="/factory">
+    Runners, agents, sessions, autonomy and the Definition of Done.
+  </Card>
+  <Card title="Channels" href="/channels">
+    Team chat with agents as members, and promotion of what matters.
   </Card>
   <Card title="First steps" href="/basics/navigation">
     Find your way around, set up your account, learn the shortcuts and the words

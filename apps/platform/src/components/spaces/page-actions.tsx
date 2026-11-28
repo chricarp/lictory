@@ -6,6 +6,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useId,
   useMemo,
   useState,
@@ -20,7 +21,11 @@ import {
   iterationLabel,
   spaceLevelAtLeast,
 } from "@lictory/core/contracts/protocol";
-import { useRouter } from "@lictory/platform/lib/navigation";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "@lictory/platform/lib/navigation";
 import {
   isWithin,
   pageTree,
@@ -91,6 +96,18 @@ export function PageActionsProvider({
   const canEdit =
     spaceLevelAtLeast(levelOf(space.id), "edit") && !space.archivedAt;
   const [creating, setCreating] = useState<{ parentId: string | null }>();
+  // `?new=page` (the command palette's "New page in …") opens the new page
+  // dialog once the space is editable here, then leaves the address.
+  const pathname = usePathname();
+  const wantsNewPage = useSearchParams().get("new") === "page";
+  const [askedNewPage, setAskedNewPage] = useState(false);
+  if (wantsNewPage && canEdit && online && !askedNewPage) {
+    setAskedNewPage(true);
+    setCreating({ parentId: null });
+  } else if (!wantsNewPage && askedNewPage) setAskedNewPage(false);
+  useEffect(() => {
+    if (askedNewPage && wantsNewPage) router.replace(pathname);
+  }, [askedNewPage, wantsNewPage, router, pathname]);
   const [moving, setMoving] = useState<SpacePage>();
   const [announcement, setAnnouncement] = useState("");
   const titleOf = useCallback(
@@ -292,7 +309,7 @@ function NewPageDialog({
             value={title}
             maxLength={200}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Refund runbook"
+            placeholder="e.g. Refund runbook"
             autoComplete="off"
           />
         </Field>
@@ -471,7 +488,7 @@ function MovePageDialog({
               ),
             )}
             {matches.length > shown.length && (
-              <p className="px-2 py-1.5 text-[11px] text-muted-foreground">
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">
                 {matches.length - shown.length} more pages. Type to narrow down.
               </p>
             )}

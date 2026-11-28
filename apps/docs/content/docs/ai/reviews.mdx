@@ -82,24 +82,24 @@ has a severity (**Blocker**, **Major**, **Minor**, **Note**) and can show:
 
 - **Ask the team** turns a finding's question into a non-blocking discussion
   on the item, quoting its evidence.
-- Select the findings with a proposed change and choose **Open corrective
-  pull request** ([below](#fix-with-a-corrective-pull-request)).
+- Select the findings with a proposed change and choose **Propose a
+  corrective change** ([below](#fix-with-a-corrective-change)).
 - Ignore the rest. A finding changes nothing until someone acts on it.
 
 </Step>
 </Steps>
 
-### Fix with a corrective pull request
+### Fix with a corrective change
 
-Lictory Intelligence turns the changes you selected into pull requests,
-one per affected item:
+Lictory Intelligence turns the changes you selected into [proposed
+changes](/specifications/branches), one per affected item:
 
 1. Tick the findings to include. Only findings with a proposed change can be
    selected.
-2. Choose **Open corrective pull request** (or **pull requests** when the
-   findings cover several items).
-3. Each item shows **pull request opened**, or why it was not. A pull request
-   that was opened is not opened again for the same review.
+2. Choose **Propose a corrective change** (or **corrective changes** when
+   the findings cover several items).
+3. Each item shows **change sent for review**, or why it was not. A change
+   that was sent is not sent again for the same review.
 
 The pull request applies exactly the selected changes, without asking the
 model again. Lictory Intelligence is its author, and you are invited to its
@@ -167,7 +167,7 @@ A run that is already in progress must finish first.
 ## As a readiness check
 
 A project can require a clean review before an item is **Ready**. In
-**Project settings → Readiness**, add **Require a Lictory Intelligence
+**Project settings → Definition of Ready**, add **Require a Lictory Intelligence
 review** to a type and choose what fails it: **Lictory Intelligence found no
 blocker in the current revision**, or **no blocker or major finding**.
 

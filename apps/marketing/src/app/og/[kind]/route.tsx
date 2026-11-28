@@ -1,5 +1,6 @@
 import { ogCard } from "@lictory/marketing/lib/og-card";
 import { previewLabels } from "@lictory/marketing/lib/social-preview";
+import { siteCardTagline } from "@lictory/marketing/lib/site";
 
 export const dynamic = "force-static";
 export function generateStaticParams() {
@@ -17,18 +18,18 @@ export async function GET(
   const marketing = kind === "marketing";
   return ogCard({
     eyebrow: marketing
-      ? "Before the first line of code"
+      ? "The software factory"
       : "Shared work · Private details",
     title: marketing
-      ? "Agree on what to build before anyone builds it"
+      ? "From conversation to shipped code, with your team in charge"
       : `${previewLabels[kind as keyof typeof previewLabels]} in Lictory`,
-    titleSize: marketing ? 68 : 72,
+    titleSize: marketing ? 64 : 72,
     subtitle: marketing
-      ? "People and agents refine one specification on parallel branches."
+      ? "Channels, reviewed specifications and coding agents on your own runners, in one self-hosted product."
       : "Sign in with an account that has access to see the details.",
     footer: marketing
-      ? ["Branch → Review → Merge → Deliver", "Open-source work management"]
-      : ["Requirements, reviewed like code.", "Access stays with your team."],
+      ? ["Talk → Agree → Build → Ship", "Open source · Self-hosted"]
+      : [siteCardTagline, "Access stays with your team."],
     headers: {
       "Cache-Control": "public, max-age=86400",
       "X-Content-Type-Options": "nosniff",

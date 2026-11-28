@@ -48,15 +48,17 @@ export function ActionError({ error }: { error: string }) {
 export function ChoosePerson({
   label,
   onSelect,
+  variant = "secondary",
 }: {
   label: string;
   onSelect: (id: string) => void;
+  variant?: "secondary" | "ghost";
 }) {
   return (
     <Popover
       width={280}
       trigger={(props) => (
-        <Button {...props} size="sm" variant="secondary">
+        <Button {...props} size="sm" variant={variant}>
           {label}
         </Button>
       )}

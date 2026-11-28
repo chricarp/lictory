@@ -5,6 +5,7 @@ import { DropdownItem, dropdownItemClass } from "@lictory/ui/dropdown";
 import { useItemPageCounts } from "@lictory/platform/components/knowledge/store";
 import { LoadingState } from "@lictory/ui/spinner";
 import { Link } from "@lictory/platform/lib/navigation";
+import { useSingleKeyShortcuts } from "@lictory/platform/lib/session";
 import { paths } from "@lictory/core/lib/paths";
 import {
   usePathname,
@@ -18,6 +19,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import {
@@ -76,6 +78,7 @@ import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { PriorityIcon } from "@lictory/platform/components/items/properties";
 import { ColorDot } from "@lictory/platform/components/items/labels";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import {
   ItemPreviewCard,
   useItemPreview,
@@ -89,6 +92,7 @@ export function IssueList({
   compact = false,
   title,
   description,
+  breadcrumbs,
   emptyTitle = "No items",
   emptyBody,
   emptyIllustration = "proposal",
@@ -110,6 +114,8 @@ export function IssueList({
   compact?: boolean;
   title: string;
   description?: string;
+  // Pages above this one in the page header (the project).
+  breadcrumbs?: readonly { label: string; href: string }[];
   emptyTitle?: string;
   emptyBody?: ReactNode;
   emptyIllustration?: IllustrationKind;
@@ -142,10 +148,15 @@ export function IssueList({
     directory,
   } = useWorkspace();
   const { openCreate } = useShell();
+  // Phones list a row as the title over one line of key and signals, like
+  // the list beside an open item.
+  const phone = usePhone();
   const capabilities = capabilitiesIn(project?.id);
   const canCreate =
     capabilities.editSpecifications || capabilities.changeProperties;
   const router = useRouter();
+  // J, K and O can be turned off; the arrow keys and Enter always work.
+  const singleKey = useSingleKeyShortcuts();
   // Filters, sort, grouping and the archived toggle are URL state.
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -283,6 +294,11 @@ export function IssueList({
     delivery,
     categoryFor,
   ]);
+  // A column nobody in the list fills is noise: the estimate column shows
+  // only when something here is estimated.
+  const showEstimate =
+    project?.estimateScale !== "none" &&
+    visible.some((i) => i.estimate !== null);
   const groups = useMemo<
     {
       key: string;
@@ -411,20 +427,20 @@ export function IssueList({
       )
         return;
       const index = order.findIndex((i) => i.id === focus);
-      if (event.key === "j" || event.key === "ArrowDown") {
+      if ((singleKey && event.key === "j") || event.key === "ArrowDown") {
         event.preventDefault();
         const next = order[Math.min(order.length - 1, index + 1)];
         if (next) setFocus(next.id);
         setCursorShown(true);
         navigatedFrom.current = target;
-      } else if (event.key === "k" || event.key === "ArrowUp") {
+      } else if ((singleKey && event.key === "k") || event.key === "ArrowUp") {
         event.preventDefault();
         const prev = order[Math.max(0, index - 1)];
         if (prev) setFocus(prev.id);
         setCursorShown(true);
         navigatedFrom.current = target;
       } else if (
-        (event.key === "Enter" || event.key === "o") &&
+        (event.key === "Enter" || (singleKey && event.key === "o")) &&
         focus &&
         cursorShown
       ) {
@@ -437,7 +453,7 @@ export function IssueList({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [order, focus, cursorShown, hrefFor, router]);
+  }, [order, focus, cursorShown, hrefFor, router, singleKey]);
   useEffect(() => {
     // Focus moving anywhere ends the Enter override: Enter then activates
     // whatever the user focused, even if it is the same control again.
@@ -478,257 +494,278 @@ export function IssueList({
   const teams = projectTeams(delivery, project?.id)
     .filter((t) => !t.archivedAt || filters.team?.includes(t.id))
     .sort((a, b) => a.name.localeCompare(b.name));
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header
-        className={cn(
-          "flex shrink-0 items-center gap-2 border-b px-3",
-          // Beside an item, exactly as tall as the item's header so the two
-          // borders line up; on its own page it may wrap onto more lines.
-          compact ? "h-11" : "min-h-11 flex-wrap py-2",
+  // Search, filters, sort and create: in the list's own bar beside an item,
+  // in the page header on its own page.
+  const controls = (
+    <>
+      {compact ? (
+        <button
+          ref={searchButtonRef}
+          type="button"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color] duration-100 ease-out hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
+          aria-label={searchOpen ? "Close item search" : "Search items"}
+          title={searchOpen ? "Close search (Esc)" : "Search items"}
+          aria-expanded={searchOpen}
+          aria-controls={searchInputId}
+          onClick={() => {
+            if (searchOpen) closeSearch();
+            else {
+              setSearchExpanded(true);
+              requestAnimationFrame(() => searchInputRef.current?.focus());
+            }
+          }}
+        >
+          {searchOpen ? (
+            <X className="size-3.5" />
+          ) : (
+            <Search className="size-3.5" />
+          )}
+        </button>
+      ) : (
+        <Input
+          value={search}
+          onValueChange={setSearch}
+          placeholder="Filter…"
+          aria-label="Filter by title or identifier"
+          className="h-7 w-32 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-placeholder focus:bg-muted max-sm:hidden touch:text-base"
+        />
+      )}
+      <Popover
+        width={280}
+        align="end"
+        trigger={(props) => (
+          <Button
+            {...props}
+            variant="ghost"
+            size="sm"
+            aria-label={
+              activeFilterCount > 0
+                ? `Filters, ${activeFilterCount} active`
+                : "Filters"
+            }
+          >
+            <Filter className="size-3.5" />
+            {!compact && <span className="max-sm:hidden">Filters</span>}
+            {activeFilterCount > 0 && (
+              // The count is in the button's name; drawn so the visible
+              // label stays a part of that name (WCAG 2.5.3).
+              <span
+                aria-hidden
+                data-count={activeFilterCount}
+                className="rounded-full bg-foreground px-1.5 text-[10px] font-semibold text-background before:content-[attr(data-count)]"
+              />
+            )}
+          </Button>
         )}
       >
-        <div className={cn("min-w-0", compact && "relative h-7 flex-1")}>
-          <div
-            aria-hidden={compact && searchOpen ? true : undefined}
-            inert={compact && searchOpen}
-            className={cn(
-              "flex min-w-0 items-center gap-2",
-              compact &&
-                "h-7 transition-opacity duration-150 ease-out motion-reduce:transition-none",
-              compact && searchOpen && "pointer-events-none opacity-0",
-            )}
+        <FilterPanel
+          filters={filters}
+          setFilters={setFilters}
+          epics={allowEpicFilter ? epics : []}
+          types={types}
+          teams={teams}
+          project={project}
+          labels={allLabels.filter(
+            (l) => l.projectId === project?.id && !l.archivedAt,
+          )}
+          milestones={allMilestones.filter(
+            (m) => m.projectId === project?.id && !m.archivedAt,
+          )}
+        />
+      </Popover>
+      <Popover
+        width={200}
+        align="end"
+        trigger={(props) => (
+          <Button
+            {...props}
+            variant="ghost"
+            size="sm"
+            aria-label="Sort and group"
           >
-            <h1 className="truncate text-sm font-semibold">{title}</h1>
-            <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-              {visible.length}
-            </span>
-            {header}
-          </div>
-          {compact && (
-            <div
-              aria-hidden={!searchOpen}
-              inert={!searchOpen}
-              className={cn(
-                "absolute inset-0 transition-[clip-path,opacity] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
-                searchOpen
-                  ? "opacity-100 [clip-path:inset(0)]"
-                  : "pointer-events-none opacity-0 [clip-path:inset(0_0_0_100%)]",
-              )}
-            >
-              <Search
-                aria-hidden
-                className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                ref={searchInputRef}
-                id={searchInputId}
-                value={search}
-                onValueChange={setSearch}
-                onBlur={(e) => {
-                  if (!search && e.relatedTarget !== searchButtonRef.current)
-                    setSearchExpanded(false);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key !== "Escape") return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  closeSearch();
-                }}
-                placeholder="Search items…"
-                aria-label="Filter by title or identifier"
-                className="h-7 w-full min-w-0 rounded-md bg-muted/70 pr-2 pl-7 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset forced-colors:focus-visible:outline-2 forced-colors:focus-visible:-outline-offset-2 forced-colors:focus-visible:outline-solid touch:text-base"
-              />
-            </div>
-          )}
-        </div>
-        <div
-          className={cn(
-            "ml-auto flex min-w-0 items-center gap-1",
-            compact && "shrink-0",
-          )}
-        >
-          {compact ? (
-            <button
-              ref={searchButtonRef}
-              type="button"
-              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-[background-color,color] duration-100 ease-out hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none"
-              aria-label={searchOpen ? "Close item search" : "Search items"}
-              title={searchOpen ? "Close search (Esc)" : "Search items"}
-              aria-expanded={searchOpen}
-              aria-controls={searchInputId}
-              onClick={() => {
-                if (searchOpen) closeSearch();
-                else {
-                  setSearchExpanded(true);
-                  requestAnimationFrame(() => searchInputRef.current?.focus());
-                }
-              }}
-            >
-              {searchOpen ? (
-                <X className="size-3.5" />
-              ) : (
-                <Search className="size-3.5" />
-              )}
-            </button>
-          ) : (
-            <Input
-              value={search}
-              onValueChange={setSearch}
-              placeholder="Filter…"
-              aria-label="Filter by title or identifier"
-              className="h-7 w-32 rounded-md bg-muted/70 px-2 text-xs outline-none placeholder:text-muted-foreground/70 focus:bg-muted touch:text-base"
-            />
-          )}
-          <Popover
-            width={280}
-            align="end"
-            trigger={(props) => (
-              <Button
-                {...props}
-                variant="ghost"
-                size="sm"
-                aria-label={
-                  activeFilterCount > 0
-                    ? `Filters, ${activeFilterCount} active`
-                    : "Filters"
-                }
-              >
-                <Filter className="size-3.5" />
-                {!compact && "Filters"}
-                {activeFilterCount > 0 && (
-                  // The count is in the button's name; drawn so the visible
-                  // label stays a part of that name (WCAG 2.5.3).
-                  <span
-                    aria-hidden
-                    data-count={activeFilterCount}
-                    className="rounded-full bg-foreground px-1.5 text-[10px] font-semibold text-background before:content-[attr(data-count)]"
-                  />
+            <ArrowUpDown className="size-3.5" />
+          </Button>
+        )}
+      >
+        <div className="p-1">
+          <p className="px-2 pt-1 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
+            Sort by
+          </p>
+          <RadioGroup<SortKey>
+            aria-label="Sort by"
+            value={sort}
+            onValueChange={(next) => {
+              if (next) setSort(next);
+            }}
+            className="flex flex-col gap-0"
+          >
+            {(
+              [
+                "updated",
+                "created",
+                "priority",
+                "status",
+                "number",
+              ] as SortKey[]
+            ).map((key) => (
+              <Radio
+                key={key}
+                value={key}
+                className={cn(
+                  dropdownItemClass,
+                  "data-checked:font-medium data-checked:text-primary",
                 )}
-              </Button>
-            )}
-          >
-            <FilterPanel
-              filters={filters}
-              setFilters={setFilters}
-              epics={allowEpicFilter ? epics : []}
-              types={types}
-              teams={teams}
-              project={project}
-              labels={allLabels.filter(
-                (l) => l.projectId === project?.id && !l.archivedAt,
-              )}
-              milestones={allMilestones.filter(
-                (m) => m.projectId === project?.id && !m.archivedAt,
-              )}
-            />
-          </Popover>
-          <Popover
-            width={200}
-            align="end"
-            trigger={(props) => (
-              <Button
-                {...props}
-                variant="ghost"
-                size="sm"
-                aria-label="Sort and group"
               >
-                <ArrowUpDown className="size-3.5" />
-              </Button>
-            )}
-          >
-            <div className="p-1">
-              <p className="px-2 pt-1 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
-                Sort by
-              </p>
-              <RadioGroup<SortKey>
-                aria-label="Sort by"
-                value={sort}
-                onValueChange={(next) => {
-                  if (next) setSort(next);
-                }}
-                className="flex flex-col gap-0"
-              >
-                {(
-                  [
-                    "updated",
-                    "created",
-                    "priority",
-                    "status",
-                    "number",
-                  ] as SortKey[]
-                ).map((key) => (
-                  <Radio
-                    key={key}
-                    value={key}
-                    className={cn(
-                      dropdownItemClass,
-                      "data-checked:font-medium data-checked:text-primary",
-                    )}
-                  >
-                    {
-                      {
-                        updated: "Last updated",
-                        created: "Created",
-                        priority: "Priority",
-                        status: "Status",
-                        number: "Identifier",
-                      }[key]
-                    }
-                  </Radio>
-                ))}
-              </RadioGroup>
-              <div className="my-1 border-t" />
-              <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
-                <Checkbox
-                  checked={group}
-                  onCheckedChange={(checked) => setGroup(checked === true)}
-                />{" "}
-                Group by{" "}
-                {groupBy === "lifecycle"
-                  ? "lifecycle"
-                  : groupBy === "refinement"
-                    ? "refinement"
-                    : groupBy === "review"
-                      ? "review"
-                      : "status"}
-              </label>
-              {showArchivedToggle && (
-                <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
-                  <Checkbox
-                    checked={showArchived}
-                    onCheckedChange={(checked) =>
-                      setShowArchived(checked === true)
-                    }
-                  />{" "}
-                  Show archived
-                </label>
-              )}
-            </div>
-          </Popover>
-          {createKind && project && canCreate && (
-            <Button
-              size="sm"
-              onClick={() =>
-                openCreate({
-                  kind: createKind,
-                  intent: createIntent,
-                  projectId: project.id,
-                })
-              }
-              aria-label={createLabel ?? `New ${createKind}`}
-            >
-              <Plus className="size-3.5" />
-              {!compact && (createLabel ?? "New item")}
-            </Button>
+                {
+                  {
+                    updated: "Last updated",
+                    created: "Created",
+                    priority: "Priority",
+                    status: "Status",
+                    number: "Identifier",
+                  }[key]
+                }
+              </Radio>
+            ))}
+          </RadioGroup>
+          <div className="my-1 border-t" />
+          <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
+            <Checkbox
+              checked={group}
+              onCheckedChange={(checked) => setGroup(checked === true)}
+            />{" "}
+            Group by{" "}
+            {groupBy === "lifecycle"
+              ? "lifecycle"
+              : groupBy === "refinement"
+                ? "refinement"
+                : groupBy === "review"
+                  ? "review"
+                  : "status"}
+          </label>
+          {showArchivedToggle && (
+            <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
+              <Checkbox
+                checked={showArchived}
+                onCheckedChange={(checked) => setShowArchived(checked === true)}
+              />{" "}
+              Show archived
+            </label>
           )}
-          {!compact && <LittoLauncher className="ml-1" />}
         </div>
-      </header>
-      {description && !compact && (
-        <p className="border-b px-3 py-1.5 text-xs text-muted-foreground">
-          {description}
-        </p>
+      </Popover>
+      {createKind && project && canCreate && (
+        <Button
+          size="sm"
+          onClick={() =>
+            openCreate({
+              kind: createKind,
+              intent: createIntent,
+              projectId: project.id,
+            })
+          }
+          aria-label={createLabel ?? `New ${createKind}`}
+          // Phones create from the bar's own button, which opens the same
+          // dialog for this page (a proposal on Proposals): one "+" per bar.
+          className={cn(!compact && "max-sm:hidden")}
+        >
+          <Plus className="size-3.5" />
+          {!compact && <span>{createLabel ?? "New item"}</span>}
+        </Button>
+      )}
+      {!compact && <LittoLauncher className="ml-1 max-sm:hidden" />}
+    </>
+  );
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {compact ? (
+        // Beside an open item, whose title is the page's heading.
+        <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
+          <div className={cn("min-w-0", compact && "relative h-7 flex-1")}>
+            <div
+              aria-hidden={compact && searchOpen ? true : undefined}
+              inert={compact && searchOpen}
+              className={cn(
+                "flex min-w-0 items-center gap-2",
+                compact &&
+                  "h-7 transition-opacity duration-150 ease-out motion-reduce:transition-none",
+                compact && searchOpen && "pointer-events-none opacity-0",
+              )}
+            >
+              <h2 className="truncate text-sm font-semibold">{title}</h2>
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {visible.length}
+              </span>
+              {header}
+            </div>
+            {compact && (
+              <div
+                aria-hidden={!searchOpen}
+                inert={!searchOpen}
+                className={cn(
+                  "absolute inset-0 transition-[clip-path,opacity] duration-150 ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+                  searchOpen
+                    ? "opacity-100 [clip-path:inset(0)]"
+                    : "pointer-events-none opacity-0 [clip-path:inset(0_0_0_100%)]",
+                )}
+              >
+                <Search
+                  aria-hidden
+                  className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                />
+                <Input
+                  ref={searchInputRef}
+                  id={searchInputId}
+                  value={search}
+                  onValueChange={setSearch}
+                  onBlur={(e) => {
+                    if (!search && e.relatedTarget !== searchButtonRef.current)
+                      setSearchExpanded(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Escape") return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeSearch();
+                  }}
+                  placeholder="Search items…"
+                  aria-label="Filter by title or identifier"
+                  className="h-7 w-full min-w-0 rounded-md bg-muted/70 pr-2 pl-7 text-xs outline-none placeholder:text-placeholder focus:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-inset forced-colors:focus-visible:outline-2 forced-colors:focus-visible:-outline-offset-2 forced-colors:focus-visible:outline-solid touch:text-base"
+                />
+              </div>
+            )}
+          </div>
+          <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1">
+            {controls}
+          </div>
+        </header>
+      ) : (
+        <PageHeader
+          title={title}
+          description={description}
+          breadcrumbs={breadcrumbs}
+          meta={
+            <>
+              <span className="tabular-nums">
+                {visible.length} {visible.length === 1 ? "item" : "items"}
+              </span>
+              {header}
+            </>
+          }
+          actions={<>{controls}</>}
+        />
+      )}
+      {!compact && (
+        // Phones: the filter takes a row of its own under the header.
+        <div className="shrink-0 border-b px-3 py-2 sm:hidden">
+          <Input
+            value={search}
+            onValueChange={setSearch}
+            placeholder="Filter…"
+            aria-label="Filter by title or identifier"
+            className="h-9 w-full rounded-md bg-muted/70 px-2.5 text-base outline-none placeholder:text-placeholder focus:bg-muted"
+          />
+        </div>
       )}
       {summary}
       {activeFilterCount > 0 && (
@@ -918,7 +955,7 @@ export function IssueList({
                   {createIntent === "proposal"
                     ? "Create a proposal"
                     : "Create an item"}{" "}
-                  <Kbd>C</Kbd>
+                  {singleKey && <Kbd>C</Kbd>}
                 </Button>
               ) : undefined
             }
@@ -933,7 +970,9 @@ export function IssueList({
               project &&
               !allItems.some((i) => i.projectId === project.id) &&
               isAdmin && (
-                <span className="mt-5 block text-left text-xs leading-relaxed">
+                // Centred like the title and text above it: one empty state,
+                // not two components stacked.
+                <span className="mt-5 block border-t pt-4 text-xs leading-relaxed">
                   <span className="block font-medium text-foreground">
                     Your next steps
                   </span>
@@ -1002,16 +1041,27 @@ export function IssueList({
                         // Column names, aligned with the rows' fixed slots.
                         <span
                           aria-hidden
-                          className="ml-auto hidden items-center gap-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-muted-foreground uppercase md:flex"
+                          className="ml-auto hidden items-center gap-2 font-normal text-muted-foreground md:flex"
                         >
-                          <span className="w-7 text-center">Est.</span>
-                          <span className="mr-3 w-36 @min-[65rem]/frame:w-52">
+                          {showEstimate && (
+                            <span className="w-7 text-center" title="Estimate">
+                              Est.
+                            </span>
+                          )}
+                          <span
+                            className="mr-3 w-36 @min-[65rem]/frame:w-52"
+                            title="Reviews and discussions of the current revision; — when there are none"
+                          >
                             Review
                           </span>
-                          <span className="w-16 @min-[65rem]/frame:w-24">
+                          <span
+                            className="w-16 @min-[65rem]/frame:w-24"
+                            title="Readiness checks that pass"
+                          >
                             Checks
                           </span>
-                          <span className="w-7 text-center">Who</span>
+                          <span className="sr-only">Assignee</span>
+                          <span className="w-7" />
                           <span className="hidden w-14 text-right sm:block">
                             Updated
                           </span>
@@ -1046,7 +1096,7 @@ export function IssueList({
                       href={hrefFor(item)}
                       selected={item.id === selectedId}
                       focused={cursorShown && item.id === focus}
-                      compact={compact}
+                      compact={compact || phone}
                       memberName={memberName}
                       onUpdate={
                         capabilities.changeProperties
@@ -1063,6 +1113,7 @@ export function IssueList({
                       }}
                       preview={compact ? previewTarget : undefined}
                       pages={pageCounts.get(item.id)}
+                      showEstimate={showEstimate}
                     />
                   ))}
                 </ul>
@@ -1331,5 +1382,19 @@ function FilterPanel({
         Review outstanding
       </label>
     </div>
+  );
+}
+
+const phoneQuery = "(max-width: 39.99rem)";
+function subscribePhone(onChange: () => void) {
+  const media = window.matchMedia(phoneQuery);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+function usePhone() {
+  return useSyncExternalStore(
+    subscribePhone,
+    () => window.matchMedia(phoneQuery).matches,
+    () => false,
   );
 }

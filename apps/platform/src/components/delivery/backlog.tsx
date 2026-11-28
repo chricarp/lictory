@@ -4,9 +4,12 @@ import { Link } from "@lictory/platform/lib/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
+  CalendarPlus,
   CircleAlert,
   CirclePlay,
+  CornerLeftUp,
   Flag,
+  ListOrdered,
   Plus,
   Repeat,
 } from "lucide-react";
@@ -32,26 +35,47 @@ import {
 import { Button } from "@lictory/ui/button";
 import { Input } from "@lictory/ui/input";
 import { Popover, Picker } from "@lictory/ui/popover";
-import { Avatar, EmptyState } from "@lictory/ui/primitives";
+import { EmptyState } from "@lictory/ui/primitives";
+import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { SectionCaption } from "@lictory/platform/components/shell/panel";
+import { MetaLine } from "@lictory/platform/components/shell/meta-line";
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { ClaimBadge } from "@lictory/platform/components/claims/claim-badge";
+import { useLiveClaims } from "@lictory/platform/components/claims/claims";
+import type { CodePullRequestEntity } from "@lictory/core/code/entities";
+import { PullRequestChip } from "@lictory/platform/components/code/parts";
+import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/store";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useShell } from "@lictory/platform/components/workspace/shell";
+import {
+  MoveMenu,
+  refocusMoved,
+} from "@lictory/platform/components/delivery/move-menu";
+import {
+  rankNeighbours,
+  type RankMove,
+} from "@lictory/platform/components/delivery/move";
 import {
   RefinementIcon,
   StatusIcon,
 } from "@lictory/platform/components/items/status";
 import { TypeIcon } from "@lictory/platform/components/items/icons";
 import { shortRange } from "@lictory/platform/components/items/delivery-properties";
-import { estimateLabel } from "@lictory/platform/components/delivery/card";
+import {
+  estimateLabel,
+  estimateSpoken,
+} from "@lictory/platform/components/delivery/card";
 import {
   ItemPeek,
   useItemPeek,
 } from "@lictory/platform/components/delivery/item-peek";
 import {
-  ExternalProjectNotice,
   TeamFilterPicker,
   useTeamFilter,
 } from "@lictory/platform/components/delivery/board";
+import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
 
 const DAY = 86_400_000;
@@ -85,7 +109,14 @@ export function useIterationReport(
 export function Backlog() {
   const project = useProject();
   if (project.deliveryMode === "external")
-    return <ExternalProjectNotice project={project} surface="backlog" />;
+    return (
+      <ExternalProjectNotice
+        project={project}
+        surface="backlog"
+        title="Backlog"
+        icon={<ListOrdered />}
+      />
+    );
   return <ProjectBacklog project={project} />;
 }
 
@@ -94,7 +125,6 @@ function ProjectBacklog({ project }: { project: Project }) {
     items,
     delivery,
     organization,
-    memberName,
     mutate,
     capabilitiesIn,
     canManage,
@@ -143,6 +173,7 @@ function ProjectBacklog({ project }: { project: Project }) {
   );
   const [drag, setDrag] = useState<string>();
   const [over, setOver] = useState<{ section: string; index: number }>();
+  const pullRequests = useOpenPullRequestsByItem();
   const move = (sectionId: string, rows: WorkItem[], index: number) => {
     const item = teamItems.find((i) => i.id === drag);
     setDrag(undefined);
@@ -165,6 +196,24 @@ function ProjectBacklog({ project }: { project: Project }) {
         afterId: after,
         beforeId: before,
       });
+  };
+  // "Move" on a row: ranks it within its section, as a drop there would.
+  const rank = (rows: WorkItem[], item: WorkItem, to: RankMove) => {
+    const neighbours = rankNeighbours(
+      rows.map((r) => r.id),
+      item.id,
+      to,
+    );
+    if (!neighbours) return;
+    void mutate({ type: "rankWorkItem", workItemId: item.id, ...neighbours });
+    refocusMoved(item.id);
+  };
+  const sectionName = (id: string) => {
+    const iteration =
+      id === "backlog" ? undefined : delivery.iterations.get(id);
+    return iteration
+      ? iterationLabel(iteration, project.iterationMode)
+      : "Backlog";
   };
   const createSprint = () => {
     const last = open.at(-1) ?? iterations.at(-1);
@@ -237,6 +286,7 @@ function ProjectBacklog({ project }: { project: Project }) {
                 )}
                 <BacklogRow
                   item={item}
+                  pullRequests={pullRequests.get(item.id)}
                   label={identifier(project, item.number)}
                   href={paths.item(
                     organization.slug,
@@ -249,7 +299,6 @@ function ProjectBacklog({ project }: { project: Project }) {
                       : teamFilter.teamName(item.teamId)
                   }
                   estimate={estimateLabel(project, item.estimate)}
-                  memberName={memberName}
                   draggable={capabilities.changeProperties}
                   dragging={drag === item.id}
                   selected={peek.peeked === identifier(project, item.number)}
@@ -259,6 +308,18 @@ function ProjectBacklog({ project }: { project: Project }) {
                     setDrag(undefined);
                     setOver(undefined);
                   }}
+                  actions={
+                    capabilities.changeProperties && (
+                      <MoveMenu
+                        itemId={item.id}
+                        label={identifier(project, item.number)}
+                        index={index}
+                        count={rows.length}
+                        where={sectionName(id)}
+                        onRank={(to) => rank(rows, item, to)}
+                      />
+                    )
+                  }
                 />
               </li>
             ))}
@@ -273,57 +334,77 @@ function ProjectBacklog({ project }: { project: Project }) {
   const points = (rows: WorkItem[]) =>
     rows.reduce((sum, i) => sum + (i.estimate ?? 0), 0);
   return (
-    <div
-      className={cn(
-        "h-full overflow-y-auto",
-        // Wide screens keep the list clear of the docked preview.
-        peek.peeked && "2xl:pr-[452px]",
-      )}
-    >
-      <div
-        className={cn(
-          "mx-auto max-w-4xl space-y-4 px-6 py-6",
-          peek.peeked && "pb-[60dvh]",
-        )}
-      >
-        <header className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-semibold tracking-tight">
-            {project.name} · Backlog
-          </h1>
-          <TeamFilterPicker filter={teamFilter} />
-          <ContextControl
-            project={project}
-            lists={[
-              { label: project.name },
-              ...(teamFilter.value && teamFilter.value !== "none"
-                ? [
-                    {
-                      label:
-                        delivery.teams.get(teamFilter.value)?.name ?? "Team",
-                      teamId: teamFilter.value,
-                    },
-                  ]
-                : []),
-            ]}
-          />
-          {averageVelocity !== undefined &&
-            project.estimateScale !== "none" && (
-              <span
-                className="text-xs text-muted-foreground"
-                title="Average completed points of recent iterations"
+    <div className="flex h-full flex-col">
+      <PageHeader
+        title="Backlog"
+        icon={<ListOrdered />}
+        breadcrumbs={[
+          {
+            label: project.name,
+            href: paths.project(organization.slug, project.key),
+          },
+        ]}
+        description="Rank work and plan when to take it on. Iteration planning stays tentative until the delivery scope is accepted."
+        meta={
+          averageVelocity !== undefined && project.estimateScale !== "none" ? (
+            <span
+              className="tabular-nums"
+              title="Average completed points of recent iterations"
+            >
+              Velocity {averageVelocity} pts
+            </span>
+          ) : undefined
+        }
+        actions={
+          <>
+            <div className="flex items-center gap-1 max-md:hidden">
+              <TeamFilterPicker filter={teamFilter} />
+              <ContextControl
+                project={project}
+                lists={[
+                  { label: project.name },
+                  ...(teamFilter.value && teamFilter.value !== "none"
+                    ? [
+                        {
+                          label:
+                            delivery.teams.get(teamFilter.value)?.name ??
+                            "Team",
+                          teamId: teamFilter.value,
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                render={
+                  <Link
+                    href={`${paths.refinement(organization.slug, project.key)}?stage=ready`}
+                  />
+                }
               >
-                Velocity {averageVelocity} pts
-              </span>
-            )}
-          <div className="ml-auto flex items-center gap-1">
+                Choose ready work
+              </Button>
+            </div>
             {canPlan && project.iterationMode === "manual" && (
-              <Button variant="secondary" size="sm" onClick={createSprint}>
-                <Plus className="size-3.5" /> New sprint
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={createSprint}
+                aria-label="New sprint"
+              >
+                <Plus className="size-3.5 max-sm:hidden" />
+                <CalendarPlus className="size-3.5 sm:hidden" />
+                <span className="max-sm:hidden">New sprint</span>
               </Button>
             )}
             {canCreate && (
               <Button
                 size="sm"
+                aria-label="New item"
+                // Phones create from the bar's own button.
+                className="max-sm:hidden"
                 onClick={() =>
                   openCreate({
                     intent: "work",
@@ -336,198 +417,208 @@ function ProjectBacklog({ project }: { project: Project }) {
                   })
                 }
               >
-                <Plus className="size-3.5" /> New item
+                <Plus className="size-3.5" />
+                <span className="max-sm:hidden">New item</span>
               </Button>
             )}
-            <LittoLauncher className="ml-1" />
-          </div>
-        </header>
-        <p className="text-[13px] text-muted-foreground">
-          Rank work and plan when to take it on. Iteration planning stays
-          tentative until the delivery scope is accepted.{" "}
-          <Link
-            href={`${paths.refinement(organization.slug, project.key)}?stage=ready`}
-            className="font-medium text-primary hover:underline"
-          >
-            Choose ready work →
-          </Link>
-        </p>
-        {project.iterationMode === "off" && (
-          <p className="text-[13px] text-muted-foreground">
-            {project.name} works without iterations. Rank the backlog by
-            dragging
-            {canManage(project.id) ? (
-              <>
-                ; enable sprints or cycles in{" "}
-                <Link
-                  className="underline"
-                  href={paths.projectSettings(
-                    organization.slug,
-                    project.key,
-                    "planning",
-                  )}
-                >
-                  project settings
-                </Link>
-              </>
-            ) : null}
-            .
-          </p>
+            <LittoLauncher className="ml-1 max-sm:hidden" />
+          </>
+        }
+      />
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto",
+          // Wide screens keep the list clear of the docked preview.
+          peek.peeked && "2xl:pr-[452px]",
         )}
-        {project.iterationMode === "automatic" && (
-          <p className="text-[13px] text-muted-foreground">
-            Cycles of {project.iterationWeeks} week
-            {project.iterationWeeks > 1 ? "s" : ""} start and complete
-            automatically; unfinished work rolls into the next cycle.
-            {canManage(project.id) && (
-              <>
-                {" "}
-                <Link
-                  className="underline"
-                  href={paths.projectSettings(
-                    organization.slug,
-                    project.key,
-                    "planning",
-                  )}
-                >
-                  Planning settings
-                </Link>
-              </>
-            )}
-          </p>
-        )}
-        {view.status === "hydrating" && teamItems.length === 0 ? (
-          <LoadingState label="Opening backlog" />
-        ) : (
-          <>
-            {open.map((it) => {
-              const rows = teamItems.filter((i) => i.iterationId === it.id);
-              return section(
-                it.id,
-                rows,
-                <IterationHeader
-                  project={project}
-                  iteration={it}
-                  iterationMode={project.iterationMode}
-                  rows={rows}
-                  points={points(rows)}
-                  // Velocity is the whole project's; it is no capacity for
-                  // one team.
-                  capacity={teamFilter.value ? undefined : averageVelocity}
-                  showPoints={project.estimateScale !== "none"}
-                  canPlan={canPlan && project.iterationMode === "manual"}
-                  hasActive={open.some((o) => o.state === "active")}
-                  nextPlanned={open.find(
-                    (o) => o.state === "planned" && o.id !== it.id,
-                  )}
-                  unfinished={
-                    rows.filter(
-                      (i) => !isClosedCategory(categoryOf(delivery, i)),
-                    ).length
-                  }
-                  reportHref={paths.iteration(
-                    organization.slug,
-                    project.key,
-                    it.id,
-                  )}
-                  onStart={() =>
-                    void mutate({
-                      type: "startIteration",
-                      projectId: project.id,
-                      iterationId: it.id,
-                    })
-                  }
-                  onComplete={(carryOverTo) => {
-                    void mutate({
-                      type: "completeIteration",
-                      projectId: project.id,
-                      iterationId: it.id,
-                      carryOverTo,
-                    });
-                    toast(
-                      `${iterationLabel(it, project?.iterationMode)} completed`,
-                      {
-                        label: "View report",
-                        href: paths.iteration(
-                          organization.slug,
-                          project.key,
-                          it.id,
-                        ),
-                      },
-                    );
-                  }}
-                  onRename={(name, goal) =>
-                    void mutate({
-                      type: "updateIteration",
-                      projectId: project.id,
-                      iterationId: it.id,
-                      name,
-                      goal,
-                    })
-                  }
-                />,
-                "Drag items here to plan them.",
-              );
-            })}
-            {section(
-              "backlog",
-              backlog,
-              <div className="flex items-center gap-2 px-4 py-3">
-                <h2 className="text-sm font-semibold">Backlog</h2>
-                <span className="font-mono text-[11px] tracking-[0.04em] text-muted-foreground uppercase tabular-nums">
-                  {backlog.length} {backlog.length === 1 ? "item" : "items"}
-                  {project.estimateScale !== "none" &&
-                    ` · ${points(backlog)} pts`}
-                </span>
-              </div>,
-              "The backlog is empty.",
-            )}
-            {iterations.some((i) => i.state === "completed") && (
-              <div>
-                <h2 className="mb-2 px-1 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
-                  Completed
-                </h2>
-                <ul className="space-y-1">
-                  {iterations
-                    .filter((i) => i.state === "completed")
-                    .reverse()
-                    .map((i) => (
-                      <li key={i.id}>
-                        <Link
-                          href={paths.iteration(
+      >
+        <div
+          className={cn(
+            // Wide enough that titles, not the margins, get the room.
+            "mx-auto max-w-5xl space-y-4 px-6 py-6 max-sm:px-3",
+            peek.peeked && "pb-[60dvh]",
+          )}
+        >
+          {project.iterationMode === "off" && (
+            <p className="text-[13px] text-muted-foreground">
+              {project.name} works without iterations. Rank the backlog by
+              dragging
+              {canManage(project.id) ? (
+                <>
+                  ; enable sprints or cycles in{" "}
+                  <Link
+                    className="underline"
+                    href={paths.projectSettings(
+                      organization.slug,
+                      project.key,
+                      "planning",
+                    )}
+                  >
+                    project settings
+                  </Link>
+                </>
+              ) : null}
+              .
+            </p>
+          )}
+          {project.iterationMode === "automatic" && (
+            <p className="text-[13px] text-muted-foreground">
+              Cycles of {project.iterationWeeks} week
+              {project.iterationWeeks > 1 ? "s" : ""} start and complete
+              automatically; unfinished work rolls into the next cycle.
+              {canManage(project.id) && (
+                <>
+                  {" "}
+                  <Link
+                    className="underline"
+                    href={paths.projectSettings(
+                      organization.slug,
+                      project.key,
+                      "planning",
+                    )}
+                  >
+                    Planning settings
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
+          {view.status === "hydrating" && teamItems.length === 0 ? (
+            <LoadingState label="Opening backlog" />
+          ) : (
+            <>
+              {open.map((it) => {
+                const rows = teamItems.filter((i) => i.iterationId === it.id);
+                return section(
+                  it.id,
+                  rows,
+                  <IterationHeader
+                    project={project}
+                    iteration={it}
+                    iterationMode={project.iterationMode}
+                    rows={rows}
+                    points={points(rows)}
+                    // Velocity is the whole project's; it is no capacity for
+                    // one team.
+                    capacity={teamFilter.value ? undefined : averageVelocity}
+                    showPoints={project.estimateScale !== "none"}
+                    canPlan={canPlan && project.iterationMode === "manual"}
+                    hasActive={open.some((o) => o.state === "active")}
+                    nextPlanned={open.find(
+                      (o) => o.state === "planned" && o.id !== it.id,
+                    )}
+                    unfinished={
+                      rows.filter(
+                        (i) => !isClosedCategory(categoryOf(delivery, i)),
+                      ).length
+                    }
+                    reportHref={paths.iteration(
+                      organization.slug,
+                      project.key,
+                      it.id,
+                    )}
+                    onStart={() =>
+                      void mutate({
+                        type: "startIteration",
+                        projectId: project.id,
+                        iterationId: it.id,
+                      })
+                    }
+                    onComplete={(carryOverTo) => {
+                      void mutate({
+                        type: "completeIteration",
+                        projectId: project.id,
+                        iterationId: it.id,
+                        carryOverTo,
+                      });
+                      toast(
+                        `${iterationLabel(it, project?.iterationMode)} completed`,
+                        {
+                          label: "View report",
+                          href: paths.iteration(
                             organization.slug,
                             project.key,
-                            i.id,
-                          )}
-                          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
-                        >
-                          <BarChart3 className="size-3.5 text-muted-foreground" />
-                          {iterationLabel(i, project?.iterationMode)}
-                          <span className="text-xs text-muted-foreground">
-                            {shortRange(i)}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                </ul>
-              </div>
-            )}
-          </>
-        )}
-        {!teamItems.length && view.status !== "hydrating" && (
-          <EmptyState
-            illustration={teamFilter.value ? "search" : "planning"}
-            title={
-              teamFilter.value ? "No work for this team" : "Nothing planned yet"
-            }
-          >
-            {teamFilter.value === "none"
-              ? "Every item of this project belongs to a team."
-              : teamFilter.team
-                ? `Create items for ${teamFilter.team.name}, or set the team on an item from its detail page.`
-                : `Create work items in ${project.name} to plan them here.`}
-          </EmptyState>
-        )}
+                            it.id,
+                          ),
+                        },
+                      );
+                    }}
+                    onRename={(name, goal) =>
+                      void mutate({
+                        type: "updateIteration",
+                        projectId: project.id,
+                        iterationId: it.id,
+                        name,
+                        goal,
+                      })
+                    }
+                  />,
+                  "Drag items here to plan them.",
+                );
+              })}
+              {/* With no work at all, the empty state below says so once;
+                  an empty backlog card above it would say it twice. */}
+              {teamItems.length > 0 &&
+                section(
+                  "backlog",
+                  backlog,
+                  <div className="flex items-center gap-2 px-4 py-3">
+                    <h2 className="text-sm font-semibold">Backlog</h2>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {backlog.length} {backlog.length === 1 ? "item" : "items"}
+                      {project.estimateScale !== "none" &&
+                        ` · ${points(backlog)} pts`}
+                    </span>
+                  </div>,
+                  "The backlog is empty.",
+                )}
+              {iterations.some((i) => i.state === "completed") && (
+                <div>
+                  <SectionCaption className="px-1">Completed</SectionCaption>
+                  <ul className="space-y-1">
+                    {iterations
+                      .filter((i) => i.state === "completed")
+                      .reverse()
+                      .map((i) => (
+                        <li key={i.id}>
+                          <Link
+                            href={paths.iteration(
+                              organization.slug,
+                              project.key,
+                              i.id,
+                            )}
+                            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-muted"
+                          >
+                            <BarChart3 className="size-3.5 text-muted-foreground" />
+                            {iterationLabel(i, project?.iterationMode)}
+                            <span className="text-xs text-muted-foreground">
+                              {shortRange(i)}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+          {!teamItems.length && view.status !== "hydrating" && (
+            <EmptyState
+              illustration={teamFilter.value ? "search" : "planning"}
+              title={
+                teamFilter.value
+                  ? "No work for this team"
+                  : "Nothing planned yet"
+              }
+            >
+              {teamFilter.value === "none"
+                ? "Every item of this project belongs to a team."
+                : teamFilter.team
+                  ? `Create items for ${teamFilter.team.name}, or set the team on an item from its detail page.`
+                  : `Create work items in ${project.name} to plan them here.`}
+            </EmptyState>
+          )}
+        </div>
       </div>
       <ItemPeek project={project} peek={peek} />
     </div>
@@ -579,32 +670,29 @@ function IterationHeader({
           {iterationLabel(iteration, iterationMode)}
         </h2>
         {iteration.state === "active" && (
-          <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
-            <span aria-hidden className="size-1.5 rounded-full bg-success" />
+          <StatusChip tone="success" icon={<StatusDot />}>
             Active
-          </span>
+          </StatusChip>
         )}
-        <span className="font-mono text-[11px] tracking-[0.04em] text-muted-foreground uppercase">
-          {shortRange(iteration)}
-        </span>
-        <span aria-hidden className="text-muted-foreground/50">
-          ·
-        </span>
-        <span
-          className={cn(
-            "font-mono text-[11px] tracking-[0.04em] uppercase tabular-nums",
-            over ? "text-warning" : "text-muted-foreground",
+        <MetaLine className="min-w-0">
+          <span className="tabular-nums">{shortRange(iteration)}</span>
+          <span className="tabular-nums">
+            {rows.length} {rows.length === 1 ? "item" : "items"}
+          </span>
+          {showPoints && (
+            <span
+              className={cn("tabular-nums", over && "text-warning")}
+              title={
+                capacity !== undefined
+                  ? `Recent average velocity: ${capacity} pts`
+                  : undefined
+              }
+            >
+              {points}
+              {capacity !== undefined ? ` / ~${capacity}` : ""} pts
+            </span>
           )}
-          title={
-            capacity !== undefined
-              ? `Recent average velocity: ${capacity} pts`
-              : undefined
-          }
-        >
-          {rows.length} {rows.length === 1 ? "item" : "items"}
-          {showPoints &&
-            ` · ${points}${capacity !== undefined ? ` / ~${capacity}` : ""} pts`}
-        </span>
+        </MetaLine>
         <div className="ml-auto flex items-center gap-1">
           <ContextControl
             project={project}
@@ -758,7 +846,7 @@ export function BacklogColumns() {
   return (
     <div
       aria-hidden
-      className="hidden h-7 items-center gap-2 border-t border-b bg-muted/30 px-4 font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase sm:flex"
+      className="hidden h-7 items-center gap-2 border-t border-b bg-muted/30 px-4 text-xs font-medium text-muted-foreground sm:flex"
     >
       <span className="min-w-0 flex-1">Item</span>
       <span className="w-36 shrink-0">Specification</span>
@@ -766,7 +854,9 @@ export function BacklogColumns() {
       <span className="hidden w-24 shrink-0 @min-[65rem]/frame:inline">
         Delivery
       </span>
-      <span className="w-7 shrink-0 text-center">Est.</span>
+      <span className="w-7 shrink-0 text-center" title="Estimate">
+        Est.
+      </span>
       <span className="size-4 shrink-0" />
     </div>
   );
@@ -778,7 +868,6 @@ export function BacklogRow({
   href,
   teamName,
   estimate,
-  memberName,
   draggable,
   dragging,
   onDragStart,
@@ -786,13 +875,15 @@ export function BacklogRow({
   actions,
   selected,
   onOpen,
+  pullRequests,
 }: {
   item: WorkItem;
   label: string;
   href: string;
+  // Its open pull requests, newest first.
+  pullRequests?: readonly CodePullRequestEntity[];
   teamName?: string;
   estimate: string | null;
-  memberName: (id: string | null) => string;
   draggable: boolean;
   dragging: boolean;
   onDragStart: () => void;
@@ -804,8 +895,15 @@ export function BacklogRow({
   // Plain clicks preview the item instead of following the link.
   onOpen?: (event: React.MouseEvent, id: string) => void;
 }) {
-  const { delivery } = useWorkspace();
+  const { delivery, projects, items } = useWorkspace();
+  const project = projects.find((p) => p.id === item.projectId);
   const status = delivery.statuses.get(item.statusId);
+  // A ranked backlog keeps its order, so a child names its parent: the
+  // breakdown of an agreed specification stays visible where it is planned.
+  const parent = item.parentId
+    ? items.find((i) => i.id === item.parentId)
+    : undefined;
+  const claim = useLiveClaims().get(item.id);
   return (
     <div
       data-row={item.id}
@@ -818,7 +916,9 @@ export function BacklogRow({
       }}
       onDragEnd={onDragEnd}
       className={cn(
-        "relative flex h-9 items-center gap-2 border-b px-4 text-[13px] last:border-b-0 hover:bg-muted/50",
+        // Phones give the states a second line, in words, instead of
+        // squeezing them into icons beside a cut title.
+        "relative flex items-center gap-2 border-b px-4 text-[13px] last:border-b-0 hover:bg-muted/50 max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-2 sm:h-9",
         draggable && "cursor-grab",
         dragging && "opacity-40",
         selected &&
@@ -834,17 +934,41 @@ export function BacklogRow({
         draggable={false}
         aria-current={selected ? true : undefined}
         onClick={onOpen ? (e) => onOpen(e, label) : undefined}
-        className="min-w-0 flex-1 truncate after:absolute after:inset-0"
+        // The title keeps its length and gives way last: the parent's name
+        // beside it shrinks first (sm:min-w-32 bounds how far the title goes).
+        className="min-w-0 flex-[1_1_auto] after:absolute after:inset-0 max-sm:line-clamp-2 max-sm:break-words sm:min-w-32 sm:truncate"
       >
         {item.title}
       </Link>
+      {parent && project && (
+        <span
+          title={`Part of ${identifier(project, parent.number)} ${parent.title}`}
+          className="relative z-[1] inline-flex max-w-48 min-w-0 shrink-[4] items-center gap-1 overflow-hidden text-xs text-muted-foreground max-sm:order-last"
+        >
+          <span className="sr-only">Part of </span>
+          <CornerLeftUp aria-hidden className="size-3 shrink-0" />
+          <span className="shrink-0 font-mono">
+            {identifier(project, parent.number)}
+          </span>
+          <span className="hidden min-w-0 truncate @min-[65rem]/frame:inline">
+            {parent.title}
+          </span>
+        </span>
+      )}
+      <span aria-hidden className="basis-full sm:hidden" />
       {teamName && (
         <span className="max-w-28 shrink-0 truncate rounded bg-muted px-1.5 text-xs text-muted-foreground">
           {teamName}
         </span>
       )}
+      {claim && <ClaimBadge claim={claim} assigneeId={item.assigneeId} />}
+      {pullRequests && (
+        <span className="hidden shrink-0 text-xs sm:inline-flex">
+          <PullRequestChip pullRequests={pullRequests} />
+        </span>
+      )}
       {/* Fixed slots keep the columns aligned from row to row. */}
-      <span className="inline-flex w-4 shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
+      <span className="inline-flex shrink-0 items-center gap-2 text-xs text-muted-foreground sm:w-36">
         {/* Every row says where its specification stands: a blank cell read
             as missing data. Plain work has no specification. */}
         {item.refinementState ? (
@@ -857,9 +981,7 @@ export function BacklogRow({
             className="inline-flex items-center gap-1"
           >
             <RefinementIcon state={item.refinementState} />
-            <span className="hidden sm:inline">
-              {refinementMeta[item.refinementState].label}
-            </span>
+            {refinementMeta[item.refinementState].label}
           </span>
         ) : (
           <span
@@ -872,7 +994,7 @@ export function BacklogRow({
         {item.blockingThreads > 0 && (
           <span
             title={`${item.blockingThreads} blocking discussion${item.blockingThreads === 1 ? "" : "s"}`}
-            className="hidden items-center gap-1 font-medium text-destructive sm:inline-flex"
+            className="inline-flex items-center gap-1 font-medium text-destructive"
           >
             <CircleAlert aria-hidden className="size-3.5" />
             {item.blockingThreads} blocker
@@ -887,7 +1009,7 @@ export function BacklogRow({
         title={status ? `Delivery status: ${status.name}` : undefined}
       >
         <StatusIcon category={status?.category} color={status?.color} />
-        <span className="hidden truncate @min-[65rem]/frame:inline">
+        <span className="hidden truncate max-sm:inline @min-[65rem]/frame:inline">
           {status?.name}
         </span>
       </span>
@@ -899,19 +1021,21 @@ export function BacklogRow({
         )}
       >
         {estimate && (
-          <span className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums">
-            {estimate}
+          <span
+            title={estimateSpoken(project, estimate)}
+            className="rounded bg-muted px-1.5 text-xs text-muted-foreground tabular-nums"
+          >
+            <span aria-hidden>{estimate}</span>
+            <span className="sr-only">{estimateSpoken(project, estimate)}</span>
           </span>
         )}
       </span>
-      {item.assigneeId ? (
-        <Avatar
-          userId={item.assigneeId}
-          name={memberName(item.assigneeId)}
-          size="xs"
-        />
+      {/* An agent's claim names the owner; the avatar is the assignee's
+          only when no agent holds the item. */}
+      {item.assigneeId && !claim ? (
+        <Actor userId={item.assigneeId} label="none" size={20} />
       ) : (
-        <span className="hidden size-4 sm:block" />
+        <span className="hidden size-5 shrink-0 sm:block" />
       )}
       {actions && (
         <span className="relative z-10 flex items-center gap-1">{actions}</span>

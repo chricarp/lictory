@@ -75,6 +75,10 @@ Options:
 
 Steps: ${steps.map((step) => step.name).join(", ")}
 
+Time and memory: check is about 5 minutes on an 8-core machine (typed
+linting is most of it and needs about 10 GB of memory); the browser suite
+(test:e2e) builds every application and is the longest step.
+
 E2E_PORT_OFFSET, E2E_WORKERS and the rest of the environment reach the
 steps unchanged. E2E_SHARD and E2E_SKIP_BUILD narrow the browser suite, so
 a full run refuses them.`;
@@ -134,7 +138,8 @@ try {
 } catch (error) {
   if (!(error instanceof UsageError)) throw error;
   console.error(`${error.message}\n\n${usage}`);
-  process.exit(2);
+  // 64 for a usage error, like every Lictory command line.
+  process.exit(64);
 }
 const selected = steps.filter((step, index) =>
   options.only
@@ -151,7 +156,7 @@ if (narrowing.length && !partial) {
   console.error(
     `${narrowing.join(" and ")} would narrow the browser suite (one shard, or builds of an earlier tree). Unset ${narrowing.length > 1 ? "them" : "it"} for the full verification, or rerun single steps with --only.`,
   );
-  process.exit(2);
+  process.exit(64);
 }
 
 // ------------------------------------------------------------- processes
@@ -609,6 +614,14 @@ function revision() {
   return `${head.stdout.trim()}${dirty ? " plus uncommitted changes" : ""}`;
 }
 
+// Said under a rerun command whose database password was left out.
+const passwordNote = () =>
+  options.postgres && new URL(options.postgres).password
+    ? [
+        "(The database password is not printed: put yours in place of PASSWORD.)",
+      ]
+    : [];
+
 function rerun(flag: "--only" | "--from", name: string) {
   const reuse = (["postgres", "mailpit", "smtp"] as const).flatMap((key) => {
     const value = options[key];
@@ -682,9 +695,11 @@ try {
     const stopped = results.at(-1)?.step ?? selected[results.length];
     console.log(`\nInterrupted (${interrupted}).`);
     if (stopped)
-      console.log(
+      for (const line of [
         `Continue from ${stopped.name}: ${rerun("--from", stopped.name)}`,
-      );
+        ...passwordNote(),
+      ])
+        console.log(line);
   } else if (failed) {
     exitCode = 1;
     const index = selected.indexOf(failed.step);
@@ -698,6 +713,7 @@ try {
       console.log(
         `Rerun it and what follows: ${rerun("--from", failed.step.name)}`,
       );
+    for (const line of passwordNote()) console.log(line);
   } else if (partial) {
     console.log(
       `\nThe selected steps passed. This was a partial run; the full sequence (bun run verify) must pass on the final changes before a pull request.`,

@@ -55,6 +55,9 @@ export type MarkdownEditorProps = {
   containerClassName?: string;
   // "#", "[[" and decision pickers (default on).
   references?: boolean;
+  // Chat composers: Enter sends (Shift+Enter breaks the line; lists and
+  // code blocks keep Enter for themselves). Mod+Enter always submits.
+  enterSubmits?: boolean;
 };
 
 export type MarkdownEditorHandle = { focus: () => void };
@@ -166,7 +169,7 @@ const PlainMarkdownField = forwardRef<
   return (
     <div
       className={cn(
-        "rounded-lg border bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
+        "rounded-lg border border-input bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
         containerClassName,
       )}
     >
@@ -177,7 +180,13 @@ const PlainMarkdownField = forwardRef<
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
         onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && onSubmit) {
+          if (
+            e.key === "Enter" &&
+            onSubmit &&
+            (e.metaKey ||
+              e.ctrlKey ||
+              (props.enterSubmits && !e.shiftKey && !e.nativeEvent.isComposing))
+          ) {
             e.preventDefault();
             onSubmit();
           } else if (e.key === "Escape" && onEscape) {
@@ -203,7 +212,7 @@ const PlainMarkdownField = forwardRef<
           maxHeight,
         }}
         className={cn(
-          "block w-full resize-none bg-transparent outline-none placeholder:text-muted-foreground/70 touch:text-base",
+          "block w-full resize-none bg-transparent outline-none placeholder:text-placeholder touch:text-base",
           compact
             ? "px-3 pt-2.5 pb-2 text-[13px] leading-6"
             : "px-4 py-3 text-[15px] leading-7",

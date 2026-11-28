@@ -12,13 +12,14 @@ to:
 
 - every way to act as the person: sessions, password and linked sign-in
   providers, passkeys, two-factor secrets and backup codes, personal access
-  tokens and pending one-time tokens (password reset);
+  tokens, agent event webhooks and subscriptions, and pending one-time tokens
+  (password reset);
 - contact details and likeness: the email address (replaced with an address on
   the reserved `.invalid` domain, so the real one can sign up again), the
   handle and the profile photo;
 - personal data that is not history: private assistant conversations, the
-  notification inbox, notification preferences, watched items and records of
-  what their agents called;
+  notification inbox, the agent events addressed to them, notification
+  preferences, watched items and records of what their agents called;
 - organization, project, discipline and team memberships, and named access to
   [spaces](./spaces.md#access) (with the effective access derived from them).
 

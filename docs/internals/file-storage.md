@@ -37,8 +37,10 @@ variables. Resolution:
 - No `S3_*` and no `R2_*` value: attachments are disabled. The API and worker
   start and log `attachments: disabled`; `/api/session` reports
   `attachments: false`, so the editor offers no upload and the attachment
-  panel says that attachments are unavailable; upload and download requests
-  fail with `503` and that explanation, whatever client sends them.
+  panel says that attachments are off on this server, who turns them on and
+  that links work meanwhile (`ATTACHMENTS_UNAVAILABLE`, one sentence for
+  every surface); upload and download requests fail with `503` and the same
+  explanation, whatever client sends them.
 - Any `S3_*` value together with any `R2_*` value: rejected, because neither
   can silently win.
 - A partial set (for example a bucket without credentials), an endpoint that
@@ -165,6 +167,19 @@ Pages reference files with the same stable `/api/files/{id}` URL as
 specifications (an image node's `src`, or Markdown `![name](/api/files/{id})`
 in derived Markdown). Organization export includes page files' metadata and
 bytes; organization deletion removes them with every other object.
+
+## Channel files
+
+Files attached to channel messages are `file_object` rows owned by the
+channel (`channel_id`; the one-owner check allows exactly one of work item,
+page or channel). Members of an active channel upload them
+(`startAttachmentUpload` with `channelId`); anyone who can read the channel
+lists and downloads them, and people who cannot get "not found". A message
+references them with the same `/api/files/{id}` links (images render as
+previews), or lists them in `attachmentIds` (only the author's finished
+uploads to that channel are accepted). Deleting a message removes its file
+list from the message; the files themselves follow the usual two-step
+removal. See [Lictory Channels](./channels.md).
 
 ## Profile photos
 

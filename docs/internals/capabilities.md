@@ -36,6 +36,10 @@ Surfaces only narrow what is available:
   the same `applyMutation` as `executeMutation`. Agents must not mint
   credentials or see secrets.
 - **Read tokens** may only invoke queries; MCP hides commands from them.
+- **Factory agents** (an agent's token, `Principal.agent`) never invoke a
+  `decision` capability (below), and MCP lists only what a token may call:
+  queries for read tokens, no decisions for agents, nothing a
+  project-limited agent would always be refused (`capabilitiesFor`).
 - **Intelligence chats** bind organization-scoped tools to the authenticated
   conversation's organization on the server. The model's tool schema omits
   `organizationId`; execution supplies it even when an older transcript still
@@ -85,10 +89,18 @@ reviews, suggestions and pull requests, page pull requests included; merging;
 publishing a page draft (`commitDraft`); resolving threads; the Lictory
 Intelligence policy; exporting to delivery tools) are marked `decision`.
 Agents change pages by proposing (`proposePageChange`: a branch, a commit and
-a pull request), never by publishing. MCP tells agents to
-call them only when the person explicitly asked; the embedded agent requires the
+a pull request), never by publishing. `invoke` refuses every `decision`
+capability to a Factory agent's principal with kind `human_only` and the place
+where the person decides (`personDecisions` in `human-only.ts`, which the
+registry requires for each decision an agent surface lists), and
+`listHumanOnlyOperations` lists them for agents with reason `decision`. This
+is the server-side form of [rule 3](software-factory.md#authority-what-text-and-agents-can-never-do);
+prompt text is not the guard. A person's own personal access token (no agent)
+may still call them, and MCP tells its client to do so only when the person
+explicitly asked; the embedded agent requires the
 person's approval before running them or any destructive command
-(`needsApproval`). Nothing about agents or Lictory Intelligence changes the domain rule that approvals belong
+(`needsApproval`). Code merges by policy (Autopilot) are Lictory's, not the
+agent's, and do not go through `mergeCodePullRequest`. Nothing about agents or Lictory Intelligence changes the domain rule that approvals belong
 to a person and a revision.
 
 The embedded agent has two more chat-only tools with no server execution; the
@@ -131,9 +143,13 @@ result capture was introduced replay without these additional fields.
 The [user guide](https://docs.lictory.com/integrations/agents) covers creating
 a named token, client connection settings, proposal workflows and troubleshooting.
 
-`POST /api/mcp` implements stateless Streamable HTTP (JSON responses, protocol
-versions 2025-06-18, 2025-03-26 and 2024-11-05) with `initialize`, `ping`,
-`tools/list` and `tools/call`. Tools are generated from capabilities: JSON Schema
+`POST /api/mcp` implements stateless Streamable HTTP (JSON responses). It is
+dual-era: a request whose `_meta` names protocol version 2026-07-28 is served
+by that revision (`server/discover`, `resultType` in results, header checks),
+and `initialize` selects 2025-06-18, 2025-03-26 or 2024-11-05. Methods:
+`initialize`, `server/discover`, `ping`, `tools/list`, `tools/call` and the
+MCP Events extension's `events/list`, `events/subscribe` and
+`events/unsubscribe` (webhook mode; see [agent events](agent-events.md)). Tools are generated from capabilities: JSON Schema
 from the Zod input, annotations from kind, `destructive`, `idempotent` and
 `external`. Domain failures are tool results with `isError` and the shared error
 shape (`category`, `message`, optional `currentRevisionId`, `issues`, `kind`,
@@ -146,6 +162,18 @@ retrying cannot help, so the agent reads the entity again. The sentences in
 tool descriptions that say which states allow a command are generated from the
 same [state machines](state-machines.md) the commands refuse from.
 
+MCP inputs are checked more strictly than the browser's: a field a tool does
+not take is a `validation` error naming it (a `mutationId` sent to a tool
+without one says so) instead of being dropped, and wherever a tool takes
+`workItemId` a work item key (`PAY-142`) is resolved to its id in the
+organization before validation (every member reads every project, so this
+reveals nothing). Write tools that take a retry key take it as `mutationId`
+(a UUID); channel messages accept it as their `clientMessageId`.
+`serverInfo.version` is the release the server runs (`APP_VERSION`).
+The [MCP tool reference](https://docs.lictory.com/reference/mcp) is generated
+from the registry by `scripts/mcp-reference.ts`, and `bun run check` fails
+when it is stale.
+
 For MCP calls, `organizationId` accepts an exact id or slug returned by
 `listOrganizations`. The registry resolves it only among the person's current
 memberships, then invokes the domain operation and audits the canonical id.
@@ -154,16 +182,26 @@ hint; ambiguous id/slug matches are refused. Organization notification
 preferences can use the same reference as `scopeId`. Web inputs continue to
 use canonical ids.
 
-Clients authenticate with `Authorization: Bearer lct_…`, a personal access token
-created in Account settings. Only a SHA-256 hash is stored; tokens are `read` or
+Clients authenticate with `Authorization: Bearer lct_…`: an agent's token
+from its Connection section in Factory → Agents, or a personal access token
+created in Account settings (the 401 says both). Only a SHA-256 hash is stored; tokens are `read` or
 `write`, may expire and are revoked immediately. Requests with a foreign
 `Origin` are refused.
+
+Agents are woken instead of polling by the [agent event](agent-events.md)
+feed: `listEvents` and `waitForEvents` (a 25-second long-poll), or MCP Events
+webhooks. Bearer webhooks and the organization's webhook policy are
+human-only (`credentials`, `egress`).
 
 ## Audit
 
 Every MCP and agent call is recorded in `capability_invocation`: person, token,
 client, capability, organization, outcome (or error category), mutation id and
-duration. Inputs are not stored because they can contain specification content.
+duration, and a bounded `detail`: the subject the call named (the first of a
+fixed list of identifier fields, such as `workItemId` or `sessionId`, as the
+caller wrote it) and, when refused, the refusal message and kind it got (a
+server failure's message stays in the server log). Inputs are not stored
+because they can contain specification content.
 Organization attribution is resolved among the caller's current memberships
 inside the audit insert, even when validation or token checks reject the call
 before execution. MCP references accept ids or slugs; embedded-agent references

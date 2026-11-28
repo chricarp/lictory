@@ -1,3 +1,4 @@
+import { isChannelMember } from "@lictory/core/channels/access";
 import {
   invitationIntent,
   placementOutcomeFor,
@@ -49,6 +50,7 @@ import {
   suggestHandles,
 } from "@lictory/core/lib/handles-server";
 import { attachmentsAvailable } from "@lictory/core/storage";
+import { emailConfigured } from "@lictory/core/lib/mailer";
 import { MAX_CONTEXT_DOCUMENT_SIZE } from "@lictory/core/intelligence/shared";
 import { PhotoError } from "@lictory/core/profile/image";
 import { MAX_PROFILE_PHOTO_SIZE } from "@lictory/core/profile/photo";
@@ -129,6 +131,7 @@ export function webRoutes() {
               handle: user.handle ?? null,
               appearance: user.appearance,
               theme: user.theme,
+              singleKeyShortcuts: user.singleKeyShortcuts,
               twoFactorEnabled: twoFactorEnabled(user),
               // Instance policy, enforced by the server either way.
               instanceAdmin: isInstanceAdmin(user),
@@ -139,6 +142,8 @@ export function webRoutes() {
         signIn: signInOptions,
         // False when the server has no object storage: attachments disabled.
         attachments: attachmentsAvailable(),
+        // False when the server sends no email (no SMTP or Resend).
+        email: emailConfigured(),
         organizationDeletionGraceDays: policy.organizationDeletionGraceDays,
       },
       200,
@@ -231,6 +236,35 @@ export function webRoutes() {
     return c.json({ appearance, theme });
   });
 
+  // Personal keyboard preferences: scoped to the signed-in user only.
+  const preferencesSchema = z.object({ singleKeyShortcuts: z.boolean() });
+  app.post("/api/preferences", async (c) => {
+    const user = await currentUser(c.req.raw);
+    if (!user)
+      return c.json(
+        { error: { message: "Sign in to change your preferences." } },
+        401,
+      );
+    const parsed = preferencesSchema.safeParse(
+      await c.req.json().catch(() => null),
+    );
+    if (!parsed.success)
+      return c.json(
+        {
+          error: {
+            message: "Turn single-key shortcuts on or off with true or false.",
+          },
+        },
+        400,
+      );
+    const { singleKeyShortcuts } = parsed.data;
+    await db
+      .update(s.user)
+      .set({ singleKeyShortcuts })
+      .where(eq(s.user.id, user.id));
+    return c.json({ singleKeyShortcuts });
+  });
+
   // Any capability on the web surface, invoked as the signed-in user. Lookups
   // (members, epics, iteration reports, readiness history, the directory) go
   // through here.
@@ -276,6 +310,7 @@ export function webRoutes() {
           organizationId: c.req.query("organizationId") ?? "",
           workItemId: c.req.query("workItemId"),
           pageId: c.req.query("pageId"),
+          channelId: c.req.query("channelId"),
         }),
         store,
       );
@@ -461,7 +496,9 @@ export function webRoutes() {
             body: { organizationId, email, role: "member", resend: true },
           }),
       );
-      return c.json({ id: invitation.id });
+      // Without outbound email the link is the only way the invitation
+      // reaches them; the form says so instead of "email sent".
+      return c.json({ id: invitation.id, emailed: emailConfigured() });
     } catch (error) {
       if (error instanceof APIError)
         return Response.json(
@@ -857,6 +894,8 @@ export function webRoutes() {
   const presenceSchema = z.object({
     organizationId: z.string().min(1),
     workItemId: z.string().min(1).nullable(),
+    // "Typing in this channel": only members of the channel may say so.
+    channelId: z.string().min(1).max(160).optional(),
   });
   app.post("/api/presence", async (c) => {
     const user = await currentUser(c.req.raw);
@@ -867,6 +906,16 @@ export function webRoutes() {
     if (!parsed.success) return new Response(null, { status: 400 });
     try {
       await authorize(db, user.id, parsed.data.organizationId);
+      if (
+        parsed.data.channelId &&
+        !(await isChannelMember(
+          db,
+          parsed.data.organizationId,
+          user.id,
+          parsed.data.channelId,
+        ))
+      )
+        return new Response(null, { status: 403 });
     } catch {
       return new Response(null, { status: 403 });
     }
@@ -875,6 +924,7 @@ export function webRoutes() {
       workItemId: parsed.data.workItemId,
       userId: user.id,
       at: Date.now(),
+      ...(parsed.data.channelId ? { channelId: parsed.data.channelId } : {}),
     });
     await db.execute(sql`select pg_notify('lictory_presence', ${payload})`);
     return new Response(null, { status: 204 });

@@ -39,22 +39,23 @@ test results go to `/tmp`), so native Windows shells are not supported.
 Dev Containers, GitHub Codespaces or the `devcontainer` CLI: Node 24 with the
 exact Bun release, and a Docker daemon of its own (the docker-in-docker
 feature) so `docker compose up -d` runs the services inside the container and
-the commands below work unchanged. Creating it copies `.env.example` to `.env`
-when there is none and runs `bun install`; the app, website and Mailpit ports
-are forwarded to the host. Give Docker at least 8 GB of memory, as below. On
+the commands below work unchanged. Creating it runs `bun install` and
+`bun run dev:env` (which creates `.env` when there is none); the app, website and Mailpit ports
+are forwarded to the host. Give Docker at least 12 GB of memory, as below. On
 macOS and Windows, a clone in a container volume ("Clone Repository in
 Container Volume") is much faster than a bind-mounted checkout. With rootless
 Docker on Linux, the container's `node` user cannot write a bind-mounted
 checkout; use a container volume there too, or the native setup.
 
-For a memory-limited container, allow at least 8 GB of Docker memory. The full
-type-aware ESLint check peaks near 4 GB, above Node's default heap on some
-machines, so `bun run lint` allows itself 6 GB (`--max-old-space-size=6144`).
+For a memory-limited container, allow at least 12 GB of Docker memory. The
+full type-aware ESLint check (`bun run lint`, part of `bun run check`) peaks
+near 10 GB with its two workers (measured on an 8-core machine), above Node's
+default heap, so it allows each worker 6 GB (`--max-old-space-size=6144`).
 A `NODE_OPTIONS` you export comes after it and wins.
 
 ```sh
-cp .env.example .env
-bun install
+bun install --frozen-lockfile
+bun run dev:env               # creates .env and fits its ports to this machine
 docker compose up -d --wait   # PostgreSQL, migrations, zero-cache, Mailpit, MinIO
 bun run dev                   # SPA, API, worker, collaboration and website on the host
 ```
@@ -67,7 +68,8 @@ installed Bun differs from `packageManager` (`bun install` does not).
 - App: http://localhost:3000 (API 3002, collaboration 3004, zero-cache 4848)
 - Website: http://localhost:3100
 - Documentation (not started by `bun run dev`):
-  `bun run --cwd apps/docs dev`, http://localhost:3200
+  `bun run --cwd apps/docs dev`, http://localhost:3200 (`PORT=13200 bun run
+--cwd apps/docs dev` beside another checkout)
 - Mailpit (verification and reset emails): http://localhost:8025
 - MinIO console (attachment bucket, user `lictory`, password
   `lictory-development`): http://127.0.0.1:9001
@@ -76,7 +78,7 @@ installed Bun differs from `packageManager` (`bun install` does not).
 (`LICTORY_SIGNUP_MODE=open`, `LICTORY_ORGANIZATION_CREATION=everyone`). Remove
 both to work with the self-hosted defaults (invitations only, organizations by
 instance administrators); then create the first instance administrator with
-`echo '<password>' | bun run admin setup --organization Acme --name "Ada Admin" --email ada@example.test --password-stdin`
+`LICTORY_ADMIN_PASSWORD='<password>' bun run admin setup --organization Acme --admin-name "Ada Admin" --admin-email ada@example.test`
 and open the admin console at http://localhost:3000/admin. See
 [instance administration](../internals/instance-administration.md).
 
@@ -119,8 +121,18 @@ on, for example a private VPN address, and prefer an SSH tunnel
 (`ssh -L 5432:localhost:5432 …`) over `0.0.0.0` on any machine with a public
 address. `docker compose config` shows the resulting `host_ip`.
 
-**Ports and a second checkout.** Every published port has a variable, set in
-the shell or `.env` and listed in `.env.example`:
+**Ports and a second checkout.** `bun run dev:env` does this for you: it
+creates `.env` when there is none; when the Compose project `lictory` belongs
+to another checkout it names this one `lictory-<directory>`; when a port is
+taken it moves every port in the table below, and the app's own ports (3000,
+3002, 3003 for the worker's health endpoint, 3004, 3100), by the same offset (10000, 20000, … up to 50000) and
+rewrites the settings that name them; on Linux it runs a short container to
+check that Docker reaches the host, and sets `COMPOSE_FILE` to the
+host-network fallback when a firewall blocks it (see
+[troubleshooting](#troubleshooting)). It keeps a set that still works and
+leaves ports alone while this checkout's services run. To set them by hand,
+every published port has a variable, set in the shell or `.env` and listed in
+`.env.example`:
 
 | Variable                         | Default | Service                                     |
 | -------------------------------- | ------- | ------------------------------------------- |
@@ -170,6 +182,7 @@ Production images and the single-server stack are described in
 | `bun run dev`                   | Applications (after `docker compose up -d --wait`)                              |
 | `bun run check`                 | Types, lint, formatting, unused code, PR assets and the configuration reference |
 | `bun run format`                | Apply Prettier                                                                  |
+| `bunx eslint <files>`           | Lint only the files you changed, in seconds, while you work                     |
 | `bun test --isolate src/<area>` | Focused domain tests while you work                                             |
 | `bun run test:domain`           | Every domain test, files in parallel                                            |
 | `bun run test:sync`             | Synchronization invariants against PostgreSQL                                   |
@@ -180,6 +193,29 @@ Production images and the single-server stack are described in
 | `bun run db:check`              | Fail when the schema has no matching migration                                  |
 | `bun run admin <cmd>`           | Instance administration against `.env`'s database                               |
 
+`bun run admin`, `db:migrate`, `db:compatibility`, `release`,
+`licenses:report` and `verify` answer `--help` without a database or
+credentials. `bun run admin` takes the same commands
+and option names as the server's `lictory admin` (`list`, `grant`, `revoke`,
+`setup --admin-name … --admin-email …`) and reads passwords from the same
+variables (`LICTORY_ADMIN_PASSWORD` for `setup`, `LICTORY_USER_PASSWORD` for
+`create-user` and `set-password`) or from stdin with `--password-stdin`;
+the older spellings (`list-admins`, `grant-admin`, `--name`, `--email`) work
+too. Inside a server's API container the same program is
+`node apps/api/dist/admin.js`, which `lictory admin` runs for you.
+
+Every Lictory command line exits `64` for a usage error (an unknown command
+or option, a missing argument, a value or setting it refuses) and `1` when
+the work itself failed; a new command follows the same convention
+([exit codes](https://docs.lictory.com/self-hosting/commands#exit-codes)).
+
+`bun run check` lints the whole repository with type information, which takes
+minutes and about 10 GB of memory. While you work, `bunx eslint` on the files
+you changed and the affected workspace's `bun run --cwd <workspace>
+typecheck` give the same verdict on those files in seconds; run the full check
+once before a pull request. `bun run dev` prints the app's address and the
+API's health probe (`/healthz`, readiness `/readyz`, as in production).
+
 Schema changes follow [database migrations](./migrations.md). Domain writes
 follow [synchronization](../internals/synchronization.md) and
 [capabilities](../internals/capabilities.md).
@@ -188,6 +224,24 @@ Environment variables are declared in `packages/core/src/config/declarations.ts`
 After adding or changing one, run `bun run config:docs` to regenerate the
 [configuration reference](./configuration.md); a test fails when runtime code
 reads an undeclared variable.
+
+To work on the factory (agents, sessions, claims) against `bun run dev`, run
+a runner from the checkout: create a registration token in **Factory →
+Runners → Add runner**, then
+`bun apps/runner/src/cli.ts register --url http://localhost:3000 --token <token>`
+and `bun apps/runner/src/cli.ts start` (add `--test-harness default` to walk a
+scripted agent instead of a real one). Give it its own
+`LICTORY_RUNNER_HOME` so it does not reuse a runner installed on the machine.
+Code and the code loop also need a code host: connect one in **Organization
+settings → Code hosts**.
+
+The desktop app (`apps/desktop`) runs against any Lictory server, including
+the one `bun run dev` starts: run `bun run --cwd apps/desktop setup` once (it
+downloads Electron, which installing the repository never does), then
+`bun run --cwd apps/desktop dev` and add `localhost:3001`. Its smoke test needs
+a display: `bun run --cwd apps/desktop build`, then
+`xvfb-run -a bun run --cwd apps/desktop test:smoke` on Linux. See
+[the desktop app](../internals/desktop.md).
 
 `bun run knip` reports unused files and dependencies. Its configuration
 (`knip.jsonc`) lists the few findings that predate it; shrink that list rather
@@ -365,13 +419,14 @@ The suite is layered so that a regression in what teams rely on fails fast,
 while the code stays cheap to change. Pick the lowest tier that proves a
 behavior.
 
-| Tier              | Proves                                                            | Command               | Runs on pull requests                    | Nightly                |
-| ----------------- | ----------------------------------------------------------------- | --------------------- | ---------------------------------------- | ---------------------- |
-| Static            | Types, lint, formatting, unused code, committed migrations        | `bun run check`       | Always                                   | Yes                    |
-| Domain            | Invariants and contracts against real PostgreSQL                  | `bun run test:domain` | Ready, unless the change is prose        | Yes                    |
-| Smoke             | The critical journeys, tagged `@smoke`, against production builds | `bun run test:smoke`  | Ready, when applications or tests change | Yes                    |
-| Browser workflows | Every workflow in `tests/`                                        | `bun run test:e2e`    | Manual (`CI` → Run workflow → full)      | Yes, before publishing |
-| Laptop trial      | `deploy/try.sh` on published images: sign-in, sync, email         | (CI only)             | Ready, when the trial changes            | Yes, after publishing  |
+| Tier              | Proves                                                              | Command                                                                             | Runs on pull requests                         | Nightly                                                                                  |
+| ----------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Static            | Types, lint, formatting, unused code, committed migrations          | `bun run check`                                                                     | Always                                        | Yes                                                                                      |
+| Domain            | Invariants and contracts against real PostgreSQL                    | `bun run test:domain`                                                               | Ready, unless the change is prose             | Yes                                                                                      |
+| Smoke             | The critical journeys, tagged `@smoke`, against production builds   | `bun run test:smoke`                                                                | Ready, when applications or tests change      | Yes                                                                                      |
+| Browser workflows | Every workflow in `tests/`                                          | `bun run test:e2e`                                                                  | Manual (`CI` → Run workflow → full)           | Yes, before publishing                                                                   |
+| Laptop trial      | `deploy/try.sh` on published images: sign-in, sync, email           | (CI only)                                                                           | Ready, when the trial changes                 | Yes, after publishing                                                                    |
+| Client packages   | The runner for every target and the desktop app as a Linux AppImage | `bun apps/runner/scripts/build.ts`, `bun run --cwd apps/desktop package -- --linux` | Ready, when the runner or desktop app changes | Every release builds all of them ([Release clients](releases.md#runner-and-desktop-app)) |
 
 `.github/scripts/ci-changes.sh` maps changed paths to tiers and runs everything
 for paths it does not recognise. Each tier is split across parallel jobs so that
@@ -387,8 +442,8 @@ it renders) also builds it in the static checks, so a broken page fails the
 pull request. The required `Verify` check passes only when
 every selected job passed.
 
-A draft pull request runs only the static checks. The domain, smoke and
-laptop trial tiers it needs wait until it is marked ready for review, which
+A draft pull request runs only the static checks. The domain, smoke,
+laptop trial and client package tiers it needs wait until it is marked ready for review, which
 starts a new run with them. Each run reads whether the pull request is a draft
 when it starts, not from the event that started it: a push and "Ready for review"
 seconds apart can leave only the push's run, and it runs the tiers too;

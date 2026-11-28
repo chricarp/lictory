@@ -6,15 +6,19 @@ import {
   Archive,
   ArchiveRestore,
   Bell,
+  Bot,
   Check,
   CheckCheck,
   ChevronDown,
   CircleAlert,
   CircleCheckBig,
   GitPullRequestArrow,
+  ListFilter,
   Mail,
   MessageSquare,
+  MessagesSquare,
   RefreshCw,
+  Settings2,
   ShieldAlert,
   SquareKanban,
   Upload,
@@ -23,17 +27,19 @@ import {
 } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { Popover, Picker } from "@lictory/ui/popover";
-import { Avatar, EmptyState } from "@lictory/ui/primitives";
+import { EmptyState } from "@lictory/ui/primitives";
 import { Segmented, SegmentedItem } from "@lictory/ui/segmented";
+import { Tooltip } from "@lictory/ui/tooltip";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { cn } from "@lictory/core/lib/utils";
 import { paths } from "@lictory/core/lib/paths";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
 import {
   categoryLabels,
   notificationCategories,
   notificationKindList,
   notificationKinds,
+  toDoKinds,
   type NotificationCategory,
 } from "@lictory/core/notifications/catalog";
 import {
@@ -41,6 +47,13 @@ import {
   notificationHref,
 } from "@lictory/core/notifications/format";
 import type { NotificationItem } from "@lictory/core/notifications/service";
+import {
+  describeDigest,
+  digestFeed,
+  unreadIn,
+  type FeedRow,
+} from "@lictory/core/notifications/digest";
+import { PersonAvatar } from "@lictory/platform/components/identity/actor";
 import {
   announceNotificationChange,
   notificationRequest,
@@ -65,6 +78,8 @@ const categoryIcons: Record<NotificationCategory, typeof Bell> = {
   iterations: RefreshCw,
   export: Upload,
   pages: BookOpen,
+  agents: Bot,
+  channels: MessagesSquare,
   organization: Building2,
 };
 
@@ -89,6 +104,15 @@ export function NotificationFeed() {
     teamId: null,
     category: null,
   });
+  // Phones show the filters behind one button, so the list starts on the
+  // first screen instead of under three rows of controls.
+  const [filtersShown, setFiltersShown] = useState(false);
+  const filtersSet = [
+    filters.everywhere,
+    filters.projectId,
+    filters.teamId,
+    filters.category,
+  ].filter(Boolean).length;
   const [page, setPage] = useState<NotificationPage | null>(null);
   const [error, setError] = useState<string>();
   const [loadingMore, setLoadingMore] = useState(false);
@@ -105,8 +129,11 @@ export function NotificationFeed() {
         : {}),
       ...(filters.category
         ? {
+            // To do kinds stay in To do (`toDoKinds`).
             kinds: notificationKindList.filter(
-              (k) => notificationKinds[k].category === filters.category,
+              (k) =>
+                notificationKinds[k].category === filters.category &&
+                !toDoKinds.includes(k),
             ),
           }
         : {}),
@@ -187,6 +214,9 @@ export function NotificationFeed() {
     }
   };
 
+  // Conversation traffic is digested per conversation (a direct
+  // conversation, a thread, a channel), an agent's failed sessions per agent.
+  const rows = useMemo(() => digestFeed(page?.items ?? []), [page?.items]);
   const unreadElsewhere = directory.organizations
     .filter((o) => o.id !== organization.id && (page?.unread[o.id] ?? 0) > 0)
     .map((o) => ({ ...o, count: page!.unread[o.id]! }));
@@ -203,126 +233,166 @@ export function NotificationFeed() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
-        <Segmented
-          aria-label="Show notifications"
-          className="gap-0"
-          value={filters.status}
-          onValueChange={(status) => setFilters((f) => ({ ...f, status }))}
-        >
-          {(["unread", "all", "archived"] as const).map((s) => (
-            <SegmentedItem key={s} value={s} className="flex-none capitalize">
-              {s}
-            </SegmentedItem>
-          ))}
-        </Segmented>
-        <FilterMenu
-          label={filters.everywhere ? "All organizations" : organization.name}
-          active={filters.everywhere}
-          title="Organization"
-          options={[
-            {
-              value: "here",
-              label: organization.name,
-              hint: "This organization",
-            },
-            { value: "all", label: "All organizations" },
-          ]}
-          value={filters.everywhere ? "all" : "here"}
-          onSelect={(v) =>
-            setFilters((f) => ({
-              ...f,
-              everywhere: v === "all",
-              projectId: null,
-              teamId: null,
-            }))
-          }
-        />
-        {!filters.everywhere && (
-          <>
+      <div className="border-b">
+        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-2 px-4 py-2">
+          <Segmented
+            aria-label="Show notifications"
+            className="gap-0"
+            value={filters.status}
+            onValueChange={(status) => setFilters((f) => ({ ...f, status }))}
+          >
+            {(["unread", "all", "archived"] as const).map((s) => (
+              <SegmentedItem key={s} value={s} className="flex-none capitalize">
+                {s}
+              </SegmentedItem>
+            ))}
+          </Segmented>
+          <button
+            type="button"
+            aria-expanded={filtersShown}
+            aria-controls="inbox-filters"
+            onClick={() => setFiltersShown((v) => !v)}
+            className={cn(
+              "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs sm:hidden",
+              filtersSet > 0
+                ? "border-primary/30 bg-primary/5 text-foreground"
+                : "text-muted-foreground",
+            )}
+          >
+            <ListFilter className="size-3.5" aria-hidden />
+            Filters
+            {filtersSet > 0 && (
+              <span className="tabular-nums">· {filtersSet}</span>
+            )}
+          </button>
+          <div
+            id="inbox-filters"
+            className={cn(
+              "flex flex-wrap items-center gap-2 max-sm:order-last max-sm:basis-full sm:contents",
+              !filtersShown && "max-sm:hidden",
+            )}
+          >
             <FilterMenu
-              label={projectName(filters.projectId) ?? "Any project"}
-              active={!!filters.projectId}
-              title="Project"
+              label={
+                filters.everywhere ? "All organizations" : organization.name
+              }
+              active={filters.everywhere}
+              title="Organization"
               options={[
-                { value: "", label: "Any project" },
-                ...projects.map((p) => ({
-                  value: p.id,
-                  label: p.name,
-                  hint: p.key,
-                })),
+                {
+                  value: "here",
+                  label: organization.name,
+                  hint: "This organization",
+                },
+                { value: "all", label: "All organizations" },
               ]}
-              value={filters.projectId ?? ""}
+              value={filters.everywhere ? "all" : "here"}
               onSelect={(v) =>
-                setFilters((f) => ({ ...f, projectId: v || null }))
+                setFilters((f) => ({
+                  ...f,
+                  everywhere: v === "all",
+                  projectId: null,
+                  teamId: null,
+                }))
               }
             />
-            {teams.length > 0 && (
-              <FilterMenu
-                label={teamName(filters.teamId) ?? "Any team"}
-                active={!!filters.teamId}
-                title="Team"
-                options={[
-                  { value: "", label: "Any team" },
-                  ...teams.map((t) => ({
-                    value: t.id,
-                    label: teamName(t.id) ?? t.name,
-                  })),
-                ]}
-                value={filters.teamId ?? ""}
-                onSelect={(v) =>
-                  setFilters((f) => ({ ...f, teamId: v || null }))
-                }
-              />
+            {!filters.everywhere && (
+              <>
+                <FilterMenu
+                  label={projectName(filters.projectId) ?? "Any project"}
+                  active={!!filters.projectId}
+                  title="Project"
+                  options={[
+                    { value: "", label: "Any project" },
+                    ...projects.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                      hint: p.key,
+                    })),
+                  ]}
+                  value={filters.projectId ?? ""}
+                  onSelect={(v) =>
+                    setFilters((f) => ({ ...f, projectId: v || null }))
+                  }
+                />
+                {teams.length > 0 && (
+                  <FilterMenu
+                    label={teamName(filters.teamId) ?? "Any team"}
+                    active={!!filters.teamId}
+                    title="Team"
+                    options={[
+                      { value: "", label: "Any team" },
+                      ...teams.map((t) => ({
+                        value: t.id,
+                        label: teamName(t.id) ?? t.name,
+                      })),
+                    ]}
+                    value={filters.teamId ?? ""}
+                    onSelect={(v) =>
+                      setFilters((f) => ({ ...f, teamId: v || null }))
+                    }
+                  />
+                )}
+              </>
             )}
-          </>
-        )}
-        <FilterMenu
-          label={
-            filters.category ? categoryLabels[filters.category] : "Any type"
-          }
-          active={!!filters.category}
-          title="Type"
-          options={[
-            { value: "", label: "Any type" },
-            ...notificationCategories.map((c) => ({
-              value: c,
-              label: categoryLabels[c],
-            })),
-          ]}
-          value={filters.category ?? ""}
-          onSelect={(v) =>
-            setFilters((f) => ({
-              ...f,
-              category: (v || null) as NotificationCategory | null,
-            }))
-          }
-        />
-        <div className="ml-auto flex items-center gap-3">
-          {unreadElsewhere.length > 0 && !filters.everywhere && (
-            <p className="text-xs text-muted-foreground">
-              Also unread in{" "}
-              {unreadElsewhere.map((o, i) => (
-                <span key={o.id}>
-                  {i > 0 && ", "}
-                  <Link
-                    href={paths.inbox(o.slug)}
-                    className="font-medium text-foreground hover:underline"
-                  >
-                    {o.name} ({o.count})
-                  </Link>
-                </span>
-              ))}
-            </p>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => void markAllRead()}
-            disabled={!page?.items.some((n) => !n.readAt)}
-          >
-            <CheckCheck className="size-3.5" /> Mark all read
-          </Button>
+            <FilterMenu
+              label={
+                filters.category ? categoryLabels[filters.category] : "Any type"
+              }
+              active={!!filters.category}
+              title="Type"
+              options={[
+                { value: "", label: "Any type" },
+                ...notificationCategories.map((c) => ({
+                  value: c,
+                  label: categoryLabels[c],
+                })),
+              ]}
+              value={filters.category ?? ""}
+              onSelect={(v) =>
+                setFilters((f) => ({
+                  ...f,
+                  category: (v || null) as NotificationCategory | null,
+                }))
+              }
+            />
+          </div>
+          <div className="ml-auto flex items-center gap-3">
+            {unreadElsewhere.length > 0 && !filters.everywhere && (
+              <p className="text-xs text-muted-foreground">
+                Also unread in{" "}
+                {unreadElsewhere.map((o, i) => (
+                  <span key={o.id}>
+                    {i > 0 && ", "}
+                    <Link
+                      href={paths.inbox(o.slug, "updates")}
+                      className="font-medium text-foreground hover:underline"
+                    >
+                      {o.name} ({o.count})
+                    </Link>
+                  </span>
+                ))}
+              </p>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void markAllRead()}
+              disabled={!page?.items.some((n) => !n.readAt)}
+            >
+              <CheckCheck className="size-3.5" aria-hidden />
+              <span className="max-sm:sr-only">Mark all read</span>
+            </Button>
+            <Tooltip label="Notification settings">
+              <Link
+                href={paths.notificationSettings(organization.slug)}
+                aria-label="Notification settings"
+                className="grid size-8 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground sm:hidden"
+              >
+                <Settings2 className="size-4" aria-hidden />
+              </Link>
+            </Tooltip>
+          </div>
         </div>
       </div>
       {error && (
@@ -359,20 +429,24 @@ export function NotificationFeed() {
             addressed to you appear here.
           </EmptyState>
         ) : (
-          <ul className="divide-y">
-            {page.items.map((n) => (
-              <Row
-                key={n.id}
-                n={n}
-                showOrganization={filters.everywhere}
-                onOpen={(href) => {
-                  if (!n.readAt) void setRead([n.id], true);
-                  router.push(href);
-                }}
-                onRead={(read) => void setRead([n.id], read)}
-                onArchive={(archived) => void setArchived([n.id], archived)}
-              />
-            ))}
+          <ul className="mx-auto w-full max-w-5xl divide-y">
+            {rows.map((row) => {
+              const ids = row.items.map((n) => n.id);
+              return (
+                <Row
+                  key={row.key}
+                  row={row}
+                  showOrganization={filters.everywhere}
+                  onOpen={(href) => {
+                    const unread = unreadIn(row).map((n) => n.id);
+                    if (unread.length) void setRead(unread, true);
+                    router.push(href);
+                  }}
+                  onRead={(read) => void setRead(ids, read)}
+                  onArchive={(archived) => void setArchived(ids, archived)}
+                />
+              );
+            })}
           </ul>
         )}
         {page?.next && (
@@ -395,19 +469,36 @@ export function NotificationFeed() {
   );
 }
 
+// Events nobody performed by hand: they show what happened, not a person.
+const automaticKinds: ReadonlySet<string> = new Set([
+  "item_ready",
+  "item_unready",
+  "approval_invalidated",
+  "page_approval_invalidated",
+  "relation_blocked",
+  "pull_request_mergeable",
+  "export_failed",
+  "export_completed",
+  "code_write_failed",
+  "agent_approval_requested",
+  "agent_session_finished",
+]);
+
 function Row({
-  n,
+  row,
   showOrganization,
   onOpen,
   onRead,
   onArchive,
 }: {
-  n: NotificationItem;
+  row: FeedRow<NotificationItem>;
   showOrganization: boolean;
   onOpen: (href: string) => void;
   onRead: (read: boolean) => void;
   onArchive: (archived: boolean) => void;
 }) {
+  const n = row.latest;
+  const digest = row.items.length > 1;
   const category = kindCategory(n.kind);
   const Icon =
     n.kind === "item_ready"
@@ -418,13 +509,34 @@ function Row({
           ? categoryIcons[category]
           : Bell;
   const actor = n.actorName ?? (n.actorId ? "Former member" : "Lictory");
-  const { headline, body } = describeNotification(n, actor);
+  const described = describeNotification(n, actor);
+  const headline = digest ? describeDigest(row) : described.headline;
+  // A conversation's digest shows its newest message, with who wrote it;
+  // an agent's failures show the newest reason.
+  const body =
+    digest && row.group !== "agent_failures" && described.body
+      ? `${actor}: ${described.body}`
+      : described.body;
   const href = notificationHref(n.organizationSlug, n);
-  const title = typeof n.detail.title === "string" ? n.detail.title : null;
-  const unread = !n.readAt;
-  const urgent = n.kind === "blocking_thread" || n.kind === "export_failed";
+  const title =
+    !digest && typeof n.detail.title === "string" ? n.detail.title : null;
+  const unread = unreadIn(row).length > 0;
+  const archived = Boolean(n.archivedAt);
+  const urgent =
+    n.kind === "blocking_thread" ||
+    n.kind === "export_failed" ||
+    (n.kind === "agent_session_finished" && n.detail.status === "failed");
+  const time = (
+    <time
+      dateTime={n.createdAt}
+      title={absoluteTime(n.createdAt)}
+      className="shrink-0 text-xs text-muted-foreground tabular-nums"
+    >
+      {relativeTime(n.createdAt)}
+    </time>
+  );
   return (
-    <li className="group relative">
+    <li className="group relative" data-notification-row>
       <a
         href={href}
         onClick={(e) => {
@@ -433,20 +545,15 @@ function Row({
           onOpen(href);
         }}
         className={cn(
-          "flex items-start gap-3 py-2.5 pr-24 pl-4 hover:bg-muted/60",
+          "flex min-h-12 items-center gap-3 px-3.5 py-2 focus-ring-inset outline-none hover:bg-muted/60",
           !unread && "text-muted-foreground",
         )}
       >
-        <span
-          aria-hidden
-          className={cn(
-            "mt-2 size-1.5 shrink-0 rounded-full",
-            unread ? "bg-primary" : "bg-transparent",
-          )}
-        />
+        {/* One leading mark, as in To do: who did it, or what happened when
+            nobody did (readiness is evidence, not someone's act). */}
         <span
           className={cn(
-            "mt-0.5 grid size-5 shrink-0 place-items-center",
+            "grid w-5 shrink-0 place-items-center",
             urgent
               ? "text-destructive"
               : n.kind === "item_ready"
@@ -454,43 +561,73 @@ function Row({
                 : "text-muted-foreground",
           )}
         >
-          <Icon className="size-4" aria-hidden />
+          {n.actorName && !automaticKinds.has(n.kind) ? (
+            // The kind of event rides on the avatar, so a run of updates by
+            // one person still reads as approvals, moves and assignments.
+            <span className="relative">
+              <PersonAvatar
+                person={{ id: n.actorId ?? n.actorName, name: n.actorName }}
+                size={20}
+              />
+              <span
+                aria-hidden
+                className="absolute -right-1.5 -bottom-1 grid size-3.5 place-items-center rounded-full bg-card text-muted-foreground shadow-(--shadow-border) [&_svg]:size-2.5"
+              >
+                <Icon />
+              </span>
+            </span>
+          ) : (
+            <Icon className="size-4" aria-hidden />
+          )}
         </span>
         <div className="min-w-0 flex-1">
           <p
             className={cn(
-              "flex items-center gap-2 text-[13px]",
-              unread && "font-medium text-foreground",
+              // Phones give the headline two lines, so the item it names
+              // ("…a discussion on PAY-11") is not the part that is cut.
+              "text-[13px] leading-5 max-sm:line-clamp-2 sm:truncate",
+              unread && "font-semibold text-foreground",
             )}
           >
-            {n.actorName && (
-              <Avatar userId={n.actorId} name={n.actorName} size="xs" />
-            )}
-            <span className="min-w-0 truncate">{headline}</span>
+            {unread && <span className="sr-only">Unread: </span>}
+            {headline}
           </p>
           {(title ?? body) && (
-            <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
+            <p className="mt-0.5 truncate text-xs leading-4 text-muted-foreground">
               {title && <span className="text-foreground/80">{title}</span>}
               {title && body && " · "}
               {body}
             </p>
           )}
+          {/* On phones the time sits under the text, so the headline keeps
+              the row's full width. */}
+          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground sm:hidden">
+            {time}
+            {showOrganization && (
+              <>
+                <span aria-hidden>·</span>
+                <span className="truncate">{n.organizationName}</span>
+              </>
+            )}
+          </p>
           {showOrganization && (
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
+            <p className="mt-0.5 text-xs text-muted-foreground max-sm:hidden">
               {n.organizationName}
             </p>
           )}
         </div>
-        <time
-          dateTime={n.createdAt}
-          title={new Date(n.createdAt).toLocaleString()}
-          className="shrink-0 text-xs text-muted-foreground tabular-nums group-focus-within:invisible group-hover:invisible"
-        >
-          {relativeTime(n.createdAt)}
-        </time>
+        {unread && (
+          <span
+            aria-hidden
+            className="size-2 shrink-0 rounded-full bg-primary"
+          />
+        )}
+        <span className="mt-0.5 group-focus-within:invisible group-hover:invisible max-sm:hidden">
+          {time}
+        </span>
       </a>
-      <div className="invisible absolute top-2 right-3 flex items-center gap-0.5 group-focus-within:visible group-hover:visible">
-        {!n.archivedAt && (
+      <div className="invisible absolute top-2 right-3 flex items-center gap-0.5 rounded-md bg-card shadow-(--shadow-border) group-focus-within:visible group-hover:visible">
+        {!archived && (
           <Button
             size="icon"
             variant="ghost"
@@ -508,11 +645,11 @@ function Row({
         <Button
           size="icon"
           variant="ghost"
-          aria-label={n.archivedAt ? "Restore" : "Archive"}
-          title={n.archivedAt ? "Restore" : "Archive"}
-          onClick={() => onArchive(!n.archivedAt)}
+          aria-label={archived ? "Restore" : "Archive"}
+          title={archived ? "Restore" : "Archive"}
+          onClick={() => onArchive(!archived)}
         >
-          {n.archivedAt ? (
+          {archived ? (
             <ArchiveRestore className="size-3.5" />
           ) : (
             <Archive className="size-3.5" />

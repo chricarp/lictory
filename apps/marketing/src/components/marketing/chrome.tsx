@@ -7,7 +7,11 @@ import {
   comparisons,
 } from "@lictory/marketing/content/comparisons";
 import { roundups } from "@lictory/marketing/content/roundups";
-import { docsUrl, repositoryUrl } from "@lictory/marketing/lib/get-started";
+import {
+  docsUrl,
+  downloadPath,
+  repositoryUrl,
+} from "@lictory/marketing/lib/get-started";
 import { cn } from "@lictory/core/lib/utils";
 
 // Shared footer for the landing page, guides, comparisons and roundups.
@@ -22,17 +26,23 @@ export function MarketingFooter({ sections = "" }: { sections?: string }) {
         <Logo className="text-foreground [&>span]:h-6" />
         <nav aria-label="Footer" className="flex flex-wrap gap-x-12 gap-y-6">
           <div className="flex flex-col gap-2">
-            <Link href={`${sections}#features`} className={footerLinkClass}>
-              Features
+            <Link href={`${sections}#how-it-works`} className={footerLinkClass}>
+              How it works
             </Link>
-            <Link href={`${sections}#open-source`} className={footerLinkClass}>
-              Open source
+            <Link href={`${sections}#modules`} className={footerLinkClass}>
+              Modules
             </Link>
-            <Link href={`${sections}#delivery`} className={footerLinkClass}>
-              Delivery
+            <Link href={`${sections}#factory`} className={footerLinkClass}>
+              Factory
+            </Link>
+            <Link href={`${sections}#agents`} className={footerLinkClass}>
+              Agents
             </Link>
             <Link href={`${sections}#spaces`} className={footerLinkClass}>
               Spaces
+            </Link>
+            <Link href={`${sections}#open-source`} className={footerLinkClass}>
+              Open source
             </Link>
             <Link href={`${sections}#faq`} className={footerLinkClass}>
               FAQ
@@ -64,11 +74,28 @@ export function MarketingFooter({ sections = "" }: { sections?: string }) {
             </Link>
           </div>
           <div className="flex flex-col gap-2">
+            <Link href={downloadPath} className={footerLinkClass}>
+              Download
+            </Link>
             <a href={docsUrl} className={footerLinkClass}>
               Documentation
             </a>
             <a href={repositoryUrl} className={footerLinkClass}>
               Source code
+            </a>
+            {/* Free, MIT-licensed and self-hosted: help is the community's
+                and security reports go to the private advisory channel. */}
+            <a
+              href={`${repositoryUrl}/blob/main/SUPPORT.md`}
+              className={footerLinkClass}
+            >
+              Get help
+            </a>
+            <a
+              href={`${repositoryUrl}/security/policy`}
+              className={footerLinkClass}
+            >
+              Report a vulnerability
             </a>
           </div>
           <div className="flex flex-col gap-2">

@@ -272,9 +272,12 @@ export function Decisions() {
             </div>
             <Markdown source={d.body} />
             <p className="text-xs text-muted-foreground">
-              {memberName(d.authorId)} · revision{" "}
-              {revisionNumber(d.revisionId) ?? "earlier"}
-              {d.sourceThreadId && " · from a resolved discussion"}
+              {/* The revision the decision was reached on, which may
+                  predate the text it now governs. */}
+              {memberName(d.authorId)} ·{" "}
+              {d.sourceThreadId
+                ? `from a discussion on revision ${revisionNumber(d.revisionId) ?? "earlier"}`
+                : `recorded on revision ${revisionNumber(d.revisionId) ?? "earlier"}`}
             </p>
           </article>
         ))}
@@ -357,7 +360,7 @@ export function Decisions() {
               maxLength={240}
               required
               className="h-9 w-full rounded-md border bg-background px-2 text-sm"
-              placeholder="Retries reuse the original transaction ID"
+              placeholder="e.g. Retries reuse the original transaction ID"
             />
           </label>
           <MarkdownEditor

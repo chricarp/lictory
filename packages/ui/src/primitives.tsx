@@ -4,6 +4,7 @@ import {
   type IllustrationKind,
 } from "@lictory/ui/state-illustration";
 import { cn } from "@lictory/core/lib/utils";
+import { Heading } from "@lictory/ui/heading";
 
 export { Avatar } from "@lictory/ui/avatar";
 
@@ -82,15 +83,17 @@ export function SectionLabel({
   children: ReactNode;
   className?: string;
 }) {
+  // A heading at the level of where it sits (see `HeadingScope`).
   return (
-    <h3
+    <Heading
       className={cn(
-        // Metadata labels: small mono capitals, like an instrument panel.
-        "font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase",
+        // Section captions: sans 12px semibold, muted. Mono is for
+        // identifiers (keys, SHAs, branches, handles) and code only.
+        "text-xs font-semibold text-muted-foreground",
         className,
       )}
     >
       {children}
-    </h3>
+    </Heading>
   );
 }

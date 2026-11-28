@@ -3,15 +3,18 @@
 //   http://localhost:3002  API        http://localhost:3100  website
 //   http://localhost:3004  collaboration (live drafts; the SPA proxies
 //                          /collaboration to it)
-//   worker (no port)
+//   worker (its loopback health endpoint on WORKER_HEALTH_PORT, 3003)
 // PostgreSQL, migrations, zero-cache and Mailpit run in Docker:
 //   docker compose up -d --wait && bun run dev   (both read .env)
 //
 // Ports follow .env like compose.yaml does: the SPA takes PLATFORM_URL's (or
-// BETTER_AUTH_URL's) port, the API LICTORY_DEV_API_PORT, and zero-cache is
-// expected on LICTORY_DEV_ZERO_PORT. See docs/operations/development.md.
+// BETTER_AUTH_URL's) port, the API LICTORY_DEV_API_PORT, collaboration
+// COLLABORATION_PORT, the website SITE_URL's port, and zero-cache is
+// expected on LICTORY_DEV_ZERO_PORT. `bun run dev:env` sets them all for a
+// second checkout. See docs/operations/development.md.
 import "dotenv/config";
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import { bunMismatch } from "./bun-version";
 
 // Empty variables count as unset.
@@ -36,6 +39,17 @@ if (process.platform === "win32") {
 const bun = bunMismatch();
 if (bun) console.warn(`warning: ${bun.message}`);
 
+// Without .env every port and the Compose project are the defaults, which
+// collide with another checkout. The first run is: bun run dev:env, then
+// docker compose up -d --wait, then bun run dev.
+if (!existsSync(".env"))
+  console.warn(
+    "No .env here yet, so the default ports and Compose project apply. " +
+      "Run `bun run dev:env` first: it writes one that fits this machine " +
+      "(free ports, its own Compose project beside another checkout), then " +
+      "`docker compose up -d --wait`.",
+  );
+
 const platformUrl = or(
   process.env.PLATFORM_URL,
   or(process.env.BETTER_AUTH_URL, "http://localhost:3000"),
@@ -54,11 +68,21 @@ const zeroOrigin = or(
   process.env.ZERO_ORIGIN,
   `http://localhost:${port("LICTORY_DEV_ZERO_PORT", 4848)}`,
 );
+const siteUrl = or(process.env.SITE_URL, "http://localhost:3100");
+const sitePort = URL.canParse(siteUrl)
+  ? new URL(siteUrl).port || "3100"
+  : "3100";
+const collaborationPort = port("COLLABORATION_PORT", 3004);
 const env: NodeJS.ProcessEnv = {
   ...process.env,
   NODE_ENV: process.env.NODE_ENV ?? "development",
   PLATFORM_URL: platformUrl,
-  SITE_URL: or(process.env.SITE_URL, "http://localhost:3100"),
+  SITE_URL: siteUrl,
+  COLLABORATION_PORT: String(collaborationPort),
+  COLLABORATION_ORIGIN: or(
+    process.env.COLLABORATION_ORIGIN,
+    `http://localhost:${collaborationPort}`,
+  ),
   API_ORIGIN: or(process.env.API_ORIGIN, `http://localhost:${apiPort}`),
   ZERO_ORIGIN: zeroOrigin,
 };
@@ -247,10 +271,16 @@ const services: [string, string, string[], NodeJS.ProcessEnv][] = [
     ["run", "--filter", "@lictory/platform", "dev"],
     { ...env, PORT: platformPort },
   ],
-  ["website", "bun", ["run", "--filter", "@lictory/marketing", "dev"], env],
+  [
+    "website",
+    "bun",
+    ["run", "--filter", "@lictory/marketing", "dev"],
+    { ...env, PORT: sitePort },
+  ],
 ];
 
 const children: ChildProcess[] = [];
+let stopping = false;
 for (const [name, command, args, serviceEnv] of services) {
   // Own process group, so stopping also stops what the scripts spawned.
   const child = spawn(command, args, {
@@ -266,9 +296,21 @@ for (const [name, command, args, serviceEnv] of services) {
       .forEach((line) => console.log(`[${name}] ${line}`));
   child.stdout?.on("data", prefix);
   child.stderr?.on("data", prefix);
-  child.on("exit", (code) => console.log(`[${name}] exited (${code})`));
+  child.on("exit", (code, signal) => {
+    // Stopping (Ctrl-C) ends every service by signal: that is no failure.
+    if (stopping) return;
+    console.log(
+      code === 0
+        ? `[${name}] stopped.`
+        : `[${name}] exited ${code === null ? `on ${signal}` : `with code ${code}`}; the other services keep running. Stop with Ctrl-C and start again.`,
+    );
+  });
   children.push(child);
 }
+// Where to look first; the API's probes are the ones production uses.
+console.log(
+  `Starting: app ${platformUrl}, website ${siteUrl}, API health http://localhost:${apiPort}/healthz (readiness /readyz). Ctrl-C stops everything.`,
+);
 // Best effort: a failed diagnosis must not stop the supervisor, which would
 // leave the detached services running.
 checkZeroCacheReachesApi().catch((error: unknown) =>
@@ -276,6 +318,8 @@ checkZeroCacheReachesApi().catch((error: unknown) =>
 );
 
 function stop() {
+  stopping = true;
+  console.log("Stopping the services…");
   for (const child of children)
     try {
       process.kill(-child.pid!, "SIGTERM");

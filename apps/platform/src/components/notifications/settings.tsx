@@ -1,12 +1,13 @@
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { LoadingState } from "@lictory/ui/spinner";
-import { Link } from "@lictory/platform/lib/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ChevronDown, CircleAlert, RotateCcw } from "lucide-react";
+import { ChevronDown, CircleAlert, RotateCcw } from "lucide-react";
 import { Button } from "@lictory/ui/button";
 import { Checkbox } from "@lictory/ui/checkbox";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { Switch } from "@lictory/ui/switch";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
+import { useEmailAvailable } from "@lictory/platform/lib/session";
 import { paths } from "@lictory/core/lib/paths";
 import {
   categoryLabels,
@@ -35,6 +36,7 @@ type Rule =
 // everywhere, but mute the Mobile team" without configuring every project.
 export function NotificationSettings() {
   const { organization, projects, delivery } = useWorkspace();
+  const emailAvailable = useEmailAvailable();
   const [rules, setRules] = useState<PreferenceRule[] | null>(null);
   const [scope, setScope] = useState<Scope>({
     scope: "organization",
@@ -173,19 +175,15 @@ export function NotificationSettings() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b px-4">
-        <Link
-          href={paths.inbox(organization.slug)}
-          aria-label="Back to inbox"
-          className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" />
-        </Link>
-        <h1 className="text-sm font-semibold">Notification settings</h1>
-        {saving && (
-          <span className="text-xs text-muted-foreground">Saving…</span>
-        )}
-      </header>
+      <PageHeader
+        title="Notification settings"
+        breadcrumbs={[{ label: "Inbox", href: paths.inbox(organization.slug) }]}
+        actions={
+          saving && (
+            <span className="text-xs text-muted-foreground">Saving…</span>
+          )
+        }
+      />
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
           <div className="space-y-2">
@@ -254,6 +252,8 @@ export function NotificationSettings() {
                   : `Overrides your project and ${organization.name} settings for items of this team.`}{" "}
               Turn a notification on to receive it in your Inbox; you can then
               also choose to get it by email.
+              {!emailAvailable &&
+                " This server sends no email yet, so your email choices take effect once whoever runs it sets up outbound email."}
             </p>
           </div>
           {error && (

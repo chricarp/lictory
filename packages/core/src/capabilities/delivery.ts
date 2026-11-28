@@ -40,12 +40,16 @@ const exportScope = {
   organizationId,
   rootId: id
     .optional()
-    .describe("Export this item and its subtree (usually a ready Epic)."),
+    .describe(
+      "Hand off this item with its subtree (usually a ready Epic). Refused when the item itself is not ready.",
+    ),
   itemIds: z
     .array(id)
     .max(500)
     .optional()
-    .describe("Or export exactly these items."),
+    .describe(
+      "Or hand off these items, each with its subtree. Plain items (Tasks, Subtasks) go along under a parent in the same hand-off or already in Jira.",
+    ),
 };
 
 // Credentials are entered by an integration manager in the browser only: an API
@@ -135,7 +139,11 @@ const describeDeliveryProject = defineCapability({
   input: z.object({
     organizationId,
     connectionId: id,
-    projectKey: z.string().min(1).max(64),
+    projectKey: z
+      .string()
+      .min(1)
+      .max(64)
+      .describe("The Jira project's key, such as PAY (listDeliveryProjects)."),
     projectId: id.optional(),
   }),
   run: (ctx, input) =>
@@ -161,8 +169,16 @@ const setDeliveryTarget = defineCapability({
     organizationId,
     connectionId: id,
     projectId: id,
-    projectKey: z.string().min(1).max(64),
-    typeMapping: z.record(id, z.string().min(1).max(64)),
+    projectKey: z
+      .string()
+      .min(1)
+      .max(64)
+      .describe("The Jira project's key, such as PAY (listDeliveryProjects)."),
+    typeMapping: z
+      .record(id, z.string().min(1).max(64))
+      .describe(
+        "Jira issue type per work item type id: { [typeId]: issue type id from describeDeliveryProject }.",
+      ),
   }),
   async run(ctx, input) {
     const result = await service(ctx).setTarget(ctx.principal.userId, input);
@@ -199,9 +215,9 @@ const removeDeliveryTarget = defineCapability({
 
 const previewDeliveryExport = defineCapability({
   name: "previewDeliveryExport",
-  title: "Preview export",
+  title: "Preview hand-off",
   description:
-    "What exporting would do for each item (create, update, unchanged, or why it is skipped), including external edits that need overwrite confirmation. Changes nothing.",
+    "What handing off would do for each item (create, update, unchanged, or why it is skipped), including external edits that need overwrite confirmation. Changes nothing.",
   kind: "query",
   surfaces: everywhere,
   external: true,
@@ -218,15 +234,21 @@ const previewDeliveryExport = defineCapability({
 const publishDelivery = defineCapability({
   name: "publishDelivery",
   decision: true,
-  title: "Export to delivery tool",
+  title: "Hand off to delivery tool",
   description:
-    "Hand ready work off to the project's Jira project: create or update issues. Only for projects delivered in Jira, and only when the person explicitly asked to export. Requires the hand-off capability in the project. Returns per-item results; failed items can be exported again on their own. Items edited externally are only overwritten when listed in overwriteItemIds.",
+    "Hand ready work off to the project's Jira project: create or update issues. Only for projects delivered in Jira, and only when the person explicitly asked to hand off. Requires the hand-off capability in the project. Returns per-item results; retrying a failed item (itemIds) hands it off again with its subtree and never creates a second issue. Items edited externally are only overwritten when listed in overwriteItemIds.",
   kind: "command",
   surfaces: everywhere,
   external: true,
   input: z.object({
     ...exportScope,
-    overwriteItemIds: z.array(id).max(500).optional(),
+    overwriteItemIds: z
+      .array(id)
+      .max(500)
+      .optional()
+      .describe(
+        "Items edited in Jira since the last hand-off that may be overwritten; others are left as they are and reported.",
+      ),
   }),
   async run(ctx, input) {
     const result = await service(ctx).publish(ctx.principal.userId, input);
@@ -269,7 +291,10 @@ const getDeliveryPublication = defineCapability({
   description: "Status and per-item results of an export.",
   kind: "query",
   surfaces: everywhere,
-  input: z.object({ organizationId, publicationId: id }),
+  input: z.object({
+    organizationId,
+    publicationId: id.describe("The export id (returned by publishDelivery)."),
+  }),
   run: (ctx, input) =>
     service(ctx).publication(
       ctx.principal.userId,
@@ -282,14 +307,19 @@ const linkExternalItem = defineCapability({
   name: "linkExternalItem",
   title: "Link existing issue",
   description:
-    "Link a work item to an existing external issue by key (e.g. PAY-12 in Jira). Nothing is written externally until the item is exported with overwrite confirmed.",
+    "Link a work item to an existing external issue by key (e.g. PAY-12 in Jira). Nothing is written externally until the item is handed off with overwrite confirmed.",
   kind: "command",
   surfaces: everywhere,
   external: true,
   input: z.object({
     organizationId,
     workItemId: id,
-    externalKey: z.string().trim().min(1).max(64),
+    externalKey: z
+      .string()
+      .trim()
+      .min(1)
+      .max(64)
+      .describe("The existing issue's key, such as PAY-12."),
   }),
   async run(ctx, input) {
     const result = await service(ctx).linkExisting(ctx.principal.userId, input);

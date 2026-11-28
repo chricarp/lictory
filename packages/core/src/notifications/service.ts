@@ -5,6 +5,7 @@ import {
   inArray,
   isNull,
   lt,
+  notInArray,
   or,
   sql,
   type SQL,
@@ -17,6 +18,7 @@ import type { Database } from "@lictory/core/domain/service";
 import {
   isNotificationKind,
   notificationKindList,
+  toDoKinds,
 } from "@lictory/core/notifications/catalog";
 
 const kind = z
@@ -31,31 +33,65 @@ export const notificationQuerySchema = z.object({
   organizationId: z.string().min(1).optional(),
   projectId: z.string().min(1).optional(),
   teamId: z.string().min(1).optional(),
-  kinds: z.array(kind).optional(),
-  status: z.enum(["unread", "all", "archived"]).default("all"),
+  kinds: z
+    .array(kind)
+    .optional()
+    .describe("Only notifications of these kinds."),
+  status: z
+    .enum(["unread", "all", "archived"])
+    .default("all")
+    .describe("unread, all (default, not archived) or archived."),
   // Opaque: `${createdAt ISO}|${id}` of the last row seen.
-  before: z.string().optional(),
+  before: z
+    .string()
+    .optional()
+    .describe(
+      "Page cursor: the last notification's `${createdAt}|${id}` from the previous page.",
+    ),
   limit: z.number().int().min(1).max(100).default(50),
 });
 
 export const notificationActionSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("markRead"),
-    ids: z.array(z.string().min(1)).max(500).optional(),
+    ids: z
+      .array(z.string().min(1))
+      .max(500)
+      .optional()
+      .describe(
+        "Notification ids (listNotifications); omitted: every unread notification.",
+      ),
     // Without ids: every unread notification, optionally in one organization.
     organizationId: z.string().min(1).optional(),
-    read: z.boolean().default(true),
+    read: z
+      .boolean()
+      .default(true)
+      .describe("true (default) marks them read; false marks them unread."),
   }),
   z.object({
     action: z.literal("archive"),
-    ids: z.array(z.string().min(1)).min(1).max(500),
-    archived: z.boolean().default(true),
+    ids: z
+      .array(z.string().min(1))
+      .min(1)
+      .max(500)
+      .describe("Notification ids (listNotifications)."),
+    archived: z
+      .boolean()
+      .default(true)
+      .describe("true (default) archives them; false unarchives them."),
   }),
   z.object({
     action: z.literal("setPreferences"),
     organizationId: z.string().min(1),
-    scope: z.enum(["organization", "project", "team"]),
-    scopeId: z.string().min(1),
+    scope: z
+      .enum(["organization", "project", "team"])
+      .describe("Where the rules apply: organization, project or team."),
+    scopeId: z
+      .string()
+      .min(1)
+      .describe(
+        "The organization (id or slug), project or team id the scope names.",
+      ),
     rules: z
       .array(
         z.union([
@@ -65,20 +101,35 @@ export const notificationActionSchema = z.discriminatedUnion("action", [
         ]),
       )
       .min(1)
-      .max(notificationKindList.length),
+      .max(notificationKindList.length)
+      .describe(
+        "Per notification kind: { kind, inApp, email }, or { kind, reset: true } to fall back to the broader scope.",
+      ),
   }),
   z.object({
     action: z.literal("resetScope"),
     organizationId: z.string().min(1),
-    scope: z.enum(["organization", "project", "team"]),
-    scopeId: z.string().min(1),
+    scope: z
+      .enum(["organization", "project", "team"])
+      .describe("organization, project or team."),
+    scopeId: z
+      .string()
+      .min(1)
+      .describe(
+        "The organization (id or slug), project or team id the scope names.",
+      ),
   }),
   z.object({
     action: z.literal("watch"),
     organizationId: z.string().min(1),
     workItemId: z.string().min(1),
     // null clears the explicit choice and falls back to involvement.
-    watching: z.boolean().nullable(),
+    watching: z
+      .boolean()
+      .nullable()
+      .describe(
+        "true watches, false unwatches; null returns to following your involvement.",
+      ),
   }),
 ]);
 export type NotificationQuery = z.input<typeof notificationQuerySchema>;
@@ -102,13 +153,22 @@ export type NotificationItem = {
 };
 
 // A Spaces notification (one naming a space) is readable only while its
-// recipient holds effective access to that space; others need nothing more
-// than the member join.
-export const spaceNotificationReadable = sql`(${s.notification.spaceId} is null or exists (
+// recipient holds effective access to that space, and a Channels
+// notification (one naming a channel) only while they can read the channel
+// (it is public, or they are its member); others need nothing more than the
+// member join.
+export const notificationReadable = sql`(${s.notification.spaceId} is null or exists (
   select 1 from ${s.spaceReader}
   where ${s.spaceReader.organizationId} = ${s.notification.organizationId}
     and ${s.spaceReader.spaceId} = ${s.notification.spaceId}
-    and ${s.spaceReader.userId} = ${s.notification.userId}))`;
+    and ${s.spaceReader.userId} = ${s.notification.userId}))
+  and (${s.notification.channelId} is null or exists (
+  select 1 from ${s.channel} c
+  where c.organization_id = ${s.notification.organizationId}
+    and c.id = ${s.notification.channelId}
+    and (c.kind = 'public' or exists (
+      select 1 from ${s.channelMember} cm
+      where cm.channel_id = c.id and cm.user_id = ${s.notification.userId}))))`;
 
 // Every read and write is scoped to the authenticated user and, through the
 // member join, to organizations they still belong to.
@@ -139,13 +199,16 @@ export function createNotificationService(db: Database) {
       const q = notificationQuerySchema.parse(input);
       const where: (SQL | undefined)[] = [
         eq(s.notification.userId, userId),
-        spaceNotificationReadable,
+        notificationReadable,
       ];
       if (q.organizationId)
         where.push(eq(s.notification.organizationId, q.organizationId));
       if (q.projectId) where.push(eq(s.notification.projectId, q.projectId));
       if (q.teamId) where.push(eq(s.notification.teamId, q.teamId));
+      // Asked-for kinds are listed as asked; otherwise the To do kinds stay
+      // in To do (`toDoKinds`).
       if (q.kinds?.length) where.push(inArray(s.notification.kind, q.kinds));
+      else where.push(notInArray(s.notification.kind, [...toDoKinds]));
       if (q.status === "archived")
         where.push(sql`${s.notification.archivedAt} is not null`);
       else where.push(isNull(s.notification.archivedAt));
@@ -210,7 +273,8 @@ export function createNotificationService(db: Database) {
         unread: await this.unread(userId),
       };
     },
-    // Unread counts per organization, for badges.
+    // Unread counts per organization, for badges. To do kinds are counted
+    // by To do, from live state, not here.
     async unread(userId: string) {
       const rows = await db
         .select({
@@ -224,7 +288,8 @@ export function createNotificationService(db: Database) {
             eq(s.notification.userId, userId),
             isNull(s.notification.readAt),
             isNull(s.notification.archivedAt),
-            spaceNotificationReadable,
+            notInArray(s.notification.kind, [...toDoKinds]),
+            notificationReadable,
           ),
         )
         .groupBy(s.notification.organizationId);

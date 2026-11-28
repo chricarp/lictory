@@ -1,7 +1,7 @@
 import { Input } from "@ui-sdk/react/input";
 import { Link } from "@lictory/platform/lib/navigation";
 import { useMemo, useState } from "react";
-import { GripVertical, Plus } from "lucide-react";
+import { GripVertical, ListTree, Plus } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
 import { externalLinksByItem } from "@lictory/core/lib/lifecycle";
 import { ExternalStatusBadge } from "@lictory/platform/components/delivery/export";
@@ -50,7 +50,8 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
         ? capabilities.editSpecifications
         : capabilities.editSpecifications || capabilities.changeProperties),
   );
-  // Default to the richest child type one level down (Story under Epic).
+  // Default to the richest child type one level down (Story under Epic,
+  // Task under Story).
   const [childTypeId, setChildTypeId] = useState<string>();
   const childType =
     childTypes.find((t) => t.id === childTypeId) ??
@@ -121,7 +122,9 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
     return null;
   return (
     <div>
-      <div className="mb-2 flex items-center gap-2">
+      {/* Wraps at 320px (WCAG 1.4.10): the actions take the next line
+          rather than running past the edge. */}
+      <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
         <SectionLabel>Children</SectionLabel>
         {stories.length > 0 && (
           <span className="text-xs text-muted-foreground tabular-nums">
@@ -138,33 +141,30 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
             {stale} from an earlier revision
           </span>
         )}
-        {!readOnly && parentType.hasSpecification && onPropose && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto"
-            onClick={onPropose}
-          >
-            Propose breakdown
-          </Button>
-        )}
-        {!readOnly && !composing && childType && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="ml-auto"
-            onClick={() => setComposing(true)}
-          >
-            <Plus className="size-3.5" /> Add {childType.name.toLowerCase()}
-          </Button>
-        )}
+        {/* Proposing the breakdown for review is the step a specification
+            leads to; adding one child directly is the quieter option. */}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+          {!readOnly && !composing && childType && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setComposing(true)}
+            >
+              <Plus className="size-3.5" /> Add {childType.name.toLowerCase()}
+            </Button>
+          )}
+          {!readOnly && parentType.hasSpecification && onPropose && (
+            <Button variant="secondary" size="sm" onClick={onPropose}>
+              <ListTree className="size-3.5" /> Propose breakdown
+            </Button>
+          )}
+        </div>
       </div>
-      {parentType.hasSpecification && (
+      {/* Said once, before the first breakdown: what happens to one. */}
+      {parentType.hasSpecification && onPropose && stories.length === 0 && (
         <p className="mb-2 text-xs text-muted-foreground">
-          Reviews approve this specification. Child readiness shows whether its
-          delivery breakdown is prepared.
-          {item.mainProtected &&
-            " The approved specification stays protected while you prepare its children."}
+          A proposed breakdown is reviewed by this specification&rsquo;s
+          reviewers before its items are created.
         </p>
       )}
       <div className="overflow-hidden rounded-md border">
@@ -371,7 +371,7 @@ export function EpicStories({ onPropose }: { onPropose?: () => void }) {
               }}
               placeholder={`${childType?.name ?? "Item"} title — Enter to add another, Esc to finish`}
               aria-label={`New ${childType?.name.toLowerCase() ?? "item"} title`}
-              className="h-7 flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/70 touch:text-base"
+              className="h-7 flex-1 bg-transparent text-[13px] outline-none placeholder:text-placeholder touch:text-base"
             />
             <Button type="submit" size="sm" disabled={!title.trim()}>
               Add

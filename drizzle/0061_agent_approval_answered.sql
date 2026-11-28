@@ -1,0 +1,1 @@
+ALTER TYPE "public"."agent_approval_status" ADD VALUE 'answered';

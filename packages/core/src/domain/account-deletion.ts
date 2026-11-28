@@ -133,6 +133,12 @@ export async function deleteAccount(db: Database, userId: string) {
     await tx.delete(s.twoFactor).where(eq(s.twoFactor.userId, userId));
     await tx.delete(s.passkey).where(eq(s.passkey.userId, userId));
     await tx.delete(s.accessToken).where(eq(s.accessToken.userId, userId));
+    // Where their agents were woken (webhook destinations and MCP event
+    // subscriptions, with their secrets) and the events addressed to them.
+    await tx
+      .delete(s.agentEventSubscription)
+      .where(eq(s.agentEventSubscription.userId, userId));
+    await tx.delete(s.agentEvent).where(eq(s.agentEvent.userId, userId));
     // Records of what their agents called (docs/internals/audit.md).
     await tx
       .delete(s.capabilityInvocation)
@@ -170,6 +176,13 @@ export async function deleteAccount(db: Database, userId: string) {
         organizationId: s.spaceGrant.organizationId,
         spaceId: s.spaceGrant.spaceId,
       });
+    // Channel memberships (with read cursors) and thread follows are access
+    // and personal state, not history: their messages and reactions stay
+    // attributed to them, like their comments.
+    await tx
+      .delete(s.channelThreadParticipant)
+      .where(eq(s.channelThreadParticipant.userId, userId));
+    await tx.delete(s.channelMember).where(eq(s.channelMember.userId, userId));
     await tx.delete(s.member).where(eq(s.member.userId, userId));
     if (organizationIds.length)
       await tx

@@ -1024,7 +1024,7 @@ function DraftEditor({
           <span aria-hidden className="size-1.5 rounded-full bg-primary" />
           {line.isMain
             ? "Live draft"
-            : `Draft of ${line.branchName ?? "this branch"}`}
+            : `Draft of ${line.branchName ?? "this change"}`}
         </span>
         <span aria-hidden>·</span>
         <span>based on {line.basedOn}</span>
@@ -1037,16 +1037,18 @@ function DraftEditor({
           savedTitle="Every edit is stored in the shared draft. It becomes part of the specification's history only when someone saves a revision."
         />
         <span aria-hidden>·</span>
-        <span className={cn(uncommitted && "text-warning")}>
+        {/* Unsaved edits are the normal state of writing, not a warning:
+            plain text, so the status card keeps the only accent. */}
+        <span className={cn(uncommitted && "text-foreground")}>
           {sourceDirty
             ? "Markdown not applied yet"
             : uncommitted
               ? line.isMain
                 ? "Not saved as a revision yet"
-                : "Uncommitted changes"
+                : "Not saved as a version yet"
               : line.isMain
                 ? `Same as ${line.basedOn}`
-                : "All changes committed"}
+                : "Every edit is in a version"}
         </span>
         <Editors peers={snapshot.peers} />
       </div>
@@ -1108,7 +1110,7 @@ function DraftEditor({
       ) : (
         <div
           className={cn(
-            "relative flex min-w-0 flex-col rounded-lg border bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
+            "relative flex min-w-0 flex-col rounded-lg border border-input bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
             !snapshot.everSynced && "opacity-60",
           )}
         >
@@ -1125,6 +1127,7 @@ function DraftEditor({
                     : undefined
                 }
                 source={{ active: source !== null, toggle: toggleSource }}
+                framed={false}
                 className="rounded-none border-0 bg-transparent px-1.5 py-1 shadow-none"
               />
             )}

@@ -13,7 +13,7 @@ configuration) and at most one of its **teams**. Moving an item between teams
 never changes its identifier, status or iteration. Its
 `typeId` points into the organization's type registry (see
 [delivery.md](delivery.md)); hierarchy follows type levels, so a parent's level is
-strictly above its child's (Epic 2 > Story/Task/Bug 1 > Subtask 0), and the
+strictly above its child's (Epic 3 > Story 2 > Task/Bug 1 > Subtask 0), and the
 server rejects any other parent or type change. Labels and milestones are
 project-scoped and archivable. Sibling order under a parent is a sparse integer
 `position` (`reorderWorkItem`); backlog and board order is a fractional `rank`
@@ -88,7 +88,9 @@ a review; holding a discipline never grants approval by itself.
 Suggestion reviewers are individuals chosen by the suggestion's author and must
 hold one active discipline of the item's project that grants **both**
 `editSpecifications` and `review` (`canReviewSuggestions`); the author cannot
-review their own suggestion.
+review their own suggestion. While nobody is asked, an eligible person may ask
+themselves (and only themselves), so a suggestion never waits on its author to
+choose; once someone is asked, only the author changes who.
 
 Every project is seeded with Product (all capabilities), Engineering (requests,
 reviews and changes properties) and QA (requests, reviews and changes
@@ -155,6 +157,13 @@ no projection reads, under the organization lock in shared mode, re-checking
 each author's session, membership and right to write the line in the same
 transaction. Whether a draft holds unsaved changes is projected by separate,
 exclusively locked transactions and by the commands that seal or replace it.
+
+The conversation writer of [Lictory Channels](channels.md#write-path) is the
+other: messages, reactions, read cursors and thread participation are written
+under the organization lock in shared mode plus a per-channel lock, with
+membership and channel access checked in the transaction. Its tables are in
+the `lictory_zero` publication themselves and the Channels queries authorize
+them through channel access; no `sync_entity` row exists for them.
 
 Lictory Spaces keep their projections in a separate table, `space_entity`,
 with the effective access rows `space_reader`; both are in the `lictory_zero`
@@ -431,8 +440,20 @@ including PR review/discussion projections. Commits, decisions in activity,
 merged main revisions and approvals remain durable. Main cannot be deleted.
 There are no close/reopen or archive/restore branch/PR actions.
 
-The legacy suggestion tables and commands remain for existing history and
-compatibility tests; the user-facing workflow uses branches and PRs. Internal
+Suggestions are the short path for a small text change: someone selects a
+passage, writes its replacement (the browser applies it to main's Markdown
+only when the passage is plain text inside one text node,
+`replaceQuote` in `editor/markdown-text.ts`; anything else opens a branch),
+and asks one eligible reviewer to accept it. Accepting is the assigned
+reviewer's approval followed by `mergeSuggestion`, which creates the next
+revision like an edit (approvals stale, reviews re-requested) and is refused
+while main is protected: a ready specification changes only through a PR. On
+a protected main the browser's same "Suggest a change" composer sends the
+change for review instead, with the ordinary commands (`createBranch`,
+`commitBranch` of exactly that replacement, `createPullRequest` into main), so
+one action keeps one meaning for the person and the protection holds.
+Suggestions made through MCP appear beside the text the same way. Larger
+changes use branches and PRs. Internal
 list fields `openSuggestions` and `suggestionReviewerIds` include active PRs so
 existing filters continue working. Protocol version **9** adds commit, branch,
 PR and PR-review projections. All new commands preserve the shared organization

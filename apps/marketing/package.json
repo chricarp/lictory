@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "assets": "node scripts/copy-shared-assets.mjs",
-    "dev": "node scripts/copy-shared-assets.mjs && next dev --port 3100",
+    "dev": "node scripts/copy-shared-assets.mjs && next dev --port ${PORT:-3100}",
     "build": "node scripts/copy-shared-assets.mjs && next build --webpack",
     "build:cloudflare": "MARKETING_STATIC_EXPORT=true bun run build && bun ../../scripts/check-site-indexing.ts --exact-canonicals out",
     "preview:cloudflare": "wrangler dev --port 8787",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "lucide-react": "^1.47.0",
-    "next": "16.4.2",
+    "next": "16.4.6",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "react-markdown": "^10.1.0"

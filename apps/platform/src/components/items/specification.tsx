@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -9,7 +10,7 @@ import {
 import { Input } from "@ui-sdk/react/input";
 import { Toolbar, ToolbarButton } from "@ui-sdk/react/toolbar";
 import { MessageSquarePlus, Pencil, PenLine } from "lucide-react";
-import { relativeTime } from "@lictory/core/lib/work-items";
+import { byType, relativeTime } from "@lictory/core/lib/work-items";
 import { occurrenceIn } from "@lictory/core/editor/markdown-text";
 import { CONTEXT_QUOTE_LIMIT } from "@lictory/core/intelligence/chat/shared";
 import { IntelligenceMark } from "@lictory/ui/intelligence-mark";
@@ -21,6 +22,7 @@ import { Kbd, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { RevisionDiff } from "@lictory/ui/diff";
 import { useItem } from "@lictory/platform/components/items/item-context";
+import { PageSkipLink } from "@lictory/platform/components/shell/skip-links";
 import {
   SpecificationDraftEditor,
   useSpecificationDraft,
@@ -28,7 +30,19 @@ import {
 import type { LiveControls } from "@lictory/platform/components/items/live-specification";
 import { SPECIFICATION_CLOSE_REASONS } from "@lictory/core/spaces/collaboration-protocol";
 import { useSpecDiscussions } from "@lictory/platform/components/review/spec-discussions";
-import { threadMarks } from "@lictory/platform/components/review/markdown-marks";
+import {
+  suggestionMarks,
+  threadMarks,
+} from "@lictory/platform/components/review/markdown-marks";
+import {
+  suggestionRanges,
+  useOpenSuggestions,
+} from "@lictory/platform/components/review/inline-suggestions";
+import {
+  commentShortcut,
+  keyboardSelect,
+  keyboardSelectionHint,
+} from "@lictory/platform/lib/keyboard-selection";
 
 type Mode = "read" | "edit";
 
@@ -42,23 +56,57 @@ export function Specification({
   setMode: (mode: Mode) => void;
   // Starts a discussion on the selected passage.
   onQuote: (draft: QuoteDraft) => void;
-  // Starts a branch to change the selected text (reviewable specifications).
-  onSuggest?: (quote: string) => void;
+  // Suggests a change of the selected text (reviewable specifications).
+  onSuggest?: (draft: QuoteDraft) => void;
 }) {
-  const { current, readOnly, canEdit, memberName, reviewable } = useItem();
+  const { current, readOnly, canEdit, memberName, reviewable, entities } =
+    useItem();
   const mainDraft = useSpecificationDraft();
+  const sectionRef = useRef<HTMLElement>(null);
   if (!current) return null;
+  // A revision a pull request's merge published: its text is the pull
+  // request author's; the revision's author merged it.
+  const mergedFrom = byType(entities, "pullRequest").find(
+    (p) =>
+      p.status === "merged" &&
+      byType(entities, "specCommit").some(
+        (c) => c.id === p.mergedCommitId && c.revisionId === current.id,
+      ),
+  );
   // Plain work (tasks, bugs) has a description that is edited directly; only
   // specifications are reviewed through suggestions and anchored discussions.
   return (
-    <section>
+    <section ref={sectionRef}>
+      {/* A keyboard reviewer's way past the item list and the header,
+          straight to the text (or its editor). */}
+      <PageSkipLink
+        label={reviewable ? "Skip to specification" : "Skip to description"}
+        target={() => {
+          const section = sectionRef.current;
+          // The reader, else the editor, else the empty text's "start
+          // writing" button, in that order (not document order).
+          for (const selector of [
+            "[data-spec-root]",
+            '[contenteditable="true"]',
+            "textarea",
+            "[data-spec-empty]",
+          ]) {
+            const element = section?.querySelector<HTMLElement>(selector);
+            if (element) return element;
+          }
+          return section;
+        }}
+      />
       <div className="mb-2 flex items-center gap-2">
         <SectionLabel>
           {reviewable ? "Specification" : "Description"}
         </SectionLabel>
         <span className="min-w-0 truncate text-xs text-muted-foreground">
-          Revision {current.number} · {memberName(current.authorId)} ·{" "}
-          {relativeTime(current.createdAt)}
+          Revision {current.number} ·{" "}
+          {mergedFrom && mergedFrom.authorId !== current.authorId
+            ? `${memberName(mergedFrom.authorId)}'s proposed change, applied by ${memberName(current.authorId)}`
+            : memberName(current.authorId)}{" "}
+          · {relativeTime(current.createdAt)}
         </span>
         {mode === "read" && !readOnly && (
           <div className="ml-auto flex items-center gap-1">
@@ -115,7 +163,18 @@ function headingFor(node: Node | null): Element | null {
   return null;
 }
 
-type Selected = QuoteDraft & { x: number; y: number };
+// Where the selection's actions sit: x is the centre, y the top edge.
+// `end` is the selection's last line (its right edge, top and height):
+// when the line has room after the selection, the actions sit there and
+// cover no text at all.
+type Selected = QuoteDraft & {
+  x: number;
+  y: number;
+  end: { x: number; y: number; height: number };
+};
+// The actions' height and their distance from the selected lines (px).
+const SELECTION_BAR = 34;
+const SELECTION_GAP = 6;
 
 // The selected passage as an anchor: its quote, the heading it is under and
 // which copy of those words under that heading it is (so repeated words
@@ -130,21 +189,52 @@ function selectedPassage(root: HTMLElement): Selected | undefined {
   if (quote.length < 2) return;
   const heading = headingFor(range.startContainer);
   const before = document.createRange();
+  // Counted from the text itself: the selection actions sit before it.
   if (heading) before.setStartBefore(heading);
-  else before.setStart(root, 0);
+  else before.setStart(root.querySelector(".spec-prose") ?? root, 0);
   before.setEnd(range.startContainer, range.startOffset);
   const rect = range.getBoundingClientRect();
   const rootRect = root.getBoundingClientRect();
+  // The actions open under the selection, so the passage and the lines
+  // that lead to it stay readable while the reader decides; above it only
+  // when the window has no room below.
+  const below =
+    rect.bottom + SELECTION_GAP + SELECTION_BAR < window.innerHeight;
+  const lines = range.getClientRects();
+  const last = lines[lines.length - 1] ?? rect;
+  // Where the text of the selection's last line ends (words after the
+  // selection on that line must stay visible too).
+  let lineEnd = last.right;
+  const endElement =
+    range.endContainer instanceof Element
+      ? range.endContainer
+      : range.endContainer.parentElement;
+  const block = endElement?.closest("p, li, h1, h2, h3, h4, h5, h6, td, th");
+  if (block) {
+    const rest = document.createRange();
+    rest.setStart(range.endContainer, range.endOffset);
+    rest.setEnd(block, block.childNodes.length);
+    for (const line of rest.getClientRects())
+      if (Math.abs(line.top - last.top) < last.height / 2)
+        lineEnd = Math.max(lineEnd, line.right);
+  }
   return {
+    end: {
+      x: lineEnd - rootRect.left,
+      y: last.top - rootRect.top,
+      height: last.height,
+    },
     x: rect.left - rootRect.left + rect.width / 2,
-    y: rect.top - rootRect.top,
+    y: below
+      ? rect.bottom - rootRect.top + SELECTION_GAP
+      : rect.top - rootRect.top - SELECTION_GAP - SELECTION_BAR,
     quote,
     section: heading?.getAttribute("data-heading") ?? "",
     occurrence: occurrenceIn(before.toString() + text, quote),
   };
 }
 
-type QuoteDraft = { quote: string; section: string; occurrence: number };
+export type QuoteDraft = { quote: string; section: string; occurrence: number };
 
 // The thread under a pointer event, from the marks of discussed passages.
 const selectionAction = buttonClass({ variant: "ghost", size: "sm" });
@@ -155,22 +245,30 @@ const threadAt = (target: EventTarget | null) =>
     ?.getAttribute("data-threads")
     ?.split(" ")[0] ?? null;
 
+const suggestionAt = (target: EventTarget | null) =>
+  (target as HTMLElement | null)
+    ?.closest?.("mark[data-suggestions]")
+    ?.getAttribute("data-suggestions")
+    ?.split(" ")[0] ?? null;
+
 function Reader({
   onQuote,
   onSuggest,
   onEdit,
 }: {
   onQuote: (draft: QuoteDraft) => void;
-  onSuggest?: (quote: string) => void;
+  onSuggest?: (draft: QuoteDraft) => void;
   onEdit: () => void;
 }) {
   const { item, current, readOnly, canEdit, reviewable } = useItem();
+  const suggestions = useOpenSuggestions();
   const discussions = useSpecDiscussions();
   const dock = useDock();
   const { directory } = useWorkspace();
   const canAsk = !!dock && directory.ai.available && directory.ai.enabled;
   const canComment = !readOnly && reviewable;
   const rootRef = useRef<HTMLDivElement>(null);
+  const hintId = useId();
   const [selection, setSelection] = useState<Selected>();
   const content = current?.content ?? "";
   const isEmpty = !content.trim();
@@ -244,8 +342,20 @@ function Reader({
         to: l.to!,
         data: { threadId: l.thread.id, blocking: l.thread.blocking },
       }));
-    return ranges.length ? [threadMarks(ranges)] : undefined;
-  }, [located]);
+    // Passages a suggested change rewrites (reviewable specifications).
+    const suggested = reviewable
+      ? suggestionRanges(
+          content,
+          current?.id,
+          suggestions.filter((x) => x.status === "open"),
+        )
+      : [];
+    const plugins = [
+      ...(ranges.length ? [threadMarks(ranges)] : []),
+      ...(suggested.length ? [suggestionMarks(suggested)] : []),
+    ];
+    return plugins.length ? plugins : undefined;
+  }, [located, reviewable, content, current?.id, suggestions]);
   // The selected thread and the one pointed at read stronger, here and in
   // the panel.
   const tinted = [discussions?.active, discussions?.hovered].filter(
@@ -254,27 +364,50 @@ function Reader({
   const setHovered = discussions?.setHovered;
   // The selection actions stay inside the text's column (a discussions
   // column or the window edge would cut them off), also while it resizes.
+  // After the selection on its last line when the line has room (nothing
+  // is covered); otherwise under the selection, centred on it.
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const selectionX = selection?.x;
+  const x = selection?.x;
+  const y = selection?.y;
+  const endX = selection?.end.x;
+  const endY = selection?.end.y;
+  const endHeight = selection?.end.height;
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
     const column = toolbar?.parentElement;
-    if (!toolbar || !column || selectionX === undefined) return;
+    if (
+      !toolbar ||
+      !column ||
+      x === undefined ||
+      y === undefined ||
+      endX === undefined ||
+      endY === undefined ||
+      endHeight === undefined
+    )
+      return;
     const place = () => {
-      const half = toolbar.offsetWidth / 2;
+      const width = toolbar.offsetWidth;
+      const half = width / 2;
+      if (endX + SELECTION_GAP + width <= column.clientWidth) {
+        toolbar.style.left = `${endX + SELECTION_GAP + half}px`;
+        toolbar.style.top = `${endY + (endHeight - toolbar.offsetHeight) / 2}px`;
+        return;
+      }
       const max = column.clientWidth - half;
-      toolbar.style.left = `${Math.max(half, Math.min(selectionX, max))}px`;
+      toolbar.style.left = `${Math.max(half, Math.min(x, max))}px`;
+      toolbar.style.top = `${y}px`;
     };
     place();
     const observer = new ResizeObserver(place);
     observer.observe(column);
     return () => observer.disconnect();
-  }, [selectionX]);
+  }, [x, y, endX, endY, endHeight]);
   return (
     <div className="relative">
       {isEmpty ? (
         <button
           type="button"
+          data-spec-empty
           onClick={onEdit}
           disabled={readOnly}
           className="w-full rounded-md border border-dashed px-4 py-8 text-left text-sm text-muted-foreground hover:border-foreground/30 hover:text-foreground disabled:pointer-events-none"
@@ -285,15 +418,57 @@ function Reader({
             : "Nothing written yet. Click to propose a first draft for review."}
         </button>
       ) : (
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- reads the text selection after a mouse selection and opens a marked passage's discussion; the panel offers both from the keyboard (docs/internals/accessibility.md).
+        // The text is one tab stop: arrow keys select words in it (Shift
+        // extends), Tab reaches the selection actions, Mod+Alt+M comments
+        // and Enter on a marked passage opens its discussion
+        // (lib/keyboard-selection.ts, docs/internals/accessibility.md).
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- the keyboard path is onKeyDown below; clicks read a mouse selection or open a marked passage's discussion.
         <div
           ref={rootRef}
           data-spec-root
+          role="document"
+          aria-label={reviewable ? "Specification text" : "Description text"}
+          aria-describedby={hintId}
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a document the arrow keys select text in (onKeyDown below).
+          tabIndex={0}
+          onKeyDown={(event) => {
+            const root = rootRef.current;
+            if (!root) return;
+            if (keyboardSelect(root, event.nativeEvent)) {
+              event.preventDefault();
+              setSelection(selectedPassage(root));
+              return;
+            }
+            // Enter on a marked passage opens its discussion.
+            if (event.key !== "Enter" || event.target !== root) return;
+            const node = window.getSelection()?.anchorNode;
+            const id = threadAt(
+              node instanceof Element ? node : (node?.parentElement ?? null),
+            );
+            if (!id || !discussions) return;
+            event.preventDefault();
+            discussions.setActive(id);
+            discussions.setPanelOpen(true);
+          }}
           onMouseUp={onMouseUp}
           onClick={(event) => {
-            const id = threadAt(event.target);
-            if (!id || !discussions) return;
+            if (!discussions) return;
             if (!window.getSelection()?.isCollapsed) return;
+            const suggestion = suggestionAt(event.target);
+            if (suggestion) {
+              discussions.setActiveSuggestion(suggestion);
+              discussions.setPanelOpen(true);
+              requestAnimationFrame(() =>
+                document
+                  .querySelector<HTMLElement>(
+                    `[data-suggestion-id="${CSS.escape(suggestion)}"]`,
+                  )
+                  ?.focus(),
+              );
+              return;
+            }
+            const id = threadAt(event.target);
+            if (!id) return;
             discussions.setActive(id);
             discussions.setPanelOpen(true);
           }}
@@ -306,28 +481,36 @@ function Reader({
               : undefined
           }
           onMouseLeave={setHovered ? () => setHovered(null) : undefined}
-          className="relative"
+          className="group/reader relative rounded-sm focus-ring outline-none"
         >
           {tinted.length > 0 && (
             <style>
               {tinted
                 .map(
                   (id) =>
-                    `[data-spec-root] mark[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--warning) 34%,transparent);box-shadow:0 1px 0 0 var(--warning)}[data-spec-root] mark.spec-anchor-blocking[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--destructive) 24%,transparent);box-shadow:0 1px 0 0 var(--destructive)}`,
+                    `[data-spec-root] mark[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--warning) 34%,transparent);box-shadow:inset 0 -3px 0 var(--warning)}[data-spec-root] mark.spec-anchor-blocking[data-threads~="${id}"]{background-color:color-mix(in oklch,var(--destructive) 24%,transparent);box-shadow:inset 0 -3px 0 var(--destructive)}`,
                 )
                 .join("")}
             </style>
           )}
-          <Markdown source={content} marks={marks} />
+          {discussions?.activeSuggestion && (
+            <style>
+              {`[data-spec-root] mark[data-suggestions~="${CSS.escape(discussions.activeSuggestion)}"]{background-color:color-mix(in oklch,var(--primary) 12%,transparent)}`}
+            </style>
+          )}
+          {/* Before the text, so Tab from a keyboard selection reaches
+              it first; placed under the selection (selectedPassage). */}
           {selection && (canComment || canAsk || onSuggest) && (
             <Toolbar
               ref={toolbarRef}
               aria-label="Selection actions"
-              style={{ left: selection.x, top: selection.y - 40 }}
+              data-selection-skip
+              style={{ left: selection.x, top: selection.y }}
               className="absolute z-10 flex max-w-none -translate-x-1/2 flex-nowrap items-center gap-0.5 rounded-md border bg-popover p-0.5 shadow-(--shadow-panel)"
             >
               {canComment && (
                 <ToolbarButton
+                  aria-label="Comment on selection"
                   className={selectionAction}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
@@ -337,21 +520,23 @@ function Reader({
                     window.getSelection()?.removeAllRanges();
                   }}
                 >
-                  <MessageSquarePlus className="size-3.5" /> Comment on
-                  selection
+                  <MessageSquarePlus aria-hidden className="size-3.5" />
+                  Comment
                 </ToolbarButton>
               )}
               {onSuggest && (
                 <ToolbarButton
+                  aria-label="Suggest a change"
                   className={selectionAction}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
-                    onSuggest(selection.quote);
+                    const { quote, section, occurrence } = selection;
+                    onSuggest({ quote, section, occurrence });
                     setSelection(undefined);
                     window.getSelection()?.removeAllRanges();
                   }}
                 >
-                  <PenLine className="size-3.5" /> Suggest a change
+                  <PenLine aria-hidden className="size-3.5" /> Suggest
                 </ToolbarButton>
               )}
               {canAsk && (
@@ -366,6 +551,16 @@ function Reader({
               )}
             </Toolbar>
           )}
+          <Markdown source={content} marks={marks} />
+          <p
+            id={hintId}
+            data-selection-skip
+            className="mt-3 hidden text-xs leading-4 text-muted-foreground group-focus-visible/reader:block"
+          >
+            {keyboardSelectionHint} Tab reaches the selection actions,{" "}
+            {commentShortcut} comments on the selection, Enter on a marked
+            passage opens its discussion.
+          </p>
         </div>
       )}
     </div>
@@ -389,7 +584,7 @@ function LiveEditor({ onDone }: { onDone: () => void }) {
       >
         <p>
           {item.mainProtected
-            ? "This specification is ready, so main is protected. Changes go through a branch and a reviewed pull request."
+            ? "This specification is ready, so it is protected: changes are proposed and reviewed before they apply. Open Proposed changes to start one."
             : SPECIFICATION_CLOSE_REASONS.revoked}
         </p>
         <Button size="sm" variant="secondary" onClick={onDone}>
@@ -484,7 +679,7 @@ function SaveRevision({
         placeholder="What changed? (optional)"
         aria-label="Change summary"
         maxLength={500}
-        className="h-9 w-full rounded-md border bg-card px-3 text-sm outline-none focus:border-primary/60 touch:text-base"
+        className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm outline-none focus:border-primary/60 touch:text-base"
       />
       <div className="flex flex-wrap items-center justify-end gap-2">
         {controls.uncommitted &&
@@ -639,7 +834,7 @@ function Editor({ mode, onDone }: { mode: "edit"; onDone: () => void }) {
           onValueChange={setSummary}
           placeholder="What changed? (optional)"
           aria-label="Change summary"
-          className="h-9 w-full rounded-md border bg-card px-3 text-sm outline-none focus:border-primary/60 touch:text-base"
+          className="h-9 w-full rounded-md border border-input bg-card px-3 text-sm outline-none focus:border-primary/60 touch:text-base"
         />
       )}
       <div className="flex flex-wrap items-center justify-end gap-2">

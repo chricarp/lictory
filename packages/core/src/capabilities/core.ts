@@ -2,8 +2,10 @@ import { z } from "zod";
 import type * as s from "@lictory/core/db/schema";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import type { DeliveryProviders } from "@lictory/core/delivery/registry";
+import type { CodeHostProviders } from "@lictory/core/code/registry";
 import type { ObjectStorage } from "@lictory/core/storage/s3";
 import type { ProposalDrafter } from "@lictory/core/ai/intake";
+import type { AgentScope } from "@lictory/core/factory/authority";
 
 // The shared application layer.
 //
@@ -49,6 +51,14 @@ export const humanOnlyReasons = {
     "Taking a copy of all of an organization's data is an administrator's own decision; agents do not start or download organization exports.",
   deletion:
     "Deleting an organization, or cancelling its deletion, is its owners' own decision; agents never schedule or cancel it.",
+  sharing:
+    "What Lictory Intelligence may read from another system (such as Slack messages) is an organization administrator's own decision; agents never widen what they can read.",
+  autonomy:
+    "How much agents may do by themselves, and the evidence that their work is done, are people's decisions: an agent never changes its own autonomy, its Definition of Done, or signs off its own work.",
+  egress:
+    "Where an organization's events may be sent outside Lictory is its administrators' own decision; agents never widen it.",
+  decision:
+    "Approving, merging, accepting scope, resolving discussions, recording decisions and exporting work are a person's act. An agent proposes and asks; its person decides, and text an agent reads never authorizes it.",
 } as const;
 export type HumanOnlyReason = keyof typeof humanOnlyReasons;
 
@@ -72,6 +82,9 @@ export type Principal = {
   // The agent's name: the access token's name for MCP, Litto for the
   // embedded agent. Each token is one named agent acting for its person.
   agentName?: string | null;
+  // A Factory agent the token is bound to: the call runs as its owner
+  // (`userId`) narrowed by the agent's scope (factory/authority.ts).
+  agent?: AgentScope | null;
 };
 
 // Process-level side effects owned by the hosting runtime (API, tests,
@@ -107,6 +120,8 @@ export type CapabilityContext = {
   storage?: () => ObjectStorage;
   // Delivery adapters; defaults to the configured providers.
   deliveryProviders?: DeliveryProviders;
+  // Code host adapters; defaults to the configured hosts.
+  codeHostProviders?: CodeHostProviders;
   // Lictory Intelligence adapter for proposal intake; defaults to the
   // configured provider. Tests substitute their own.
   proposalDrafter?: ProposalDrafter;
@@ -186,9 +201,11 @@ export type Capability<I extends z.ZodType = z.ZodType, O = unknown> = {
   idempotent?: boolean;
   // Talks to systems outside Lictory (Jira, object storage).
   external?: boolean;
-  // Records a human decision (approve, merge, resolve, export). Agents may
-  // only invoke it when the person explicitly asked; the embedded agent asks
-  // for confirmation first.
+  // Records a human decision (approve, merge, resolve, export). The server
+  // refuses it to Factory agents (`Principal.agent`), whatever their token
+  // allows, and says where the person decides (`personDecisions` in
+  // human-only.ts). A person's own access token may call it when the person
+  // asked; the embedded agent asks for confirmation first.
   decision?: boolean;
   // Required when an agent surface (mcp, agent) is excluded: why the operation
   // stays with the person and where they do it.

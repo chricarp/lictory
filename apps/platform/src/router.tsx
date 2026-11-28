@@ -16,8 +16,12 @@ import {
 import { AuthLayout } from "@lictory/platform/components/auth/auth-layout";
 import { ProjectGate } from "@lictory/platform/components/workspace/project-gate";
 import { SplitView } from "@lictory/platform/components/items/split-view";
-import { loadSession } from "@lictory/platform/lib/session";
-import { RootLayout } from "@lictory/platform/routes/root";
+import {
+  loadSession,
+  ServerUnreachableError,
+  type Session,
+} from "@lictory/platform/lib/session";
+import { LoadingScreen, RootLayout } from "@lictory/platform/routes/root";
 import {
   AppIndex,
   AppLayout,
@@ -28,7 +32,6 @@ import {
 } from "@lictory/platform/routes/app";
 import {
   NotificationsRedirect,
-  OrganizationIndex,
   OrganizationLayout,
   OrganizationNotFound,
   ProjectIndexRedirect,
@@ -50,6 +53,7 @@ const here = (location: { pathname: string; searchStr: string }) =>
 
 const rootRoute = createRootRoute({
   component: RootLayout,
+  pendingComponent: LoadingScreen,
   errorComponent: RootError,
   notFoundComponent: WorkspaceNotFound,
 });
@@ -64,38 +68,83 @@ const legacyAppRoute = createRoute({
   },
 });
 
+// Account pages render without the session: a signed-out person always gets
+// the form, however long the session check takes. A check that answers
+// within this grace period still decides first (configured providers, or a
+// signed-in person continuing to the app) so the common case neither flashes
+// the form nor shifts the page; a slower one finishes in the background.
+const authGraceMs = 300;
+const stillChecking = Symbol("still checking");
+async function withinGrace<T>(check: Promise<T>) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<typeof stillChecking>((resolve) => {
+    timer = setTimeout(() => resolve(stillChecking), authGraceMs);
+  });
+  try {
+    return await Promise.race([check, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const authRoute = createRoute({
   getParentRoute: () => rootRoute,
   id: "auth",
   beforeLoad: async () => {
-    // Social sign-in buttons need the configured providers.
-    await loadSession().catch(() => undefined);
+    // Social sign-in buttons need the configured providers; they appear when
+    // the check answers. A server that answers with an error still leaves
+    // the pages usable; one that fails at once could not sign anyone in, so
+    // it shows the retry.
+    const check = loadSession();
+    const quick = await withinGrace(check).catch((error: unknown) => {
+      if (error instanceof ServerUnreachableError) throw error;
+      return undefined;
+    });
+    return {
+      sessionCheck: check.catch(() => undefined),
+      slowSession: quick === stillChecking,
+    };
   },
   component: () => (
     <AuthLayout>
       <Outlet />
     </AuthLayout>
   ),
+  pendingComponent: LoadingScreen,
+  // Past the grace period the form renders: no loading screen in between.
+  pendingMs: authGraceMs * 2,
 });
 // Pages only for people who are signed out: a signed-in person continues to
 // the destination they asked for, or the home page. The cached session is
 // confirmed with the server first, so an ended session still reaches them.
+// A slow check leaves the form on screen and continues them when it answers,
+// unless they have moved on.
 async function redirectSignedIn({
   location,
+  context,
 }: {
-  location: { searchStr: string };
+  location: { pathname: string; searchStr: string };
+  context: { sessionCheck: Promise<Session | undefined>; slowSession: boolean };
 }) {
-  const cached = await loadSession().catch(() => undefined);
+  const destination = safeCallbackPath(
+    new URLSearchParams(location.searchStr).get("callbackUrl"),
+  );
+  const continueLater = (check: Promise<Session | undefined>) => {
+    void check.then((session) => {
+      if (!session?.user) return;
+      if (router.state.location.pathname !== location.pathname) return;
+      void router.navigate({ href: destination, replace: true });
+    });
+  };
+  if (context.slowSession) return continueLater(context.sessionCheck);
+  const cached = await context.sessionCheck;
   if (!cached?.user) return;
-  const session = await loadSession(true).catch(() => undefined);
+  const confirm = loadSession(true).catch(() => undefined);
+  const session = await withinGrace(confirm);
+  if (session === stillChecking) return continueLater(confirm);
   if (!session?.user) return;
   // eslint-disable-next-line @typescript-eslint/only-throw-error -- router redirects are thrown
-  throw redirect({
-    href: safeCallbackPath(
-      new URLSearchParams(location.searchStr).get("callbackUrl"),
-    ),
-    replace: true,
-  });
+  throw redirect({ href: destination, replace: true });
 }
 
 const authPage = (path: string, name: string, signedOutOnly = false) =>
@@ -118,8 +167,9 @@ const forgotPasswordRoute = authPage(
 const resetPasswordRoute = authPage("/reset-password", "ResetPasswordPage");
 const verifyEmailRoute = authPage("/verify-email", "VerifyEmailPage");
 const authErrorRoute = authPage("/auth-error", "AuthErrorPage");
+// Choosing a handle starts setting up, so it sits outside the auth card.
 const welcomeRoute = createRoute({
-  getParentRoute: () => authRoute,
+  getParentRoute: () => rootRoute,
   path: "/welcome",
   beforeLoad: async ({ location }) => {
     const session = await loadSession();
@@ -140,6 +190,7 @@ const welcomeRoute = createRoute({
     () => import("@lictory/platform/routes/auth"),
     "WelcomePage",
   ),
+  pendingComponent: LoadingScreen,
 });
 
 // Signed in, with a handle.
@@ -167,7 +218,7 @@ const appRoute = createRoute({
   },
   component: AppLayout,
   errorComponent: WorkspaceError,
-  pendingComponent: () => <DocumentSkeleton headerBar />,
+  pendingComponent: LoadingScreen,
 });
 const appIndexRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -229,10 +280,15 @@ const orgRoute = createRoute({
   notFoundComponent: OrganizationNotFound,
   pendingComponent: () => <DocumentSkeleton headerBar />,
 });
+// Home: what waits on me and what the factory is doing.
 const orgIndexRoute = createRoute({
   getParentRoute: () => orgRoute,
   path: "/",
-  component: OrganizationIndex,
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/shell/home/home"),
+    "HomeRoute",
+  ),
+  pendingComponent: ListSkeleton,
 });
 const orgAccountRoute = createRoute({
   getParentRoute: () => orgRoute,
@@ -392,6 +448,79 @@ const spaceSettingsRoute = createRoute({
   pendingComponent: SettingsSectionSkeleton,
 });
 
+// The Factory: agents, runners and agent sessions. Static segments rank
+// above `$project` (FACTORY is a reserved project key).
+const factoryRoute = (path: string, name: string) =>
+  createRoute({
+    getParentRoute: () => orgRoute,
+    path,
+    component: lazyRouteComponent(
+      () => import("@lictory/platform/routes/factory"),
+      name as "FactoryRoute",
+    ),
+    pendingComponent: ListSkeleton,
+  });
+const factoryRoutes = [
+  factoryRoute("/factory", "FactoryRoute"),
+  factoryRoute("/factory/agents", "FactoryAgentsRoute"),
+  factoryRoute("/factory/agents/$agent", "FactoryAgentRoute"),
+  factoryRoute("/factory/runners", "FactoryRunnersRoute"),
+  factoryRoute("/factory/sessions", "FactorySessionsRoute"),
+  factoryRoute("/factory/sessions/$session", "FactorySessionRoute"),
+];
+// Lictory Channels. Static segments rank above `$project` ("CHANNELS" is a
+// reserved project key).
+const channelsRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/channels",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/channels"),
+    "ChannelsRoute",
+  ),
+  pendingComponent: ListSkeleton,
+});
+const channelRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/channels/$channel",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/channels"),
+    "ChannelRoute",
+  ),
+  pendingComponent: ListSkeleton,
+});
+// The design gallery: the shared building blocks in light and dark, not
+// linked from the navigation. "design-system" is longer than any project key
+// (2-10 letters or digits), so it never shadows a project.
+const designGalleryRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/design-system",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/components/shell/gallery"),
+    "DesignGallery",
+  ),
+  pendingComponent: ListSkeleton,
+});
+// The Code module: pull requests, issues and repositories of the connected
+// code hosts. A static segment, so it never resolves as a project key.
+const codeRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/code",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/code"),
+    "CodeRoute",
+  ),
+  pendingComponent: ListSkeleton,
+});
+const codePullRequestRoute = createRoute({
+  getParentRoute: () => orgRoute,
+  path: "/code/pull-requests/$pr",
+  component: lazyRouteComponent(
+    () => import("@lictory/platform/routes/code"),
+    "CodePullRequestRoute",
+  ),
+  pendingComponent: () => <DocumentSkeleton />,
+});
+
 const projectRoute = createRoute({
   getParentRoute: () => orgRoute,
   path: "/$project",
@@ -492,6 +621,13 @@ const handoffRoute = projectPage(
   "/handoff",
   () => import("@lictory/platform/components/delivery/handoff"),
   "Handoff",
+);
+// The factory queue (docs/internals/claims.md).
+const factoryQueueRoute = projectPage(
+  "/queue",
+  () => import("@lictory/platform/components/claims/factory-queue"),
+  "FactoryQueue",
+  ListSkeleton,
 );
 const proposalsRoute = projectPage(
   "/proposals",
@@ -600,6 +736,12 @@ const routeTree = rootRoute.addChildren([
         spacePullRequestsRoute,
         spaceSettingsRoute,
       ]),
+      ...factoryRoutes,
+      channelsRoute,
+      channelRoute,
+      codeRoute,
+      codePullRequestRoute,
+      designGalleryRoute,
       projectRoute.addChildren([
         projectIndexRoute,
         itemsRoute.addChildren([itemsIndexRoute, itemRoute]),
@@ -607,6 +749,7 @@ const routeTree = rootRoute.addChildren([
         boardRoute,
         backlogRoute,
         handoffRoute,
+        factoryQueueRoute,
         proposalsRoute,
         refinementRoute,
         reviewsRoute,

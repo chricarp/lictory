@@ -2,8 +2,8 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
-import { relativeTime } from "@lictory/core/lib/work-items";
-import { MoreHorizontal, Pencil, FileEdit, X } from "lucide-react";
+import { absoluteTime, relativeTime } from "@lictory/core/lib/work-items";
+import { GitMerge, MoreHorizontal, Pencil, FileEdit, X } from "lucide-react";
 import {
   Menu,
   MenuContent,
@@ -22,7 +22,13 @@ import { Checkbox } from "@lictory/ui/checkbox";
 import { mergeDocuments } from "@lictory/core/spaces/document/merge";
 import { canonicalizeDocument } from "@lictory/core/spaces/document/canonical";
 import { documentToMarkdown } from "@lictory/core/spaces/document/markdown";
-import { Avatar } from "@lictory/ui/avatar";
+import { Actor } from "@lictory/platform/components/identity/actor";
+import { PullRequestHeader } from "@lictory/platform/components/review/pull-request-header";
+import {
+  MergeBox,
+  MergedNotice,
+  type MergeRequirement,
+} from "@lictory/platform/components/review/merge-box";
 import { DocumentDiff, RenderedDocumentDiff } from "./document-diff";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
@@ -46,6 +52,26 @@ import { useMergePreview } from "./preview";
 import { ConflictResolution } from "./conflicts";
 
 type PullRequest = SpaceEntityOf<"pagePullRequest">;
+
+// A reviewed change goes to someone by default: whoever wrote the target
+// line's latest version, or else the page's latest other author (not me);
+// "" asks nobody yet. The pull request form and the branch's "Commit and
+// send for review" offer the same person.
+export function suggestReviewer(
+  branches: readonly SpaceEntityOf<"pageBranch">[],
+  commits: readonly SpaceEntityOf<"pageCommit">[],
+  userId: string,
+  targetBranchId?: string,
+) {
+  const targetBranch =
+    branches.find((b) => b.id === targetBranchId) ??
+    branches.find((b) => b.isMain);
+  const lastAuthor = commits.find(
+    (c) => c.id === targetBranch?.headCommitId,
+  )?.authorId;
+  const otherAuthor = commits.findLast((c) => c.authorId !== userId)?.authorId;
+  return lastAuthor && lastAuthor !== userId ? lastAuthor : (otherAuthor ?? "");
+}
 const blockerLabels: Record<PageMergeBlocker, string> = {
   draft: "Mark this pull request ready for review",
   no_merge_base:
@@ -61,25 +87,37 @@ const blockerLabels: Record<PageMergeBlocker, string> = {
 };
 export function PullRequests({
   pageId,
+  initialSource,
   selected,
   onSelect,
 }: {
   pageId: string;
+  // A branch to open the pull request from (?source=, after a commit).
+  initialSource?: string | null;
   selected: string | null;
   onSelect: (id: string | null) => void;
 }) {
-  const { pullRequests, branches } = usePageHistory(pageId);
+  const { pullRequests, branches, commits } = usePageHistory(pageId);
   const { origins } = usePageWork(pageId);
-  const { userId } = useWorkspace();
+  const { userId, directory } = useWorkspace();
+  const space = useSpace();
   const { canEdit } = usePageActions();
-  const [source, setSource] = useState("");
+  const [source, setSource] = useState(initialSource ?? "");
   const [target, setTarget] = useState("");
-  const [title, setTitle] = useState("");
   // The title a branch opened from a work item was named with ("Propose
   // page update"), offered as its pull request's title.
-  const [offered, setOffered] = useState("");
+  const initialTitle =
+    origins.find((o) => o.branchId === initialSource)?.title ?? "";
+  const [title, setTitle] = useState(initialTitle);
+  const [offered, setOffered] = useState(initialTitle);
   const [description, setDescription] = useState("");
   const [draft, setDraft] = useState(false);
+  const suggestedReviewer = suggestReviewer(branches, commits, userId, target);
+  // In a reviewed space nothing merges without a required review: say so
+  // while a ready pull request would be opened with nobody asked.
+  const needsReviewer = space.publishing === "reviewed" && !draft;
+  const [reviewer, setReviewer] = useState<string | null>(null);
+  const chosenReviewer = reviewer ?? suggestedReviewer;
   const action = useHistoryAction();
   const pr = pullRequests.find((p) => p.id === selected);
   if (pr)
@@ -129,8 +167,16 @@ export function PullRequests({
                 draft,
               },
               () => {
+                if (chosenReviewer)
+                  void action.run({
+                    type: "requestPageReview",
+                    pullRequestId: id,
+                    userId: chosenReviewer,
+                    required: true,
+                  });
                 onSelect(id);
                 setTitle("");
+                setReviewer(null);
               },
             );
           }}
@@ -205,6 +251,34 @@ export function PullRequests({
               onChange={(e) => setDescription(e.target.value)}
             />
           </label>
+          <label className="block text-sm">
+            Reviewer
+            <DropdownSelect
+              className="mt-1 w-full"
+              value={chosenReviewer}
+              onValueChange={(value) => setReviewer(value)}
+            >
+              <DropdownSelectOption value="">
+                {space.publishing === "reviewed"
+                  ? "Choose a reviewer"
+                  : "No review"}
+              </DropdownSelectOption>
+              {directory.members
+                .filter((m) => m.id !== userId)
+                .map((m) => (
+                  <DropdownSelectOption key={m.id} value={m.id}>
+                    {m.name}
+                  </DropdownSelectOption>
+                ))}
+            </DropdownSelect>
+          </label>
+          {needsReviewer && !chosenReviewer && (
+            <p role="status" className="text-xs text-warning">
+              Nobody will be asked to review it, and changes to this space merge
+              only after a review. Choose a reviewer now, or start it as a
+              draft.
+            </p>
+          )}
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
               checked={draft}
@@ -231,7 +305,9 @@ function PullRequestDetail({
   pr: PullRequest;
   onBack: () => void;
 }) {
-  const { commits, reviews, branches } = usePageHistory(pr.pageId);
+  // `loaded`: the server has answered, so the discussions a merge warns
+  // about are current, not what this browser cached on an earlier visit.
+  const { commits, reviews, branches, loaded } = usePageHistory(pr.pageId);
   const { userId, memberName } = useWorkspace();
   const { canEdit } = usePageActions();
   const space = useSpace();
@@ -293,65 +369,139 @@ function PullRequestDetail({
   );
   const branchName = (id: string) =>
     branches.find((b) => b.id === id)?.name ?? "the branch";
+  const sourceName = branchName(pr.sourceBranchId);
+  const targetName = branchName(pr.targetBranchId);
+  const requested = pr.reviewers.some((r) => r.userId === userId);
+  const decided = currentReviews.some((r) => r.reviewerId === userId);
+  const approvedBy = currentReviews
+    .filter((r) => !r.staleAt && r.decision === "approved")
+    .map((r) => memberName(r.reviewerId));
+  const blockerText = (b: PageMergeBlocker) =>
+    b === "blocking_threads"
+      ? `Resolve ${gate!.blockingThreads} blocking discussion${gate!.blockingThreads === 1 ? "" : "s"}.`
+      : b === "review_pending"
+        ? `Waiting for ${
+            pr.reviewers
+              .filter(
+                (r) =>
+                  r.required &&
+                  !currentReviews.some(
+                    (review) =>
+                      review.reviewerId === r.userId &&
+                      !review.staleAt &&
+                      review.decision === "approved",
+                  ),
+              )
+              .map((r) => memberName(r.userId))
+              .join(", ") || "required reviewers"
+          } to approve this exact result.`
+        : b === "uncommitted_source" || b === "uncommitted_target"
+          ? `Commit or discard live changes on branch ${branches.find((branch) => branch.id === (b === "uncommitted_source" ? pr.sourceBranchId : pr.targetBranchId))?.name ?? "in this proposal"}.`
+          : `${blockerLabels[b]}.`;
+  const reviewBlockers: PageMergeBlocker[] = [
+    "no_required_review",
+    "review_pending",
+    "changes_requested",
+  ];
+  // The same requirement rows as a specification's and a code pull
+  // request's merge box: what blocks, then what is already met.
+  const requirements: MergeRequirement[] = gate
+    ? [
+        ...gate.blockers.map((b): MergeRequirement => ({
+          key: b,
+          state:
+            b === "review_pending" || b === "draft" ? "pending" : "failure",
+          text: blockerText(b),
+        })),
+        ...(reviewBlockers.some((b) => gate.blockers.includes(b))
+          ? []
+          : [
+              {
+                key: "reviews",
+                state: "success" as const,
+                text: approvedBy.length
+                  ? `Approved by ${approvedBy.join(", ")}.`
+                  : "No review is required to merge.",
+              },
+            ]),
+        ...(gate.blockers.includes("blocking_threads")
+          ? []
+          : [
+              {
+                key: "threads",
+                state: "success" as const,
+                text: "No blocking discussions.",
+              },
+            ]),
+        ...(gate.blockers.includes("conflicts") ||
+        gate.blockers.includes("no_merge_base")
+          ? []
+          : [
+              {
+                key: "conflicts",
+                state: "success" as const,
+                text: `No conflicts with ${targetName}.`,
+              },
+            ]),
+      ]
+    : [];
+  const menu = editable && pagePullRequest.allows(pr.status, "edit") && (
+    <Menu>
+      <MenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Pull request actions"
+          />
+        }
+      >
+        <MoreHorizontal className="size-4" />
+      </MenuTrigger>
+      <MenuContent width={220} aria-label="Pull request actions">
+        <MenuItem icon={<Pencil />} onSelect={() => setEditing(!editing)}>
+          Edit details
+        </MenuItem>
+        <MenuItem
+          icon={<FileEdit />}
+          onSelect={() => {
+            if (!action.pending)
+              void action.run({
+                type: "updatePagePullRequest",
+                pullRequestId: pr.id,
+                draft: pagePullRequest.allows(pr.status, "markDraft"),
+              });
+          }}
+        >
+          {pagePullRequest.allows(pr.status, "markReady")
+            ? "Ready for review"
+            : "Mark as draft"}
+        </MenuItem>
+        <MenuItem icon={<X />} onSelect={() => setClosing(true)}>
+          Close pull request…
+        </MenuItem>
+      </MenuContent>
+    </Menu>
+  );
   return (
     <section className="space-y-5">
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
-          <h2 className="text-xl font-semibold tracking-tight break-words">
-            {pr.title}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            <span className="mr-2 inline-flex rounded-full bg-muted px-2.5 py-1 font-medium text-foreground capitalize">
-              {pr.status}
-            </span>{" "}
-            {branches.find((b) => b.id === pr.sourceBranchId)?.name ??
-              "Source branch"}{" "}
-            →{" "}
-            {branches.find((b) => b.id === pr.targetBranchId)?.name ??
-              "Target branch"}{" "}
-            · {memberName(pr.authorId)}
-          </p>
-        </div>
-        {editable && pagePullRequest.allows(pr.status, "edit") && (
-          <Menu>
-            <MenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Pull request actions"
-                />
-              }
-            >
-              <MoreHorizontal className="size-4" />
-            </MenuTrigger>
-            <MenuContent width={220} aria-label="Pull request actions">
-              <MenuItem icon={<Pencil />} onSelect={() => setEditing(!editing)}>
-                Edit details
-              </MenuItem>
-              <MenuItem
-                icon={<FileEdit />}
-                onSelect={() => {
-                  if (!action.pending)
-                    void action.run({
-                      type: "updatePagePullRequest",
-                      pullRequestId: pr.id,
-                      draft: pagePullRequest.allows(pr.status, "markDraft"),
-                    });
-                }}
-              >
-                {pagePullRequest.allows(pr.status, "markReady")
-                  ? "Ready for review"
-                  : "Mark as draft"}
-              </MenuItem>
-              <MenuItem icon={<X />} onSelect={() => setClosing(true)}>
-                Close pull request…
-              </MenuItem>
-            </MenuContent>
-          </Menu>
-        )}
-      </header>
-      <Markdown source={pr.description ?? "No description provided."} />
+      <div className="flex items-start justify-between gap-3">
+        <PullRequestHeader
+          title={pr.title}
+          state={pr.status}
+          author={<Actor userId={pr.authorId} size={20} />}
+          mergedBy={
+            pr.mergedById && pr.mergedById !== pr.authorId ? (
+              <Actor userId={pr.mergedById} size={20} />
+            ) : undefined
+          }
+          base={targetName}
+          head={sourceName}
+          className="flex-1"
+        />
+        {menu}
+      </div>
+      {pr.description && <Markdown source={pr.description} />}
       <ActionError error={action.error || error} />
       {error && (
         <Button variant="secondary" onClick={reload}>
@@ -421,8 +571,93 @@ function PullRequestDetail({
           </Button>
         </div>
       )}
-      <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_19rem]">
-        <div className="min-w-0">
+      <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_17rem]">
+        <div className="min-w-0 space-y-6">
+          {pr.status === "merged" ? (
+            <MergedNotice>
+              Merged by {memberName(pr.mergedById ?? pr.authorId)}. The merged
+              version is available in history.
+            </MergedNotice>
+          ) : (
+            gate && (
+              <MergeBox
+                target={targetName}
+                requirements={requirements}
+                blocked={gate.blockers.length > 0 || !fresh || !loaded}
+                note={
+                  !canEdit
+                    ? "Merging needs edit access to this space."
+                    : gate.blockers.length
+                      ? `Resolve the requirement${gate.blockers.length === 1 ? "" : "s"} above to merge.`
+                      : `Merging publishes this result as the new version of ${targetName}.`
+                }
+                action={
+                  canEdit &&
+                  !merging && (
+                    <Button
+                      size="sm"
+                      disabled={
+                        action.pending ||
+                        !loaded ||
+                        !fresh ||
+                        !inspected ||
+                        gate.blockers.length > 0
+                      }
+                      autoFocus={returnFocus}
+                      onFocus={() => setReturnFocus(false)}
+                      onClick={() => {
+                        setReturnFocus(false);
+                        setMerging({ onMerge: gate.onMerge });
+                      }}
+                    >
+                      <GitMerge aria-hidden className="size-3.5" /> Merge pull
+                      request…
+                    </Button>
+                  )
+                }
+              >
+                {canEdit && merging && (
+                  <MergeConfirmation
+                    sourceName={sourceName}
+                    targetName={targetName}
+                    onMerge={merging.onMerge}
+                    changed={!sameCounts(merging.onMerge, gate.onMerge)}
+                    disabled={
+                      action.pending ||
+                      !fresh ||
+                      !inspected ||
+                      gate.blockers.length > 0 ||
+                      !sameCounts(merging.onMerge, gate.onMerge)
+                    }
+                    onConfirm={() => {
+                      if (inspected)
+                        void action.run(
+                          {
+                            type: "mergePagePullRequest",
+                            pullRequestId: pr.id,
+                            ...inspected,
+                            ...(merging.onMerge
+                              ? {
+                                  discussionsToRemove: discussionTotal(
+                                    merging.onMerge.discussions,
+                                  ),
+                                  deletesSourceBranch:
+                                    merging.onMerge.sourceRetired,
+                                }
+                              : {}),
+                          },
+                          () => setMerging(null),
+                        );
+                    }}
+                    onCancel={() => {
+                      setMerging(null);
+                      setReturnFocus(true);
+                    }}
+                  />
+                )}
+              </MergeBox>
+            )
+          )}
           {pr.status !== "merged" && (
             <section aria-label="Resulting document diff" className="space-y-4">
               <h3 className="font-semibold">Resulting changes</h3>
@@ -466,315 +701,174 @@ function PullRequestDetail({
             </section>
           )}
         </div>
+        {/* Reviewers beside the change, like a specification's pull
+            request: who is asked, where each stands, and the decision for
+            whoever is asked. */}
         <aside
-          aria-label="Review summary"
-          className="space-y-5 rounded-2xl border border-transparent bg-muted/35 p-5 ring-1 ring-border xl:sticky xl:top-6"
+          aria-label="Reviewers"
+          className="space-y-3 text-sm xl:sticky xl:top-6"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold">Review summary</h3>
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ${pr.status === "merged" || gate?.blockers.length === 0 ? "bg-card text-success ring-1 ring-success/30 ring-inset" : "bg-muted text-foreground"}`}
-            >
-              {pr.status === "merged"
-                ? "Merged"
-                : gate?.blockers.length === 0
-                  ? "Ready to merge"
-                  : pr.status === "draft"
-                    ? "Draft"
-                    : gate?.blockers.includes("conflicts")
-                      ? "Conflicts to resolve"
-                      : "Open"}
-            </span>
-          </div>
-          <section className="space-y-3">
-            <h3 className="text-sm font-medium">Reviewers</h3>
-            <p className="text-sm text-muted-foreground">
+          <h3 className="text-[13px] font-semibold">Reviewers</h3>
+          {!pr.reviewers.length && (
+            <p className="text-[13px] text-muted-foreground">
               {space.publishing === "reviewed"
-                ? "Approval is required for this exact result."
-                : "Required reviews must approve this exact result."}
+                ? "Nobody is asked yet. Ask anyone who can comment on this page and did not write the change; merging needs a required reviewer’s approval of this exact result."
+                : "Nobody is asked yet. Anyone who can comment on this page and did not write the change can review it."}
             </p>
-            {!pr.reviewers.length && (
-              <p className="text-sm text-muted-foreground">
-                No reviewers requested yet.
-              </p>
-            )}
-            {pr.reviewers.map((r) => {
-              const review = currentReviews.find(
-                (review) => review.reviewerId === r.userId,
-              );
-              const state = review?.staleAt
-                ? "Review outdated"
-                : review?.decision === "approved"
-                  ? "Approved"
-                  : review
-                    ? "Changes requested"
-                    : "Pending";
-              return (
-                <div
-                  key={r.userId}
-                  className="flex items-start gap-2.5 text-sm"
-                >
-                  <Avatar
-                    name={memberName(r.userId)}
-                    userId={r.userId}
-                    size="md"
-                  />
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <p className="font-medium break-words">
-                      {memberName(r.userId)}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">
-                        {r.required ? "Required" : "Optional"}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 ring-1 ring-inset ${state === "Approved" ? "bg-card text-success ring-success/30" : "bg-muted ring-border"}`}
-                      >
-                        {state}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      {r.createdAt && (
-                        <p className="text-xs text-muted-foreground">
-                          requested{" "}
-                          <time
-                            dateTime={r.createdAt}
-                            title={new Date(r.createdAt).toLocaleString()}
-                          >
-                            {relativeTime(r.createdAt)}
-                          </time>
-                        </p>
-                      )}
-                      {editable && pr.status !== "merged" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="-ml-2 h-7 px-2 text-xs text-muted-foreground"
-                          aria-label={`Cancel request for ${memberName(r.userId)}`}
-                          disabled={action.pending}
-                          onClick={() => {
-                            void action.run({
-                              type: "cancelPageReview",
-                              pullRequestId: pr.id,
-                              userId: r.userId,
-                            });
-                          }}
-                        >
-                          Cancel request
-                        </Button>
-                      )}
-                    </div>
-                    {review?.staleReason && (
-                      <p className="text-xs text-muted-foreground">
-                        {review.staleReason}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {currentReviews
-              .filter(
-                (r) =>
-                  !pr.reviewers.some(
-                    (requested) => requested.userId === r.reviewerId,
-                  ),
-              )
-              .map((r) => (
-                <p key={r.id} className="text-sm">
-                  {memberName(r.reviewerId)}:{" "}
-                  {r.staleAt
-                    ? r.decision === "approved"
-                      ? "Approved an earlier result"
-                      : "Requested changes on an earlier result"
-                    : r.decision === "approved"
-                      ? "Approved this result"
-                      : "Changes requested"}
-                  {r.staleReason && (
-                    <span className="block text-xs text-muted-foreground">
-                      {r.staleReason}
-                    </span>
-                  )}
-                </p>
-              ))}
-            {editable && pr.status !== "merged" && (
-              <ChoosePerson
-                label={
-                  pr.reviewers.length
-                    ? "Add reviewer"
-                    : "Request required review"
-                }
-                onSelect={(id) => {
-                  void action.run({
-                    type: "requestPageReview",
-                    pullRequestId: pr.id,
-                    userId: id,
-                    required: true,
-                  });
-                }}
-              />
-            )}
-            {pagePullRequest.allows(pr.status, "review") &&
-              !gate?.contributorIds.includes(userId) && (
-                <div className="flex flex-wrap gap-2">
-                  {(["approve", "request_changes", "revoke"] as const)
-                    .filter(
-                      (decision) =>
-                        decision !== "revoke" ||
-                        // A decision made stale by a later change is no longer
-                        // current: the server has nothing to revoke.
-                        currentReviews.some(
-                          (r) => r.reviewerId === userId && !r.staleAt,
-                        ),
-                    )
-                    .map((decision) => (
-                      <Button
-                        key={decision}
-                        size="sm"
-                        variant={
-                          decision === "approve" ? "primary" : "secondary"
-                        }
-                        disabled={
-                          action.pending ||
-                          !inspected ||
-                          (decision !== "revoke" && !canReview)
-                        }
-                        onClick={() => {
-                          if (inspected)
-                            void action.run({
-                              type: "decidePagePullRequest",
-                              pullRequestId: pr.id,
-                              decision,
-                              ...inspected,
-                            });
-                        }}
-                      >
-                        {decision === "approve"
-                          ? "Approve"
-                          : decision === "request_changes"
-                            ? "Request changes"
-                            : "Revoke decision"}
-                      </Button>
-                    ))}
-                </div>
-              )}
-            {gate?.contributorIds.includes(userId) && (
-              <p className="text-xs text-muted-foreground">
-                Contributors cannot approve their own changes.
-              </p>
-            )}
-          </section>
-          {gate && (
-            <section className="space-y-3 border-t pt-4">
-              <h3 className="font-semibold">Merge checks</h3>
-              <ul className="space-y-2 text-sm">
-                {gate.blockers.map((b) => (
-                  <li key={b} className="flex gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="mt-0.5 text-muted-foreground"
-                    >
-                      ○
-                    </span>
-                    <span>
-                      {b === "blocking_threads"
-                        ? `Resolve ${gate.blockingThreads} blocking discussion(s)`
-                        : b === "review_pending"
-                          ? `Requires approval from ${
-                              pr.reviewers
-                                .filter(
-                                  (r) =>
-                                    r.required &&
-                                    !currentReviews.some(
-                                      (review) =>
-                                        review.reviewerId === r.userId &&
-                                        !review.staleAt &&
-                                        review.decision === "approved",
-                                    ),
-                                )
-                                .map((r) => memberName(r.userId))
-                                .join(", ") || "required reviewers"
-                            }`
-                          : b === "uncommitted_source" ||
-                              b === "uncommitted_target"
-                            ? `Commit or discard live changes on branch ${branches.find((branch) => branch.id === (b === "uncommitted_source" ? pr.sourceBranchId : pr.targetBranchId))?.name ?? "in this proposal"}`
-                            : blockerLabels[b]}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {!gate.blockers.length && (
-                <p className="text-sm">
-                  <span aria-hidden="true" className="mr-2 text-success">
-                    ✓
-                  </span>
-                  All merge checks pass.
-                </p>
-              )}
-              {canEdit && !merging && (
-                <Button
-                  className="w-full"
-                  disabled={
-                    action.pending ||
-                    !fresh ||
-                    !inspected ||
-                    gate.blockers.length > 0
-                  }
-                  autoFocus={returnFocus}
-                  onFocus={() => setReturnFocus(false)}
-                  onClick={() => {
-                    setReturnFocus(false);
-                    setMerging({ onMerge: gate.onMerge });
-                  }}
-                >
-                  Merge pull request…
-                </Button>
-              )}
-              {canEdit && merging && (
-                <MergeConfirmation
-                  sourceName={branchName(pr.sourceBranchId)}
-                  targetName={branchName(pr.targetBranchId)}
-                  onMerge={merging.onMerge}
-                  changed={!sameCounts(merging.onMerge, gate.onMerge)}
-                  disabled={
-                    action.pending ||
-                    !fresh ||
-                    !inspected ||
-                    gate.blockers.length > 0 ||
-                    !sameCounts(merging.onMerge, gate.onMerge)
-                  }
-                  onConfirm={() => {
-                    if (inspected)
-                      void action.run(
-                        {
-                          type: "mergePagePullRequest",
-                          pullRequestId: pr.id,
-                          ...inspected,
-                          ...(merging.onMerge
-                            ? {
-                                discussionsToRemove: discussionTotal(
-                                  merging.onMerge.discussions,
-                                ),
-                                deletesSourceBranch:
-                                  merging.onMerge.sourceRetired,
-                              }
-                            : {}),
-                        },
-                        () => setMerging(null),
-                      );
-                  }}
-                  onCancel={() => {
-                    setMerging(null);
-                    setReturnFocus(true);
-                  }}
-                />
-              )}
-            </section>
           )}
-          {pr.status === "merged" && (
-            <p className="text-sm">
-              Merged by {memberName(pr.mergedById ?? pr.authorId)}. The merged
-              version is available in history.
+          {pr.reviewers.map((r) => {
+            const review = currentReviews.find(
+              (review) => review.reviewerId === r.userId,
+            );
+            const state = review?.staleAt
+              ? "Outdated"
+              : review?.decision === "approved"
+                ? "Approved"
+                : review
+                  ? "Changes requested"
+                  : "Pending";
+            return (
+              <div
+                key={r.userId}
+                className="flex items-start gap-2 text-[13px]"
+              >
+                <Actor userId={r.userId} label="none" size={20} />
+                <div className="min-w-0 flex-1">
+                  <p className="flex flex-wrap items-center gap-x-2">
+                    <span className="truncate font-medium">
+                      {memberName(r.userId)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {r.required ? "Required" : "Optional"}
+                    </span>
+                    <span
+                      className={`ml-auto text-xs ${state === "Approved" ? "text-success" : "text-muted-foreground"}`}
+                    >
+                      {state}
+                    </span>
+                  </p>
+                  {r.createdAt && (
+                    <p className="text-xs text-muted-foreground">
+                      requested{" "}
+                      <time
+                        dateTime={r.createdAt}
+                        title={absoluteTime(r.createdAt)}
+                      >
+                        {relativeTime(r.createdAt)}
+                      </time>
+                    </p>
+                  )}
+                  {review?.staleReason && (
+                    <p
+                      className="truncate text-xs text-muted-foreground"
+                      title={review.staleReason}
+                    >
+                      {review.staleReason}
+                    </p>
+                  )}
+                  {editable && pr.status !== "merged" && (
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      aria-label={`Cancel request for ${memberName(r.userId)}`}
+                      disabled={action.pending}
+                      onClick={() => {
+                        void action.run({
+                          type: "cancelPageReview",
+                          pullRequestId: pr.id,
+                          userId: r.userId,
+                        });
+                      }}
+                    >
+                      Cancel request
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {currentReviews
+            .filter(
+              (r) =>
+                !pr.reviewers.some(
+                  (requested) => requested.userId === r.reviewerId,
+                ),
+            )
+            .map((r) => (
+              <p key={r.id} className="text-[13px]">
+                {memberName(r.reviewerId)}:{" "}
+                {r.staleAt
+                  ? r.decision === "approved"
+                    ? "Approved an earlier result"
+                    : "Requested changes on an earlier result"
+                  : r.decision === "approved"
+                    ? "Approved this result"
+                    : "Changes requested"}
+              </p>
+            ))}
+          {editable && pr.status !== "merged" && (
+            <ChoosePerson
+              label={
+                pr.reviewers.length ? "Add reviewer" : "Request required review"
+              }
+              onSelect={(id) => {
+                void action.run({
+                  type: "requestPageReview",
+                  pullRequestId: pr.id,
+                  userId: id,
+                  required: true,
+                });
+              }}
+            />
+          )}
+          {/* The decision is offered to those asked (and to anyone who
+              already decided), so the next step reads clearly. */}
+          {pagePullRequest.allows(pr.status, "review") &&
+            (requested || decided) &&
+            !gate?.contributorIds.includes(userId) && (
+              <div className="flex flex-wrap gap-2 border-t pt-3">
+                {(["approve", "request_changes", "revoke"] as const)
+                  .filter(
+                    (decision) =>
+                      decision !== "revoke" ||
+                      // A decision made stale by a later change is no longer
+                      // current: the server has nothing to revoke.
+                      currentReviews.some(
+                        (r) => r.reviewerId === userId && !r.staleAt,
+                      ),
+                  )
+                  .map((decision) => (
+                    <Button
+                      key={decision}
+                      size="sm"
+                      variant={decision === "approve" ? "primary" : "secondary"}
+                      disabled={
+                        action.pending ||
+                        !inspected ||
+                        (decision !== "revoke" && !canReview)
+                      }
+                      onClick={() => {
+                        if (inspected)
+                          void action.run({
+                            type: "decidePagePullRequest",
+                            pullRequestId: pr.id,
+                            decision,
+                            ...inspected,
+                          });
+                      }}
+                    >
+                      {decision === "approve"
+                        ? "Approve"
+                        : decision === "request_changes"
+                          ? "Request changes"
+                          : "Revoke decision"}
+                    </Button>
+                  ))}
+              </div>
+            )}
+          {gate?.contributorIds.includes(userId) && (
+            <p className="text-xs text-muted-foreground">
+              Contributors cannot approve their own changes.
             </p>
           )}
         </aside>

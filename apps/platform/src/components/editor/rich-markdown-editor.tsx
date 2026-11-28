@@ -93,14 +93,22 @@ function markdownOf(doc: PMNode, source: MarkdownSource) {
 // is read as Markdown, and "@handle " links a teammate without the picker.
 const MarkdownEditing = Extension.create<{
   submit: () => boolean;
+  // Chat composers: plain Enter submits too (not inside lists or code).
+  enterSubmits: () => boolean;
   escape: () => boolean;
   upload: (editor: Editor, files: File[], at?: number) => boolean;
-  handles: () => { id: string; name: string; handle?: string | null }[];
+  handles: () => {
+    id: string;
+    name: string;
+    handle?: string | null;
+    kind?: "agent";
+  }[];
 }>({
   name: "markdownEditing",
   priority: 1000,
   addOptions: () => ({
     submit: () => false,
+    enterSubmits: () => false,
     escape: () => false,
     upload: () => false,
     handles: () => [],
@@ -108,6 +116,11 @@ const MarkdownEditing = Extension.create<{
   addKeyboardShortcuts() {
     return {
       "Mod-Enter": () => this.options.submit(),
+      Enter: () =>
+        this.options.enterSubmits() &&
+        !this.editor.isActive("codeBlock") &&
+        !this.editor.isActive("listItem") &&
+        this.options.submit(),
       Escape: () => this.options.escape(),
     };
   },
@@ -120,13 +133,25 @@ const MarkdownEditing = Extension.create<{
           const handle = match[1]!.toLowerCase();
           const person = options.handles().find((p) => p.handle === handle);
           if (!person) return null;
-          const start = range.to - match[1]!.length - 1;
+          // From the match's start, past any leading space, to the "@":
+          // Tiptap may already have inserted the typed delimiter (range.to
+          // then ends after it), so never count back from range.to.
+          const start =
+            range.from +
+            match[0].length -
+            match[1]!.length -
+            match[2]!.length -
+            1;
           chain()
             .deleteRange({ from: start, to: range.to })
             .insertContentAt(start, [
               {
                 type: "mention",
-                attrs: { id: person.id, label: person.handle ?? person.name },
+                attrs: {
+                  id: person.id,
+                  label: person.handle ?? person.name,
+                  ...(person.kind === "agent" ? { kind: "agent" } : {}),
+                },
               },
               { type: "text", text: match[2]! },
             ])
@@ -201,6 +226,7 @@ const RichMarkdownEditor = forwardRef<
     disabled = false,
     autoFocus = false,
     compact = false,
+    enterSubmits = false,
     toolbar: showToolbar = true,
     minHeight,
     maxHeight,
@@ -225,7 +251,15 @@ const RichMarkdownEditor = forwardRef<
 
   // Everything the editor's callbacks read, current after every render,
   // so the editor is created once.
+  // The placeholder follows the context too ("Steer Forge…" once a queued
+  // session starts); the editor reads it on every redraw.
+  const placeholderText =
+    placeholder ??
+    (references
+      ? "Write, or type / for blocks, # for a work item, [[ for a page"
+      : "Write…");
   const latest = useRef({
+    enterSubmits,
     onValueChange,
     onSubmit,
     onEscape,
@@ -233,9 +267,11 @@ const RichMarkdownEditor = forwardRef<
     mentions,
     resolver,
     fileContext,
+    placeholder: placeholderText,
   });
   useEffect(() => {
     latest.current = {
+      enterSubmits,
       onValueChange,
       onSubmit,
       onEscape,
@@ -243,6 +279,7 @@ const RichMarkdownEditor = forwardRef<
       mentions,
       resolver,
       fileContext,
+      placeholder: placeholderText,
     };
   });
   // The Markdown the document was read from, and the last value sent up.
@@ -304,11 +341,7 @@ const RichMarkdownEditor = forwardRef<
         ...withNodeViews(markdownExtensions()),
         UndoRedo,
         Placeholder.configure({
-          placeholder:
-            placeholder ??
-            (references
-              ? "Write, or type / for blocks, # for a work item, [[ for a page"
-              : "Write…"),
+          placeholder: () => latest.current.placeholder,
         }),
         suggestionExtension("slashMenu", {
           char: "/",
@@ -355,8 +388,8 @@ const RichMarkdownEditor = forwardRef<
           ? [
               suggestionExtension("mentionMenu", {
                 char: "@",
-                title: "People",
-                empty: "No matching people",
+                title: "Mention",
+                empty: "No one matches",
                 store: menus.people,
                 items: (query) =>
                   mentionItems(query, latest.current.mentions ?? []),
@@ -364,6 +397,7 @@ const RichMarkdownEditor = forwardRef<
             ]
           : []),
         MarkdownEditing.configure({
+          enterSubmits: () => latest.current.enterSubmits,
           submit: () => {
             if (!latest.current.onSubmit || menuOpen()) return false;
             latest.current.onSubmit();
@@ -460,6 +494,7 @@ const RichMarkdownEditor = forwardRef<
       }
       mentions={hasMentions}
       source={compact ? undefined : { active: source, toggle: toggleSource }}
+      framed={false}
       className={cn(
         "rounded-none border-0 bg-transparent px-1.5 shadow-none",
         compact ? "py-0.5" : "py-1",
@@ -470,7 +505,7 @@ const RichMarkdownEditor = forwardRef<
   return (
     <div
       className={cn(
-        "relative flex min-w-0 flex-col rounded-lg border bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
+        "relative flex min-w-0 flex-col rounded-lg border border-input bg-card focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/10",
         disabled && "opacity-60",
         containerClassName,
       )}
@@ -488,7 +523,13 @@ const RichMarkdownEditor = forwardRef<
             onValueChange(next);
           }}
           onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && onSubmit) {
+            if (
+              e.key === "Enter" &&
+              onSubmit &&
+              (e.metaKey ||
+                e.ctrlKey ||
+                (enterSubmits && !e.shiftKey && !e.nativeEvent.isComposing))
+            ) {
               e.preventDefault();
               onSubmit();
             } else if (e.key === "Escape" && onEscape) {

@@ -54,7 +54,11 @@ const source = z
       .describe("Pasted material: notes, a request, a ticket, an email."),
     file: z
       .object({
-        filename: z.string().min(1).max(255),
+        filename: z
+          .string()
+          .min(1)
+          .max(255)
+          .describe("File name with its extension, such as notes.docx."),
         contentBase64: z
           .string()
           .max(Math.ceil((MAX_CONTEXT_DOCUMENT_SIZE * 4) / 3) + 4)

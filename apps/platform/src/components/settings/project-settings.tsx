@@ -18,6 +18,8 @@ import { ProjectReadiness } from "@lictory/platform/components/settings/project-
 import { ProjectPlanning } from "@lictory/platform/components/settings/project-planning";
 import { ProjectDelivery } from "@lictory/platform/components/settings/project-delivery";
 import { plural } from "@lictory/platform/components/settings/project-shared";
+import { ProjectAutonomy } from "@lictory/platform/components/claims/project-autonomy";
+import { ProjectDefinitionOfDone } from "@lictory/platform/components/claims/project-done";
 
 const sections = [
   { id: "general", label: "General", group: "Project" },
@@ -25,10 +27,12 @@ const sections = [
   { id: "disciplines", label: "Disciplines", group: "People" },
   { id: "teams", label: "Teams", group: "People" },
   { id: "workflow", label: "Workflow & types", group: "Work" },
-  { id: "readiness", label: "Readiness", group: "Work" },
+  { id: "readiness", label: "Definition of Ready", group: "Work" },
+  { id: "done", label: "Definition of Done", group: "Work" },
   { id: "planning", label: "Planning", group: "Work" },
   { id: "delivery", label: "Delivery", group: "Work" },
   { id: "labels", label: "Labels & milestones", group: "Work" },
+  { id: "autonomy", label: "Autonomy", group: "Factory" },
   {
     id: "context",
     label: "Intelligence context",
@@ -36,6 +40,7 @@ const sections = [
   },
 ] as const;
 type SectionId = (typeof sections)[number]["id"];
+const nativeOnlySections = new Set<SectionId>(["done", "planning"]);
 
 // The header and section navigation live in the settings layout so they stay
 // mounted while people move between sections; only the section re-renders.
@@ -45,19 +50,21 @@ export function ProjectSettingsLayout({ children }: { children: ReactNode }) {
   const members = directory.projectMembers.filter(
     (m) => m.projectId === project.id,
   ).length;
-  const nav: SettingsNavItem[] = sections.map((s) => ({
-    id: s.id,
-    label: s.label,
-    group: s.group,
-    href: paths.projectSettings(organization.slug, project.key, s.id),
-  }));
+  // A project that hands work off to Jira has no Definition of Done or
+  // iterations in Lictory: those sections never apply, so the navigation
+  // leaves them out (their pages still explain why, for old links).
+  const nav: SettingsNavItem[] = sections
+    .filter(
+      (s) => project.deliveryMode === "native" || !nativeOnlySections.has(s.id),
+    )
+    .map((s) => ({
+      id: s.id,
+      label: s.label,
+      group: s.group,
+      href: paths.projectSettings(organization.slug, project.key, s.id),
+    }));
   return (
     <SettingsLayout
-      icon={
-        <span className="grid h-9 min-w-9 place-items-center rounded-lg bg-muted px-1.5 font-mono text-[11px] font-semibold tracking-wide">
-          {project.key}
-        </span>
-      }
       title={project.name}
       subtitle={`Project settings · ${plural(members, "member")}`}
       nav={nav}
@@ -105,6 +112,12 @@ export function ProjectSettingsSection({ section }: { section: string }) {
       )}
       {active === "readiness" && (
         <ProjectReadiness project={project} canEdit={canEdit} />
+      )}
+      {active === "done" && (
+        <ProjectDefinitionOfDone project={project} canEdit={canEdit} />
+      )}
+      {active === "autonomy" && (
+        <ProjectAutonomy project={project} canEdit={canEdit} />
       )}
       {active === "planning" && (
         <ProjectPlanning project={project} canEdit={canEdit} />

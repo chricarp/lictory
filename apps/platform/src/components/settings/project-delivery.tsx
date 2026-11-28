@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Radio, RadioGroup, RadioIndicator } from "@ui-sdk/react/radio";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { Link } from "@lictory/platform/lib/navigation";
-import { Check, GitPullRequestArrow, Sparkles, Truck } from "lucide-react";
+import { GitPullRequestArrow, Sparkles, Truck } from "lucide-react";
 import { paths } from "@lictory/core/lib/paths";
 import type { Project } from "@lictory/core/lib/work-items";
 import type { DeliveryMode } from "@lictory/core/contracts/protocol";
@@ -19,6 +19,7 @@ import {
 } from "@lictory/platform/components/delivery/provider-name";
 import {
   Choice,
+  ChoiceMark,
   useCommand,
 } from "@lictory/platform/components/settings/project-shared";
 
@@ -39,7 +40,7 @@ const modesFor = (
     points: [
       "Board, backlog, sprints or cycles and estimates",
       "Readiness can gate starting spec-backed work",
-      "Nothing is exported",
+      "Nothing is handed off",
     ],
   },
   {
@@ -47,7 +48,7 @@ const modesFor = (
     title: `Hand off to ${tool.name}`,
     summary: `Refine and approve here; ${tool.name} runs delivery.`,
     points: [
-      `Ready work is exported to one project in ${tool.name}`,
+      `Ready work is handed off to one project in ${tool.name}`,
       `Status and assignee are read back from ${tool.name}`,
       `Iterations and estimates are planned in ${tool.name}`,
     ],
@@ -101,7 +102,8 @@ function DeliveryModeSection({
       id="delivery-mode"
       icon={<Truck />}
       title="Where work is delivered"
-      description="One system owns delivery for all of this project's work. Refinement, reviews and approvals work the same either way."
+      description="One system owns delivery for all of this project's work; refinement works the same either way."
+      learnMore="deliveryModes"
     >
       <SettingsBody className="space-y-3">
         <RadioGroup<DeliveryMode>
@@ -119,13 +121,11 @@ function DeliveryModeSection({
             <Radio
               key={m.value}
               value={m.value}
-              className="block h-auto w-auto cursor-default rounded-xl p-4 text-left shadow-(--shadow-border) data-checked:bg-primary/6 data-checked:ring-1 data-checked:ring-primary/40 data-unchecked:not-data-disabled:hover:bg-muted/60"
+              className="group/choice block h-auto w-auto cursor-default rounded-xl p-4 text-left shadow-(--shadow-border) data-checked:ring-2 data-checked:ring-foreground data-unchecked:not-data-disabled:hover:bg-muted/60"
             >
               <span className="flex items-center gap-2 text-sm font-semibold">
+                <ChoiceMark className="mt-0" />
                 {m.title}
-                <RadioIndicator className="ml-auto grid size-5 place-items-center rounded-full bg-primary text-primary-foreground">
-                  <Check className="size-3" />
-                </RadioIndicator>
               </span>
               <span className="mt-0.5 block text-[13px] text-muted-foreground">
                 {m.summary}
@@ -219,7 +219,7 @@ function PullRequestActions({
       id="pull-request-actions"
       icon={<GitPullRequestArrow />}
       title="Pull request actions"
-      description="What Lictory does on its own when a specification pull request changes. Actions only notify; people still review and merge."
+      description="What Lictory does when a specification pull request changes; people still review and merge."
     >
       <SettingsBody>
         <Choice
@@ -269,11 +269,14 @@ function ReviewActions({
       icon={<Sparkles />}
       title="Lictory Intelligence on pull requests"
       description="Whether Lictory Intelligence reviews each commit of a pull request against the specification it implements."
-      footer={
-        directory.ai.enabled ? undefined : (
-          <>
-            Lictory Intelligence is turned off for this organization, so this
-            policy has no effect.
+    >
+      <SettingsBody className="space-y-3">
+        {/* A choice that cannot take effect is not offered as one: it is
+            shown, kept and explained until Intelligence is on. */}
+        {!directory.ai.enabled && (
+          <p className="rounded-lg bg-muted px-3 py-2 text-[13px] text-muted-foreground">
+            Lictory Intelligence is turned off for this organization, so no pull
+            request is reviewed and this choice waits until it is on.
             {isAdmin && (
               <>
                 {" "}
@@ -285,15 +288,12 @@ function ReviewActions({
                 </Link>
               </>
             )}
-          </>
-        )
-      }
-    >
-      <SettingsBody>
+          </p>
+        )}
         <Choice
           label="Review action policy"
           value={project.aiActionPolicy}
-          disabled={!canEdit}
+          disabled={!canEdit || !directory.ai.enabled}
           onChange={(aiActionPolicy) =>
             void run({
               type: "updateProject",

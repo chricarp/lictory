@@ -15,8 +15,8 @@ A status that a person (or an agent acting for one) moves is declared in
 `packages/core/src/contracts/state-machines.ts`: its states and what they
 mean, the steps between them, the states each step is allowed from, and the
 sentence a person reads when it is refused. Declared today: specification pull
-requests, page pull requests, suggestions, reviews, the refinement state and
-iterations.
+requests, page pull requests, suggestions, reviews, the refinement state,
+iterations and agents' claims on work items.
 
 Three readers use the same table, so they cannot disagree:
 
@@ -50,9 +50,10 @@ Some conventions of the table:
 - A state listed as `derived` is read from another column. Closing a pull
   request records a deletion time beside its status; `pullRequestState` and
   `pullRequestIsActive` read both.
-- A specification pull request can be closed after it merged (it leaves the
-  item; the text stays in the specification). A merged page pull request is
-  history and cannot be closed. The two tables say so; do not unify them.
+- A merged pull request is never closed. On a specification, the applied
+  review is the record of who approved which result (a breakdown's reviewers,
+  for example); on a page, the merged pull request is history. Each table
+  refuses it in its product's words.
 
 ## Statuses that follow from something else
 

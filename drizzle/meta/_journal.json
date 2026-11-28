@@ -330,6 +330,146 @@
       "when": 1794474396561,
       "tag": "0046_organization_branding",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795479473432,
+      "tag": "0047_claims_autonomy_definition_of_done",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795484663341,
+      "tag": "0048_factory_agents_runners_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795484665478,
+      "tag": "0049_factory_zero_publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795485884011,
+      "tag": "0050_lictory_channels",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1795485886062,
+      "tag": "0051_channels_zero_publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1795490049430,
+      "tag": "0052_code_hosts",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795490051585,
+      "tag": "0053_code_zero_publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1795491530967,
+      "tag": "0054_factory_loop",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1795492953992,
+      "tag": "0055_slack_chat_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795492966746,
+      "tag": "0056_slack_zero_publication",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1795493357643,
+      "tag": "0057_agent_event_feed",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795495871098,
+      "tag": "0058_code_factory_loop",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795498275406,
+      "tag": "0059_factory_correctness",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795552492662,
+      "tag": "0060_story_task_hierarchy",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795709798869,
+      "tag": "0061_agent_approval_answered",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795710610931,
+      "tag": "0062_capability_invocation_detail",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1795714420403,
+      "tag": "0063_code_webhook_refusals",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795748051085,
+      "tag": "0064_runner_last_error",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1795769609629,
+      "tag": "0065_agent_session_discarded_files",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1795785495843,
+      "tag": "0066_single_key_shortcuts",
+      "breakpoints": true
     }
   ]
 }

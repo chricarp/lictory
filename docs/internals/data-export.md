@@ -76,12 +76,20 @@ every query:
 - [knowledge links](./knowledge-links.md) people made: pages attached to
   work items, the page content work items were created from, page branch
   origins and context pages;
+- the [Factory](./factory.md): agents, runners (without their credential),
+  agent sessions (without lease tokens) with their event logs, steering
+  inputs and approval requests;
+- [channels](./channels.md): channels, members with their read cursors,
+  messages (deleted ones as tombstones), reactions, thread participation and
+  promotion links;
 - the audit log: audit events, configuration changes and agent calls.
 
-Not included: synchronization projections, effective Spaces access, the
+Not included: synchronization projections, effective Spaces access, previous
+bodies of edited and deleted channel messages, resolved mentions, the
 reference indexes and receipts (derived from the above), personal notifications, watch and notification preferences, Litto
 conversations (personal), and credentials of any kind (sessions, accounts,
-access tokens, encrypted delivery credentials).
+access tokens, runner credentials and registration tokens, encrypted
+delivery credentials).
 
 ## Archive format, version 1
 

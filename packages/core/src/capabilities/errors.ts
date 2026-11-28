@@ -1,9 +1,13 @@
 import { z } from "zod";
 import { LogoError } from "@lictory/core/branding/server";
 import { DeliveryError } from "@lictory/core/delivery/provider";
+import { SlackError } from "@lictory/core/channels/slack/api";
 import { ConversionError } from "@lictory/core/intelligence/convert";
 import { ContextError } from "@lictory/core/intelligence/server";
-import { StorageConfigurationError } from "@lictory/core/storage/errors";
+import {
+  ATTACHMENTS_UNAVAILABLE,
+  StorageConfigurationError,
+} from "@lictory/core/storage/errors";
 import { DomainError } from "@lictory/core/domain/errors";
 import {
   CapabilityError,
@@ -36,6 +40,11 @@ export function toCapabilityError(error: unknown): CapabilityError {
       kind: error.kind,
       retryable: error.retryable,
     });
+  if (error instanceof SlackError)
+    return new CapabilityError("external", error.message, {
+      kind: `slack_${error.kind}`,
+      retryable: error.kind === "rate_limited" || error.kind === "transient",
+    });
   if (error instanceof ContextError || error instanceof LogoError)
     return new CapabilityError(fromStatus(error.status), error.message, {
       status: error.status,
@@ -43,19 +52,19 @@ export function toCapabilityError(error: unknown): CapabilityError {
   if (error instanceof ConversionError)
     return new CapabilityError("validation", error.message);
   if (error instanceof StorageConfigurationError)
-    return new CapabilityError(
-      "unavailable",
-      "Attachments are unavailable: this server has no file storage configured. Ask an administrator to configure S3-compatible storage.",
-      { status: 503 },
-    );
+    return new CapabilityError("unavailable", ATTACHMENTS_UNAVAILABLE, {
+      status: 503,
+    });
   if (error instanceof z.ZodError) {
     const issues = error.issues.map((issue) => ({
       path: issue.path.join("."),
-      message: issue.message,
+      message: readable(issue),
     }));
     return new CapabilityError(
       "validation",
-      issues.length === 1 ? issues[0]!.message : "The input is invalid.",
+      issues.length === 1
+        ? issues[0]!.message
+        : `The input is invalid: ${issues.map((i) => i.message).join(" ")}`,
       { issues },
     );
   }
@@ -63,4 +72,38 @@ export function toCapabilityError(error: unknown): CapabilityError {
     "server",
     "The operation failed unexpectedly. Retry shortly.",
   );
+}
+
+// Validation messages name the field they are about, in words people and
+// models act on, instead of the schema library's defaults ("Too small:
+// expected string to have >=1 characters").
+function readable(issue: z.core.$ZodIssue) {
+  const path = issue.path.join(".");
+  const field = path || "The input";
+  if (
+    issue.code === "invalid_type" &&
+    issue.message.endsWith("received undefined")
+  )
+    return `${field} is required.`;
+  if (
+    issue.code === "too_small" &&
+    issue.origin === "string" &&
+    Number(issue.minimum) === 1
+  )
+    return `${field} cannot be empty.`;
+  if (issue.code === "too_small" || issue.code === "too_big") {
+    const bound = issue.code === "too_small" ? "at least" : "at most";
+    const limit = Number(
+      issue.code === "too_small" ? issue.minimum : issue.maximum,
+    );
+    if (issue.origin === "string")
+      return `${field} is ${bound} ${limit} characters long.`;
+    if (issue.origin === "array")
+      return `${field} holds ${bound} ${limit} ${limit === 1 ? "entry" : "entries"}.`;
+    if (issue.origin === "number" || issue.origin === "int")
+      return `${field} is ${bound} ${limit}.`;
+  }
+  return path && !issue.message.startsWith(path)
+    ? `${path}: ${issue.message}`
+    : issue.message;
 }

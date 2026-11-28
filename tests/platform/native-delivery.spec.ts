@@ -44,7 +44,12 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
     await page
       .getByRole("button", { name: "Create another", exact: true })
       .click();
-    await expect(page.getByText(`${type} “${title}” created`)).toBeVisible();
+    // The toast, not ui-sdk's live region that repeats it to screen readers.
+    await expect(
+      page.locator('[data-slot="toast"]', {
+        hasText: `${type} “${title}” created`,
+      }),
+    ).toBeVisible();
     await page.keyboard.press("Escape");
   }
 
@@ -79,8 +84,11 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page
     .locator("[data-card]", { hasText: "Save a card for later" })
     .dragTo(column("In Progress"));
+  // The toast, not ui-sdk's live region that repeats it to screen readers.
+  const toast = (text: RegExp) =>
+    page.locator('[data-slot="toast"]', { hasText: text });
   await expect(
-    page.getByText(/started before its specification is ready/),
+    toast(/CHK-2 started before its specification is ready/),
   ).toBeVisible();
   await reloadWhenSaved(page);
   await expect(
@@ -89,7 +97,9 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
 
   // Block: the project now requires a ready specification to start work.
   await page.getByRole("link", { name: "Project settings" }).click();
-  await page.getByRole("link", { name: "Readiness", exact: true }).click();
+  await page
+    .getByRole("link", { name: "Definition of Ready", exact: true })
+    .click();
   await page.getByRole("radio", { name: /^Block/ }).click();
   await expect(page.getByRole("radio", { name: /^Block/ })).toHaveAttribute(
     "aria-checked",
@@ -109,7 +119,7 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await page
     .locator("[data-card]", { hasText: "Save a card for later" })
     .dragTo(column("In Progress"));
-  await expect(page.getByText(/requires a ready specification/)).toBeVisible();
+  await expect(toast(/requires a ready specification/)).toBeVisible();
   await expect(column("Todo").getByText("Save a card for later")).toBeVisible();
 
   // Cards open a preview docked over the board instead of leaving it.
@@ -158,18 +168,33 @@ test("native delivery: plan a sprint, move cards on the board, readiness gates s
   await expect(
     taskPreview.getByRole("button", { name: "Estimate: 5" }),
   ).toBeVisible();
-  await expect(taskCard.getByText("5", { exact: true })).toBeVisible();
+  await expect(taskCard.getByText("5 pts", { exact: true })).toBeVisible();
   // The close icon, an outside click and Escape all dismiss it; a reload
   // keeps it open.
   await taskPreview.getByRole("button", { name: "Close preview" }).click();
   await expect(taskPreview).toBeHidden();
   await expect(page).not.toHaveURL(/item=/);
+  // Opening a preview is a step of its own: Back closes it and stays on the
+  // board.
   await storyCard.click();
+  await expect(storyPreview).toBeVisible();
+  await page.goBack();
+  await expect(storyPreview).toBeHidden();
+  await expect(page).toHaveURL(/\/board(\?(?!.*item=).*)?$/);
+  await expect(
+    page.getByRole("heading", { name: "Board", level: 1 }),
+  ).toBeVisible();
+  await storyCard.click();
+  // Open before the reload, so what follows shows the reload kept it.
+  await expect(
+    storyPreview.getByRole("heading", { name: "Save a card for later" }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/[?&]item=CHK-2(&|$)/);
   await reloadWhenSaved(page);
   await expect(
     storyPreview.getByRole("heading", { name: "Save a card for later" }),
   ).toBeVisible();
-  await page.getByRole("heading", { name: "Checkout", exact: true }).click();
+  await page.getByRole("heading", { name: "Board", level: 1 }).click();
   await expect(storyPreview).toBeHidden();
   await storyCard.click();
   await page.keyboard.press("Escape");

@@ -10,12 +10,14 @@ import {
 } from "@lictory/platform/lib/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
+  KanbanSquare,
+  ListFilter,
   Plus,
   Repeat,
   Rows3,
-  Send,
   Settings2,
   UserRound,
   Users,
@@ -44,7 +46,6 @@ import { Button } from "@lictory/ui/button";
 import { Popover, Picker } from "@lictory/ui/popover";
 import { PeoplePicker } from "@lictory/platform/components/ui/people-picker";
 import { EmptyState } from "@lictory/ui/primitives";
-import { MissingState } from "@lictory/ui/status-page";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { useProject } from "@lictory/platform/components/workspace/project-gate";
 import { useShell } from "@lictory/platform/components/workspace/shell";
@@ -62,8 +63,24 @@ import {
   ItemPeek,
   useItemPeek,
 } from "@lictory/platform/components/delivery/item-peek";
-import { projectDeliveryTool } from "@lictory/platform/components/delivery/provider-name";
 import { LittoLauncher } from "@lictory/platform/components/intelligence/dock/launcher";
+import {
+  useAgents,
+  useLiveClaims,
+} from "@lictory/platform/components/claims/claims";
+import { useOpenPullRequestsByItem } from "@lictory/platform/components/code/store";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
+import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
+import { ExternalProjectNotice } from "@lictory/platform/components/delivery/external-notice";
+import {
+  MoveMenu,
+  refocusMoved,
+} from "@lictory/platform/components/delivery/move-menu";
+import {
+  rankNeighbours,
+  type RankMove,
+} from "@lictory/platform/components/delivery/move";
+import { StatusChip, StatusDot } from "@lictory/ui/status-chip";
 
 type Lane = "none" | "assignee" | "parent" | "priority";
 const laneLabel: Record<Lane, string> = {
@@ -148,42 +165,17 @@ export function TeamFilterPicker({
   );
 }
 
-// External projects deliver in another tool: Lictory shows the hand-off instead of a
-// board, backlog or iterations.
-export function ExternalProjectNotice({
-  project,
-  surface,
-}: {
-  project: Project;
-  surface: string;
-}) {
-  const { organization, directory } = useWorkspace();
-  const tool = projectDeliveryTool(directory, project.id);
-  return (
-    <MissingState
-      illustration="planning"
-      icon={Send}
-      title={`${project.name} delivers in ${tool.name}`}
-      action={
-        <Button
-          variant="secondary"
-          render={<Link href={paths.handoff(organization.slug, project.key)} />}
-        >
-          Open hand-off
-        </Button>
-      }
-    >
-      Statuses, sprints and estimates for this project are owned by {tool.name},
-      so there is no {surface} in Lictory. The hand-off shows what is ready,
-      what changed since it was handed off and what {tool.name} reports back.
-    </MissingState>
-  );
-}
-
 export function Board() {
   const project = useProject();
   if (project.deliveryMode === "external")
-    return <ExternalProjectNotice project={project} surface="board" />;
+    return (
+      <ExternalProjectNotice
+        project={project}
+        surface="board"
+        title="Board"
+        icon={<KanbanSquare />}
+      />
+    );
   return <ProjectBoard project={project} />;
 }
 
@@ -201,6 +193,11 @@ function ProjectBoard({ project }: { project: Project }) {
   } = useWorkspace();
   const capabilities = capabilitiesIn(project.id);
   const { openCreate, toast } = useShell();
+  // Agent claims, as a compact mark on each claimed card.
+  const claims = useLiveClaims();
+  const agentById = useAgents();
+  // Open pull requests, as a chip on each card they deliver.
+  const pullRequests = useOpenPullRequestsByItem();
   const teamFilter = useTeamFilter(project);
   const { params, setParam } = teamFilter;
   const peek = useItemPeek();
@@ -293,10 +290,14 @@ function ProjectBoard({ project }: { project: Project }) {
   }>();
   const canMove = capabilities.changeProperties;
   const projectOf = (i: WorkItem) => projects.find((p) => p.id === i.projectId);
-  const drop = (laneKey: string, statusId: string, index: number) => {
-    const item = scoped.find((i) => i.id === drag);
-    setDrag(undefined);
-    setOver(undefined);
+  // A drop, or "Move" on a card: the same rules either way.
+  const place = (
+    itemId: string | undefined,
+    laneKey: string,
+    statusId: string,
+    index: number,
+  ) => {
+    const item = scoped.find((i) => i.id === itemId);
     if (!item) return;
     const laneItems = lanes.find((l) => l.key === laneKey)?.items ?? scoped;
     const column = laneItems.filter(
@@ -347,6 +348,22 @@ function ProjectBoard({ project }: { project: Project }) {
         `${label} started before its specification is ready (${blocker.detail}).`,
       );
   };
+  const drop = (laneKey: string, statusId: string, index: number) => {
+    const itemId = drag;
+    setDrag(undefined);
+    setOver(undefined);
+    place(itemId, laneKey, statusId, index);
+  };
+  const rank = (cards: WorkItem[], item: WorkItem, to: RankMove) => {
+    const neighbours = rankNeighbours(
+      cards.map((c) => c.id),
+      item.id,
+      to,
+    );
+    if (!neighbours) return;
+    void mutate({ type: "rankWorkItem", workItemId: item.id, ...neighbours });
+    refocusMoved(item.id);
+  };
   const indexAt = (e: React.DragEvent<HTMLElement>) => {
     const cards = [
       ...e.currentTarget.querySelectorAll<HTMLElement>("[data-card]"),
@@ -365,201 +382,301 @@ function ProjectBoard({ project }: { project: Project }) {
     assignees.length || typeFilter.length || teamFilter.value,
   );
   const points = scoped.reduce((sum, i) => sum + (i.estimate ?? 0), 0);
+  // Board work without a team, for the hint when a team's board is empty.
+  const teamless = items.filter(
+    (i) =>
+      i.projectId === project.id &&
+      !i.archivedAt &&
+      !i.teamId &&
+      !isTopLevel(typeOf(delivery, i)) &&
+      (iterationId
+        ? i.iterationId === iterationId
+        : !isClosedCategory(delivery.statuses.get(i.statusId)?.category) ||
+          now - new Date(i.updatedAt).getTime() <= DONE_WINDOW),
+  ).length;
+  const assigneeSummary = assignees.length
+    ? `${assignees.length} ${assignees.length === 1 ? "person" : "people"}`
+    : "Anyone";
+  const typeSummary = typeFilter.length
+    ? `${typeFilter.length} ${typeFilter.length === 1 ? "type" : "types"}`
+    : "All types";
+  const toggle = (key: string, list: string[], v: string) =>
+    setParam(
+      key,
+      (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]).join(","),
+    );
+  const assigneePicker = (
+    <PeoplePicker
+      multiple
+      title="Assignee"
+      none={{ value: "unassigned", label: "Unassigned" }}
+      value={assignees}
+      onSelect={(v) => toggle("assignee", assignees, v)}
+    />
+  );
+  const typePicker = (
+    <Picker
+      multiple
+      title="Types"
+      options={enabledTypes(delivery, project.id)
+        .filter((t) => !isTopLevel(t))
+        .map((t) => ({
+          value: t.id,
+          label: t.name,
+          icon: <TypeIcon type={t} />,
+        }))}
+      value={typeFilter}
+      onSelect={(v) => toggle("type", typeFilter, v)}
+    />
+  );
+  const teamPicker = (
+    <Picker
+      title="Team"
+      options={[
+        { value: "all", label: "All teams" },
+        ...teamFilter.teams.map((t) => ({ value: t.id, label: t.name })),
+        { value: "none", label: "No team" },
+      ]}
+      value={teamFilter.value ?? "all"}
+      onSelect={(v) => teamFilter.setTeam(v === "all" ? undefined : v)}
+    />
+  );
+  const boardOptions = (
+    <div className="p-1">
+      <p className="px-2 pt-1 pb-1 text-xs font-semibold text-muted-foreground">
+        Swimlanes
+      </p>
+      <RadioGroup<Lane>
+        aria-label="Swimlanes"
+        value={lane}
+        onValueChange={(next) => {
+          if (next) setParam("lanes", next === "none" ? undefined : next);
+        }}
+        className="flex flex-col gap-0"
+      >
+        {(Object.keys(laneLabel) as Lane[]).map((key) => (
+          <Radio key={key} value={key} className={choiceRowClass}>
+            {laneLabel[key]}
+          </Radio>
+        ))}
+      </RadioGroup>
+      <div className="my-1 border-t" />
+      <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
+        <Checkbox
+          checked={showCanceled}
+          onCheckedChange={(checked) => setShowCanceled(checked === true)}
+        />
+        Show canceled column
+      </label>
+    </div>
+  );
+  // Phones show one column per screen: start at the first one with work,
+  // not at an empty Backlog.
+  const firstFilled = columns.find((c) =>
+    scoped.some((i) => i.statusId === c.id),
+  )?.id;
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
-        <h1 className="truncate text-sm font-semibold">{project.name}</h1>
-        <span className="text-xs text-muted-foreground">Board</span>
-        <TeamFilterPicker filter={teamFilter} />
-        {usesIterations && (
-          <Popover
-            width={260}
-            trigger={(props) => (
-              <Button {...props} variant="ghost" size="sm">
-                <Repeat className="size-3.5" />
-                {iteration
-                  ? iterationLabel(iteration, project?.iterationMode)
-                  : "All work"}
-                {iteration?.state === "active" && (
-                  <span className="inline-flex h-5 items-center gap-1 rounded-full bg-success/8 px-2 font-mono text-[10.5px] font-medium tracking-[0.06em] text-success uppercase ring-1 ring-success/20 ring-inset">
-                    <span
-                      aria-hidden
-                      className="size-1.5 rounded-full bg-success"
-                    />
-                    Active
-                  </span>
+      <PageHeader
+        title="Board"
+        icon={<KanbanSquare />}
+        breadcrumbs={[
+          {
+            label: project.name,
+            href: paths.project(organization.slug, project.key),
+          },
+        ]}
+        meta={
+          // Counts per column sit in the column headers; this is the total.
+          <span className="tabular-nums">
+            {scoped.length} {scoped.length === 1 ? "item" : "items"}
+            {project.estimateScale !== "none" &&
+              points > 0 &&
+              ` · ${points} pts`}
+          </span>
+        }
+        actions={
+          <>
+            {usesIterations && (
+              <Popover
+                width={260}
+                align="end"
+                trigger={(props) => (
+                  <Button
+                    {...props}
+                    variant="ghost"
+                    size="sm"
+                    // Room for the sprint's name beside the Active chip.
+                    className="max-w-72 max-sm:max-w-40"
+                  >
+                    <Repeat className="size-3.5" />
+                    <span className="min-w-0 truncate">
+                      {iteration
+                        ? iterationLabel(iteration, project?.iterationMode)
+                        : "All work"}
+                    </span>
+                    {iteration?.state === "active" && (
+                      <StatusChip
+                        tone="success"
+                        icon={<StatusDot />}
+                        className="shrink-0 max-sm:hidden"
+                      >
+                        Active
+                      </StatusChip>
+                    )}
+                  </Button>
                 )}
-              </Button>
-            )}
-          >
-            <Picker
-              title={project.iterationMode === "automatic" ? "Cycle" : "Sprint"}
-              options={[
-                { value: "all", label: "All work" },
-                ...iterations.map((i) => ({
-                  value: i.id,
-                  label: iterationLabel(i, project?.iterationMode),
-                  hint: i.state === "active" ? "Active" : shortRange(i),
-                })),
-              ]}
-              value={iterationId ?? "all"}
-              onSelect={(v) => setParam("iteration", v)}
-            />
-          </Popover>
-        )}
-        <ContextControl
-          project={project}
-          lists={[
-            { label: project.name },
-            ...(createTeamId
-              ? [
-                  {
-                    label: delivery.teams.get(createTeamId)?.name ?? "Team",
-                    teamId: createTeamId,
-                  },
-                ]
-              : []),
-            ...(iteration
-              ? [
-                  {
-                    label: iterationLabel(iteration, project.iterationMode),
-                    iterationId: iteration.id,
-                    iteration,
-                  },
-                ]
-              : []),
-          ]}
-        />
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {scoped.length} items
-          {project.estimateScale !== "none" && points > 0 && ` · ${points} pts`}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          <Popover
-            width={260}
-            align="end"
-            trigger={(props) => (
-              <Button {...props} variant="ghost" size="sm">
-                <UserRound className="size-3.5" />
-                {assignees.length ? `${assignees.length} people` : "Anyone"}
-              </Button>
-            )}
-          >
-            <PeoplePicker
-              multiple
-              title="Assignee"
-              none={{ value: "unassigned", label: "Unassigned" }}
-              value={assignees}
-              onSelect={(v) =>
-                setParam(
-                  "assignee",
-                  (assignees.includes(v)
-                    ? assignees.filter((x) => x !== v)
-                    : [...assignees, v]
-                  ).join(","),
-                )
-              }
-            />
-          </Popover>
-          <Popover
-            width={220}
-            align="end"
-            trigger={(props) => (
-              <Button {...props} variant="ghost" size="sm">
-                {typeFilter.length ? `${typeFilter.length} types` : "All types"}
-              </Button>
-            )}
-          >
-            <Picker
-              multiple
-              title="Types"
-              options={enabledTypes(delivery, project.id)
-                .filter((t) => !isTopLevel(t))
-                .map((t) => ({
-                  value: t.id,
-                  label: t.name,
-                  icon: <TypeIcon type={t} />,
-                }))}
-              value={typeFilter}
-              onSelect={(v) =>
-                setParam(
-                  "type",
-                  (typeFilter.includes(v)
-                    ? typeFilter.filter((x) => x !== v)
-                    : [...typeFilter, v]
-                  ).join(","),
-                )
-              }
-            />
-          </Popover>
-          <Popover
-            width={220}
-            align="end"
-            trigger={(props) => (
-              <Button
-                {...props}
-                variant="ghost"
-                size="sm"
-                aria-label="Board options"
               >
-                <Rows3 className="size-3.5" />
-              </Button>
-            )}
-          >
-            <div className="p-1">
-              <p className="px-2 pt-1 pb-1 text-[11px] font-medium text-muted-foreground uppercase">
-                Swimlanes
-              </p>
-              <RadioGroup<Lane>
-                aria-label="Swimlanes"
-                value={lane}
-                onValueChange={(next) => {
-                  if (next)
-                    setParam("lanes", next === "none" ? undefined : next);
-                }}
-                className="flex flex-col gap-0"
-              >
-                {(Object.keys(laneLabel) as Lane[]).map((key) => (
-                  <Radio key={key} value={key} className={choiceRowClass}>
-                    {laneLabel[key]}
-                  </Radio>
-                ))}
-              </RadioGroup>
-              <div className="my-1 border-t" />
-              <label className="flex items-center gap-2 px-2 py-1.5 text-[13px]">
-                <Checkbox
-                  checked={showCanceled}
-                  onCheckedChange={(checked) =>
-                    setShowCanceled(checked === true)
+                <Picker
+                  title={
+                    project.iterationMode === "automatic" ? "Cycle" : "Sprint"
                   }
+                  options={[
+                    { value: "all", label: "All work" },
+                    ...iterations.map((i) => ({
+                      value: i.id,
+                      label: iterationLabel(i, project?.iterationMode),
+                      hint: i.state === "active" ? "Active" : shortRange(i),
+                    })),
+                  ]}
+                  value={iterationId ?? "all"}
+                  onSelect={(v) => setParam("iteration", v)}
                 />
-                Show canceled column
-              </label>
+              </Popover>
+            )}
+            {/* Phones: one button for every filter. */}
+            <div className="sm:hidden">
+              <BoardFilters
+                active={
+                  assignees.length +
+                  typeFilter.length +
+                  (lane !== "none" ? 1 : 0) +
+                  (teamFilter.value ? 1 : 0)
+                }
+                views={{
+                  ...(teamFilter.teams.length || teamFilter.value
+                    ? {
+                        team: {
+                          label: "Team",
+                          value:
+                            teamFilter.value === "none"
+                              ? "No team"
+                              : (teamFilter.team?.name ?? "All teams"),
+                          content: teamPicker,
+                        },
+                      }
+                    : {}),
+                  assignee: {
+                    label: "Assignee",
+                    value: assigneeSummary,
+                    content: assigneePicker,
+                  },
+                  type: {
+                    label: "Types",
+                    value: typeSummary,
+                    content: typePicker,
+                  },
+                  options: {
+                    label: "Swimlanes",
+                    value: laneLabel[lane],
+                    content: boardOptions,
+                  },
+                }}
+              />
             </div>
-          </Popover>
-          {canManage(project.id) && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Workflow settings"
-              title="Workflow settings"
-              render={
-                <Link
-                  href={paths.projectSettings(
-                    organization.slug,
-                    project.key,
-                    "workflow",
-                  )}
-                />
-              }
-            >
-              <Settings2 className="size-3.5" />
-            </Button>
-          )}
-          <span aria-hidden className="mx-1 h-4 w-px bg-border max-lg:hidden" />
-          <LittoLauncher />
-        </div>
-      </header>
+            <div className="flex items-center gap-1 max-sm:hidden">
+              <TeamFilterPicker filter={teamFilter} />
+              <ContextControl
+                project={project}
+                lists={[
+                  { label: project.name },
+                  ...(createTeamId
+                    ? [
+                        {
+                          label:
+                            delivery.teams.get(createTeamId)?.name ?? "Team",
+                          teamId: createTeamId,
+                        },
+                      ]
+                    : []),
+                  ...(iteration
+                    ? [
+                        {
+                          label: iterationLabel(
+                            iteration,
+                            project.iterationMode,
+                          ),
+                          iterationId: iteration.id,
+                          iteration,
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+              <Popover
+                width={260}
+                align="end"
+                trigger={(props) => (
+                  <Button {...props} variant="ghost" size="sm">
+                    <UserRound className="size-3.5" />
+                    {assigneeSummary}
+                  </Button>
+                )}
+              >
+                {assigneePicker}
+              </Popover>
+              <Popover
+                width={220}
+                align="end"
+                trigger={(props) => (
+                  <Button {...props} variant="ghost" size="sm">
+                    {typeSummary}
+                  </Button>
+                )}
+              >
+                {typePicker}
+              </Popover>
+              <Popover
+                width={220}
+                align="end"
+                trigger={(props) => (
+                  <Button
+                    {...props}
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Board options"
+                  >
+                    <Rows3 className="size-3.5" />
+                  </Button>
+                )}
+              >
+                {boardOptions}
+              </Popover>
+              {canManage(project.id) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Workflow settings"
+                  title="Workflow settings"
+                  render={
+                    <Link
+                      href={paths.projectSettings(
+                        organization.slug,
+                        project.key,
+                        "workflow",
+                      )}
+                    />
+                  }
+                >
+                  <Settings2 className="size-3.5" />
+                </Button>
+              )}
+              <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+              <LittoLauncher />
+            </div>
+          </>
+        }
+      />
       {usesIterations && iterationParam !== "all" && !iteration ? (
         <EmptyState
           illustration="planning"
@@ -586,7 +703,13 @@ function ProjectBoard({ project }: { project: Project }) {
             : "Start a sprint from the backlog, or view all work on the board."}
         </EmptyState>
       ) : (
-        <BoardScroller>
+        <BoardScroller
+          startAt={firstFilled}
+          columns={columns.map((c) => ({
+            status: c,
+            count: scoped.filter((i) => i.statusId === c.id).length,
+          }))}
+        >
           <div
             className={cn(
               "inline-flex min-h-full min-w-full flex-col gap-3 p-3 pr-4",
@@ -631,6 +754,10 @@ function ProjectBoard({ project }: { project: Project }) {
                         data-board-column={status.id}
                         className={cn(
                           "flex max-w-[340px] min-w-[224px] flex-1 basis-0 flex-col rounded-[1.125rem] bg-tray p-1.5 ring-1 ring-border/60 ring-inset",
+                          // Phones: one column per screen, snapping, with
+                          // the next one showing at the edge so the flow
+                          // reads as a row of columns.
+                          "max-sm:max-w-none max-sm:min-w-[calc(100vw-5.5rem)] max-sm:snap-start",
                           target && "bg-primary/8 ring-1 ring-primary/30",
                         )}
                         onDragOver={(e) => {
@@ -698,7 +825,6 @@ function ProjectBoard({ project }: { project: Project }) {
                                 }
                                 delivery={delivery}
                                 orgSlug={organization.slug}
-                                memberName={memberName}
                                 dragging={drag === item.id}
                                 draggable={canMove}
                                 selected={
@@ -706,6 +832,11 @@ function ProjectBoard({ project }: { project: Project }) {
                                   identifier(project, item.number)
                                 }
                                 onOpen={peek.onLinkClick}
+                                claim={claims.get(item.id)}
+                                pullRequests={pullRequests.get(item.id)}
+                                claimAgent={agentById.get(
+                                  claims.get(item.id)?.agentId ?? "",
+                                )}
                                 onDragStart={(e) => {
                                   setDrag(item.id);
                                   e.dataTransfer.effectAllowed = "move";
@@ -715,6 +846,36 @@ function ProjectBoard({ project }: { project: Project }) {
                                   setDrag(undefined);
                                   setOver(undefined);
                                 }}
+                                move={
+                                  canMove && (
+                                    <MoveMenu
+                                      itemId={item.id}
+                                      label={identifier(
+                                        projectOf(item),
+                                        item.number,
+                                      )}
+                                      index={index}
+                                      count={cards.length}
+                                      where={status.name}
+                                      columns={columns}
+                                      column={status.id}
+                                      onColumn={(statusId) => {
+                                        place(
+                                          item.id,
+                                          l.key,
+                                          statusId,
+                                          l.items.filter(
+                                            (i) =>
+                                              i.statusId === statusId &&
+                                              i.id !== item.id,
+                                          ).length,
+                                        );
+                                        refocusMoved(item.id);
+                                      }}
+                                      onRank={(to) => rank(cards, item, to)}
+                                    />
+                                  )
+                                }
                               />
                             </div>
                           ))}
@@ -738,9 +899,13 @@ function ProjectBoard({ project }: { project: Project }) {
                 filtered ? "No matching work" : "No work on this board yet"
               }
             >
-              {filtered
-                ? "Adjust the filters to see more work."
-                : "Accept a ready specification for delivery, or create a task when the work needs no specification."}
+              {teamFilter.team && !assignees.length && !typeFilter.length
+                ? teamless > 0
+                  ? `No work on this board belongs to ${teamFilter.team.name}. ${teamless} ${teamless === 1 ? "item has" : "items have"} no team yet: choose “No team” to see ${teamless === 1 ? "it" : "them"}, and set the team on the item.`
+                  : `No work on this board belongs to ${teamFilter.team.name} yet.`
+                : filtered
+                  ? "Adjust the filters to see more work."
+                  : "Accept a ready specification for delivery, or create a task when the work needs no specification."}
             </EmptyState>
           )}
         </BoardScroller>
@@ -779,7 +944,7 @@ function ColumnHeader({
         <button
           onClick={onCreate}
           aria-label={`New item in ${status.name}`}
-          className="ml-auto grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="ml-auto grid size-6 place-items-center rounded-md text-muted-foreground focus-ring outline-none hover:bg-muted hover:text-foreground"
         >
           <Plus className="size-3.5" />
         </button>
@@ -790,10 +955,67 @@ function ColumnHeader({
 
 // The board scrolls sideways when its columns outgrow the frame (Litto open
 // on a laptop). A fade on the edge that has more columns says so, instead of
-// the last column looking cut off.
-function BoardScroller({ children }: { children: ReactNode }) {
+// the last column looking cut off. Phones show one column per screen and,
+// above it, every column by name and count: the whole flow at a glance, and
+// a press on a name brings that column into view (no arrows over cards).
+function BoardScroller({
+  children,
+  startAt,
+  columns,
+}: {
+  children: ReactNode;
+  // The column phones open at (one column fills the screen there).
+  startAt?: string;
+  columns: readonly {
+    status: ReturnType<typeof activeStatuses>[number];
+    count: number;
+  }[];
+}) {
   const ref = useRef<HTMLDivElement>(null);
+  // On a phone (also one the window narrows to), open at the first column
+  // that holds work instead of an empty one, once, unless the person has
+  // already scrolled.
+  const started = useRef(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !startAt) return;
+    const phone = window.matchMedia("(max-width: 639px)");
+    const apply = () => {
+      if (started.current || !phone.matches || el.scrollLeft > 0) return;
+      const column = el.querySelector<HTMLElement>(
+        `[data-board-column="${CSS.escape(startAt)}"]`,
+      );
+      if (!column) return;
+      started.current = true;
+      el.scrollLeft =
+        column.getBoundingClientRect().left -
+        el.getBoundingClientRect().left -
+        12;
+    };
+    apply();
+    phone.addEventListener("change", apply);
+    return () => phone.removeEventListener("change", apply);
+  }, [startAt]);
   const [more, setMore] = useState({ left: false, right: false });
+  const [inView, setInView] = useState<string | undefined>(startAt);
+  const show = (id: string) => {
+    const el = ref.current;
+    const column = el?.querySelector<HTMLElement>(
+      `[data-board-column="${CSS.escape(id)}"]`,
+    );
+    if (!el || !column) return;
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    el.scrollTo({
+      left:
+        column.getBoundingClientRect().left -
+        el.getBoundingClientRect().left +
+        el.scrollLeft -
+        12,
+      behavior: reduce ? "auto" : "smooth",
+    });
+  };
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -803,6 +1025,20 @@ function BoardScroller({ children }: { children: ReactNode }) {
       setMore((m) =>
         m.left === left && m.right === right ? m : { left, right },
       );
+      // The column nearest the board's start edge is the one in view.
+      const box = el.getBoundingClientRect();
+      let nearest: string | undefined;
+      let distance = Infinity;
+      for (const column of el.querySelectorAll<HTMLElement>(
+        "[data-board-column]",
+      )) {
+        const d = Math.abs(column.getBoundingClientRect().left - box.left);
+        if (d < distance) {
+          distance = d;
+          nearest = column.dataset.boardColumn;
+        }
+      }
+      setInView(nearest);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -848,15 +1084,46 @@ function BoardScroller({ children }: { children: ReactNode }) {
     el.scrollTo({ left, behavior: reduce ? "auto" : "smooth" });
   };
   return (
-    <div className="relative min-h-0 flex-1">
-      <div ref={ref} className="h-full [scrollbar-width:thin] overflow-auto">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <ScrollStrip className="shrink-0 border-b sm:hidden">
+        <ul
+          aria-label="Board columns"
+          className="flex [scrollbar-width:none] gap-1 overflow-x-auto px-3 py-1.5"
+        >
+          {columns.map(({ status, count }) => (
+            <li key={status.id}>
+              <button
+                type="button"
+                aria-pressed={inView === status.id}
+                onClick={() => show(status.id)}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] whitespace-nowrap text-muted-foreground focus-ring-inset outline-none",
+                  inView === status.id &&
+                    "bg-muted font-medium text-foreground",
+                )}
+              >
+                <StatusIcon category={status.category} color={status.color} />
+                {status.name}
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {count}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </ScrollStrip>
+      <div
+        ref={ref}
+        className="min-h-0 flex-1 [scrollbar-width:thin] overflow-auto max-sm:snap-x max-sm:snap-mandatory max-sm:scroll-px-3"
+      >
         {children}
       </div>
       {(["left", "right"] as const).map((side) => (
         <div
           key={side}
           className={cn(
-            "pointer-events-none absolute inset-y-0 flex items-center transition-opacity duration-150",
+            // Wider screens only: phones step with the column names above.
+            "pointer-events-none absolute inset-y-0 flex items-center transition-opacity duration-150 max-sm:hidden",
             side === "left"
               ? "left-0 w-12 justify-start bg-linear-to-r pl-1.5"
               : "right-0 w-16 justify-end bg-linear-to-l pr-1.5",
@@ -876,7 +1143,7 @@ function BoardScroller({ children }: { children: ReactNode }) {
             }
             onClick={() => step(side)}
             className={cn(
-              "grid size-8 place-items-center rounded-full bg-card text-muted-foreground shadow-(--shadow-border) transition-[color,transform] duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none active:scale-[0.95]",
+              "grid size-8 place-items-center rounded-full bg-card text-muted-foreground shadow-(--shadow-border) focus-ring transition-[color,transform] duration-150 outline-none hover:text-foreground active:scale-[0.95]",
               more[side] && "pointer-events-auto",
             )}
           >
@@ -889,5 +1156,80 @@ function BoardScroller({ children }: { children: ReactNode }) {
         </div>
       ))}
     </div>
+  );
+}
+
+type FilterView = { label: string; value: string; content: ReactNode };
+
+// Every board filter behind one button, for phones: a list of what is
+// filtered, each opening its picker in place, with a way back.
+function BoardFilters({
+  views,
+  active,
+}: {
+  views: Record<string, FilterView>;
+  // How many filters are set.
+  active: number;
+}) {
+  const [shown, setShown] = useState<string>();
+  const view = shown ? views[shown] : undefined;
+  return (
+    <Popover
+      width={280}
+      align="end"
+      onOpenChange={(open) => !open && setShown(undefined)}
+      trigger={(props) => (
+        <Button
+          {...props}
+          variant="ghost"
+          size="icon"
+          aria-label={active ? `Filters (${active} set)` : "Filters"}
+          className="relative"
+        >
+          <ListFilter className="size-4" />
+          {active > 0 && (
+            <span
+              aria-hidden
+              className="absolute top-1 right-1 size-1.5 rounded-full bg-primary"
+            />
+          )}
+        </Button>
+      )}
+    >
+      {view ? (
+        <div className="flex max-h-[70dvh] min-h-0 flex-col">
+          <button
+            type="button"
+            onClick={() => setShown(undefined)}
+            className="flex h-9 shrink-0 items-center gap-1.5 border-b px-2.5 text-[13px] text-muted-foreground focus-ring-inset outline-none hover:text-foreground"
+          >
+            <ArrowLeft aria-hidden className="size-3.5" />
+            Filters
+          </button>
+          <div className="min-h-0 overflow-y-auto">{view.content}</div>
+        </div>
+      ) : (
+        <ul aria-label="Filters" className="p-1">
+          {Object.entries(views).map(([key, v]) => (
+            <li key={key}>
+              <button
+                type="button"
+                onClick={() => setShown(key)}
+                className="flex h-10 w-full items-center gap-2 rounded-md px-2.5 text-left text-[13px] focus-ring-inset outline-none hover:bg-muted"
+              >
+                <span className="font-medium">{v.label}</span>
+                <span className="ml-auto truncate text-muted-foreground">
+                  {v.value}
+                </span>
+                <ChevronRight
+                  aria-hidden
+                  className="size-3.5 shrink-0 text-muted-foreground"
+                />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Popover>
   );
 }

@@ -3,7 +3,21 @@ import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { Link } from "@lictory/platform/lib/navigation";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
-import { Logo } from "@lictory/ui/logo";
+import { LogoMark } from "@lictory/ui/logo";
+import { cn } from "@lictory/core/lib/utils";
+import {
+  frameGroundClass,
+  frameMarkClass,
+} from "@lictory/platform/components/auth/auth-layout";
+
+// The steps of setting up a new organization, counted from its first form
+// (the workspace and its project) to the last, wherever setup starts.
+export const setupLabels = [
+  "Workspace",
+  "Delivery",
+  "Lictory Intelligence",
+  "People",
+];
 
 // One easing for the whole flow: a quick start that settles softly.
 export const ease = [0.23, 1, 0.32, 1] as const;
@@ -13,29 +27,38 @@ export function OnboardingFrame({
   stage = 0,
   labels = [],
   title,
+  accountLink = true,
 }: {
   children: ReactNode;
   stage?: number;
   labels?: string[];
   title?: string;
+  // Account settings need a handle, so the handle step has none.
+  accountLink?: boolean;
 }) {
   return (
     <MotionConfig reducedMotion="user" transition={{ duration: 0.22, ease }}>
-      <main className="onboarding min-h-dvh bg-background">
+      {/* The same frame as signing in (ground, mark, the card's top edge),
+          so creating an account and setting up read as one flow. */}
+      <main className={cn("onboarding relative", frameGroundClass)}>
         {title && <title>{title}</title>}
-        <header className="flex items-center justify-between px-6 py-5 sm:px-8">
-          <Logo className="[&>span]:h-6" />
+        {accountLink && (
           <Link
             href="/account"
-            className="rounded-md text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            className="absolute top-5 right-6 rounded-md text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:right-8"
           >
             Account
           </Link>
-        </header>
-        <section className="relative mx-auto w-full max-w-[460px] px-6 pt-8 pb-16 sm:px-0 sm:pt-16">
-          {labels.length > 0 && <Progress labels={labels} stage={stage} />}
-          {children}
-        </section>
+        )}
+        <span aria-hidden className={frameMarkClass}>
+          <LogoMark className="size-9" />
+        </span>
+        <div className="w-full pb-6">
+          <section className="lictory-enter relative mx-auto w-full max-w-[540px] rounded-[1.75rem] bg-card px-6 py-8 shadow-(--shadow-panel) sm:px-10 sm:py-10">
+            {labels.length > 0 && <Progress labels={labels} stage={stage} />}
+            {children}
+          </section>
+        </div>
       </main>
     </MotionConfig>
   );
@@ -43,7 +66,7 @@ export function OnboardingFrame({
 
 function Progress({ labels, stage }: { labels: string[]; stage: number }) {
   return (
-    <div className="mb-10">
+    <div className="mb-8">
       <ol aria-label="Setup progress" className="flex gap-1.5">
         {labels.map((label, i) => (
           <li

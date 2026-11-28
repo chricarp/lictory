@@ -20,6 +20,7 @@ import {
   OnboardingHeading,
   Choice,
   Steps,
+  setupLabels,
 } from "@lictory/platform/components/workspace/onboarding-frame";
 
 type Invite = {
@@ -95,7 +96,11 @@ export function OnboardingEntry({
   const pending = invites.filter((i) => i.status === "pending");
   const choose = (value: string) => router.replace(`/?intent=${value}`);
   return (
-    <OnboardingFrame>
+    <OnboardingFrame
+      // Creating an organization is the first of setup's steps, so the count
+      // starts here rather than on the page after it.
+      {...(intent === "create" && { labels: setupLabels, stage: 0 })}
+    >
       <Steps step={intent ?? "discover"} direction={intent ? 1 : -1}>
         <OnboardingHeading
           title={
@@ -108,7 +113,7 @@ export function OnboardingEntry({
                     ? `Welcome, ${userName.split(" ")[0]}.`
                     : "Join your organization"
                 : intent === "create"
-                  ? "Create your workspace"
+                  ? "Create your organization"
                   : userName
                     ? `Welcome, ${userName.split(" ")[0]}.`
                     : "Welcome to Lictory"
@@ -121,8 +126,8 @@ export function OnboardingEntry({
                 ? undefined
                 : "You’re not a member of an organization yet. Your organization’s administrators add you with an invitation."
               : intent === "create"
-                ? "Name your company and the first thing you’ll spec."
-                : "Turn rough product ideas into specs your team has agreed to build."}
+                ? "Name your company and its first project."
+                : "From conversation to shipped code: your team and its agents agree on what to build, then build it, with people making the decisions."}
         </OnboardingHeading>
         {!intent && (
           <div className="space-y-3">
@@ -141,7 +146,7 @@ export function OnboardingEntry({
               )}
             </Choice>
             <Choice
-              title="Create a workspace"
+              title="Create an organization"
               icon={<Building2 />}
               onClick={() => choose("create")}
             >
@@ -149,7 +154,14 @@ export function OnboardingEntry({
             </Choice>
           </div>
         )}
-        {intent === "create" && <CreateOrganization userId={userId} />}
+        {intent === "create" && (
+          <CreateOrganization
+            userId={userId}
+            onBack={
+              !createOnly && canCreate ? () => router.replace("/") : undefined
+            }
+          />
+        )}
         {instanceAdmin && !intent && (
           <div className="mt-3">
             <Choice
@@ -234,7 +246,7 @@ export function OnboardingEntry({
             {error}
           </p>
         )}
-        {intent && !createOnly && canCreate && (
+        {intent === "join" && !createOnly && canCreate && (
           <Button
             variant="ghost"
             className="mt-6 -ml-3"

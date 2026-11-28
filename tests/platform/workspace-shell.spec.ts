@@ -40,10 +40,10 @@ test("an existing member can create and switch to another organization", async (
   await page.goto("/");
   await expect(page).toHaveURL(appHome);
   await expect(
-    page.getByRole("button", { name: "Create a workspace", exact: false }),
+    page.getByRole("button", { name: "Create an organization", exact: false }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "First Team",
@@ -74,18 +74,24 @@ test("an existing member can create and switch to another organization", async (
     page.getByText(`Lictory v${version}`, { exact: true }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
-  await page
-    .getByRole("button", { name: "Close navigation" })
-    .click({ position: { x: 380, y: 20 } });
+  // Pressing beside the drawer closes it.
+  const drawer = page.getByRole("dialog", { name: "Navigation" });
+  await expect(drawer).toBeVisible();
+  await page.mouse.click(380, 20);
+  await expect(drawer).toBeHidden();
   await page.setViewportSize(viewport);
 
   await page.getByRole("button", { name: "Second Team" }).first().click();
   await page.getByRole("menuitem", { name: "First Team" }).click();
-  // Switching organizations returns to the project last worked in there
-  // (Litto is the home page only when an AI provider can answer).
-  await expect(page).toHaveURL(
-    new RegExp(`${firstOrganization}/one/refinement$`),
-  );
+  // Switching organizations opens its Home, with the project last worked in
+  // there in the sidebar.
+  await expect(page).toHaveURL(new RegExp(`${firstOrganization}$`));
+  await expect(
+    page.getByRole("heading", { name: "Home", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Switch project: First project" }),
+  ).toBeVisible();
 });
 
 test("navigation commits immediately inside the persistent shell and shows a loading state while the page loads", async ({
@@ -94,7 +100,7 @@ test("navigation commits immediately inside the persistent shell and shows a loa
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, loadingEmail);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Loading states",
@@ -133,8 +139,11 @@ test("navigation commits immediately inside the persistent shell and shows a loa
   }
   await expect(loading).toBeHidden();
   await page.unroute("**/assets/board-*.js");
+  // The board names its project in the header's breadcrumb.
   await expect(
-    page.getByRole("heading", { name: "Loading project", exact: true }),
+    page
+      .getByRole("navigation", { name: "Breadcrumb" })
+      .getByRole("link", { name: "Loading project", exact: true }),
   ).toBeVisible();
   await expect(board).toHaveAttribute("aria-current", "page");
   expect(await railNode.evaluate((node) => node.isConnected)).toBe(true);
@@ -146,7 +155,7 @@ test("revisiting a work item paints its local history on the first frame", async
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, revisitEmail);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Revisits",
@@ -224,7 +233,7 @@ test("panes resize by dragging or keyboard, snap, fold, reset and persist", asyn
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, panesEmail);
   await page
-    .getByRole("button", { name: "Create a workspace", exact: false })
+    .getByRole("button", { name: "Create an organization", exact: false })
     .click();
   await createWorkspace(page, {
     organization: "Pane widths",

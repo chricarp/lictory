@@ -9,8 +9,9 @@ organization. It answers two questions in two views:
 - **To do**: what is waiting on you right now?
 - **Updates**: what happened that you should know about?
 
-Open it from **Inbox** in the sidebar. Its badge counts unread updates, or
-your to-dos when nothing is unread.
+Open it from **Inbox** in the sidebar. Its badge counts your to-dos, the
+same number as Home's **Waiting on you**; a dot beside it means unread
+updates.
 
 ![Dev Patel’s Inbox To do: two pull requests to review, a page change waiting for review marked Page, and a review requested on PAY-2 revision 2](/screenshots/inbox-todo.webp)
 
@@ -28,17 +29,22 @@ entry leaves as soon as its cause is gone: after you review, when a blocking
 discussion is resolved, when changes are made. Nothing needs marking as
 read.
 
+It is grouped by what you do about it: **Agents waiting on you** (an agent
+is stopped until you answer), **Reviews** others wait on, then **Your work**
+(a failed agent session to retry, changes requested, blockers, page changes
+to merge). Home's **Waiting on you** shows the first rows in the same order.
+
 For work items:
 
-| Entry                              | When it appears                                                                                                                |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **Review requested**               | A review of the item is requested from you or one of your disciplines and not completed. It names the review and the revision. |
-| **Pull request to review**         | A pull request on the item waits for your approval to be merged.                                                               |
-| **Changes requested**              | A reviewer requested changes on an item you created or are assigned to.                                                        |
-| **Blocked**                        | Your item has open blocking discussions.                                                                                       |
-| **Scope changed after commitment** | Your item's specification changed after a revision was accepted for delivery or published to the delivery tool.                |
-| **Requirements need attention**    | Delivery of your item is underway, but its readiness checks no longer all pass.                                                |
-| **Ready for delivery**             | Your item's readiness checks pass and it can be selected for delivery.                                                         |
+| Entry                              | When it appears                                                                                                                           |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Review requested**               | A review of the item is requested from you or one of your disciplines and not completed. It names who asked, the review and the revision. |
+| **Suggestion to accept**           | A suggested change on the item waits for you to accept or reject it.                                                                      |
+| **Changes requested**              | A reviewer requested changes on an item you created or are assigned to.                                                                   |
+| **Blocked**                        | Your item has open blocking discussions.                                                                                                  |
+| **Scope changed after commitment** | Your item's specification changed after a revision was accepted for delivery or published to the delivery tool.                           |
+| **Requirements need attention**    | Delivery of your item is underway, but its readiness checks no longer all pass.                                                           |
+| **Ready for delivery**             | Your item's readiness checks pass and it can be selected for delivery.                                                                    |
 
 For pages of [Lictory Spaces](/spaces), marked **Page**:
 
@@ -94,7 +100,7 @@ New notifications arrive while the Inbox is open, without reloading.
 
 ## Tips
 
-- Work **To do** from the top: reviews first unblock other people.
+- Work **To do** from the top: agents and reviews first unblock others.
 - Archive updates once handled, so **All** stays a useful history.
 - Ask Litto "What is waiting on me?" from the Inbox for a summary with links
   ([Litto](/ai/litto)).

@@ -26,15 +26,19 @@ export function absoluteUrl(path: string) {
 }
 
 export const siteName = "Lictory";
-export const siteTitle = "Lictory: requirements, reviewed like code";
-export const siteTagline = "Requirements, reviewed like code.";
+export const siteTitle = "Lictory: the control plane of your software factory";
+export const siteTagline =
+  "From conversation to shipped code, with your team in charge.";
+
+/** The short line in the footer of every generated social card. */
+export const siteCardTagline = "From conversation to shipped code.";
 
 export const siteDescription =
-  "Refine requirements before development. People and agents collaborate on specification branches, review changes and agree on what to build. Deliver in Lictory or Jira. Open source and self-hosted.";
+  "One self-hosted workspace where your team and its agents talk, agree on reviewed specifications, run coding agents on your own runners and ship with evidence. MIT licensed.";
 
 /** A self-contained summary that still makes sense when quoted on its own. */
 export const siteSummary =
-  "Lictory is a work-management platform for software teams focused on what happens before development. People and agents refine requirements concurrently on specification branches and bring proposed changes together through pull requests, diffs, anchored discussions, revision-bound approvals and readiness checks. Teams can work in the UI, delegate to the built-in assistant Litto, or connect their own agents through MCP. Human decisions remain authoritative. Agreed specifications become delivery work, managed natively in Lictory or published to Jira, with Linear support coming. " +
+  "Lictory is the control plane of a software factory: one self-hosted product where a software team and its agents talk in channels, agree on what to build through specifications reviewed like code, plan the work, let coding agents (Claude Code, Codex, OpenCode, Gemini CLI or a built-in agent) implement it on runners the team controls, link branches, pull requests and checks from GitHub, GitLab or Bitbucket, and ship with evidence. People make the decisions: specification approvals always stay human, and an agent's code is merged automatically only when a project's autonomy policy allows it and every required check passes. Delivery runs natively in Lictory or is published to Jira. " +
   openSource.summary;
 
 /** Browser chrome colors: the page's paper and ink backgrounds. */
@@ -103,6 +107,14 @@ export const publicPages: readonly PublicPage[] = [
     changeFrequency: "weekly",
     priority: 1,
   },
+  {
+    path: "/download",
+    title: "Download Lictory",
+    description:
+      "The Lictory desktop app for macOS, Windows and Linux, and lictory-runner for the machines that run your agents. Always the newest stable release.",
+    changeFrequency: "monthly",
+    priority: 0.8,
+  },
   ...comparisons.map((item): PublicPage => ({
     path: `/compare/${item.slug}`,
     title: item.title,
@@ -121,9 +133,9 @@ export const publicPages: readonly PublicPage[] = [
   })),
   {
     path: "/guides",
-    title: "Guides to requirements refinement",
+    title: "Guides for software teams and their agents",
     description:
-      "Practical guides for software teams on reviewing requirements, writing acceptance criteria, defining readiness and refining the backlog asynchronously.",
+      "Practical guides for software teams on reviewing requirements, writing acceptance criteria, defining readiness, refining the backlog asynchronously and running coding agents on your own machines.",
     changeFrequency: "monthly",
     priority: 0.7,
     lastModified: latest(guides.map((item) => item.updated)),

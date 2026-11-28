@@ -2,10 +2,16 @@ import { comparisons } from "@lictory/marketing/content/comparisons";
 import { guides } from "@lictory/marketing/content/guides";
 import { roundups } from "@lictory/marketing/content/roundups";
 import {
+  autonomyLevels,
   comparisonCellText,
   comparisonProducts,
   comparisonRows,
   faqs,
+  harnesses,
+  loopStages,
+  modules,
+  stackRows,
+  trustPrinciples,
 } from "@lictory/marketing/components/landing/content";
 import {
   comparisonMarkdown,
@@ -16,6 +22,7 @@ import {
   roundupMarkdown,
 } from "@lictory/marketing/lib/markdown";
 import {
+  downloadPath,
   installUrl,
   repositoryUrl,
   tryUrl,
@@ -47,12 +54,32 @@ const overview = `# ${siteName}
 
 > ${siteSummary}
 
-${siteName}: ${siteTagline} It exists to close the gap between “Product wants to build this” and “Engineering can safely commit to building this.” A product owner creates a rough proposal, the right reviewers are involved, product, engineering and QA collaborate asynchronously to resolve ambiguity, and the team reaches an agreed specification that is decomposed into delivery work.`;
+${siteName}: ${siteTagline} It brings together team chat with agents as members, review-driven specifications, delivery, coding agents on runners the team controls, code host integration and knowledge pages, so a team does not need to stitch five tools together. Its distinguishing feature remains collaborative, review-driven requirements refinement: an approved specification is the contract agents and people work against.`;
 
 const concepts = `## How ${siteName} works
 
-1. **Draft and branch.** Start from a problem statement, notes or an existing ticket. Proposals may begin incomplete. Explore changes on specification branches so people and agents can contribute concurrently without silently overwriting the agreed specification.
-2. **Review.** Open a pull request to bring proposed changes back for review. Automated findings and human reviews retain their context. Threads attach to the exact text they discuss. Suggestions are real text changes that reviewers accept or reject; each accepted suggestion creates a new revision. Product, engineering, QA, security and operations review the same specification, each with the concerns they know best.
+Every piece of work follows one loop. Agents do the work inside each stage; moving past a gate is a recorded act by a person, or evidence.
+
+${loopStages
+  .map(
+    (stage, index) =>
+      `${index + 1}. **${stage.name}: ${stage.title}.** ${stage.body} Gate: ${stage.gate.text}`,
+  )
+  .join("\n")}
+
+## Modules
+
+${modules
+  .map(
+    (module) =>
+      `- **${module.name}**: ${module.summary} ${module.features.join(". ")}.`,
+  )
+  .join("\n")}
+
+## Specifications reviewed like code
+
+1. **Draft and branch.** Start from a problem statement, notes or a message in a channel. Proposals may begin incomplete. Explore changes on specification branches so people and agents can contribute concurrently without silently overwriting the agreed specification.
+2. **Review.** Open a pull request to bring proposed changes back for review. Threads attach to the exact text they discuss. Suggestions are real text changes that reviewers accept or reject; each accepted suggestion creates a new revision. Product, engineering, QA, security and operations review the same specification, each with the concerns they know best.
 3. **Readiness.** Readiness is evidence, not a status label: checks such as “acceptance criteria present”, “failure behavior addressed” and “no blocking threads” pass as answers arrive. Think of it as CI for requirements.
 4. **Approval.** Approvals belong to the revision that was reviewed. When approved content changes materially, the affected approvals go stale and need another review.
 5. **Delivery.** Each project chooses where delivery happens: natively in ${siteName} (configurable work item types, workflows, boards, backlog, sprints, cycles, estimates, burndown, velocity and relations) or by publishing approved work to Jira (Linear support is coming) with a link back to the revision it came from. Publishing is an explicit, permission-checked action.
@@ -67,10 +94,27 @@ const concepts = `## How ${siteName} works
 - **Approval**: a reviewer’s decision that a specific revision satisfies their responsibility.
 - **Check**: an automated readiness evaluation, informative or blocking according to project policy.
 - **Decision**: a durable record of a conclusion reached during refinement.
+- **Channel**: a named conversation with people and agents as members; what matters is promoted into a proposal, a decision or an anchored discussion.
+- **Agent**: a named, non-human member with an accountable owner and a scope; it never has more access than its owner.
+- **Agent session**: one run of an agent on one task, with a status, an event log and a thread to steer it.
+- **Runner**: a machine running lictory-runner that executes agent sessions in isolated git worktrees, connecting out over HTTPS.
+- **Definition of Done**: a project's delivery checks (linked pull request merged, required checks passed) that move an item to done.
 
-## Agents and MCP
+## The factory
 
-Work in the UI, delegate to Litto, or connect your own agent through MCP. The same work item capabilities and server-side permissions apply across surfaces. Agents can propose changes on branches and open pull requests; human decisions require explicit authorization. Account security and credentials remain in the browser.
+A runner is a Linux, macOS or Windows machine (x64 or arm64) running lictory-runner: a server, a VPS, a laptop or a Mac. It connects out to the Lictory server over HTTPS and needs no open port. It executes ${harnesses.slice(0, -1).join(", ")} or ${harnesses.at(-1)}, each session in its own git worktree, with short-lived, repository-scoped credentials issued for that session. Agents claim only native delivery items the readiness policy allows to start. When an agent needs an answer or a permission, it asks a person in the session's thread and waits.
+
+Each project chooses an autonomy policy:
+
+${autonomyLevels.map((level) => `- **${level.name}**${level.isDefault ? " (default)" : ""}: ${level.body}`).join("\n")}
+
+Code hosts (GitHub, GitLab, Bitbucket; cloud or self-managed) own every mirrored field. Lictory links branches, pull requests, issues and commits to work items, verifies webhooks and writes to the host only through explicit commands.
+
+## Agents you can trust
+
+${trustPrinciples.map((principle) => `- **${principle.title}.** ${principle.body}`).join("\n")}
+
+Work in the UI, delegate to Litto, or connect your own agent through MCP. The same capabilities and server-side permissions apply across surfaces. Account security and credentials remain with the person.
 
 ## Lictory Spaces
 
@@ -96,6 +140,14 @@ Built-in capabilities as we understand them; marketplace add-ons and integration
 ${[header, divider, ...rows].join("\n")}`;
 }
 
+function stackComparison() {
+  return `## ${siteName} compared with a stack of separate tools
+
+| Need | Separate tools | ${siteName} |
+| --- | --- | --- |
+${stackRows.map((row) => `| ${row.need} | ${row.stack} | ${row.lictory} |`).join("\n")}`;
+}
+
 function guideArticles() {
   return `## Guides
 
@@ -119,7 +171,8 @@ const projectLinks = `## Project
 - [Source code on GitHub](${repositoryUrl}): the MIT-licensed repository, with releases, issues and the contribution guide.
 - [Documentation](https://docs.lictory.com): how to use Lictory, self-host it and connect agents.
 - [Try Lictory in 5 minutes](${tryUrl}): run it on your own computer with one command and Docker, for evaluation.
-- [Installation guide](${installUrl}): install Lictory on your own Linux server.`;
+- [Installation guide](${installUrl}): install Lictory on your own Linux server.
+- [Download](${absoluteUrl(downloadPath)}): the desktop app for macOS, Windows and Linux and lictory-runner, always the newest stable release.`;
 
 function faq() {
   return `## Frequently asked questions
@@ -139,7 +192,7 @@ ${projectLinks}
 
 ## Optional
 
-- [Full product overview](${absoluteUrl("/llms-full.txt")}): how ${siteName} works, key concepts, comparison with Jira and Linear, frequently asked questions and the full text of the comparisons, alternatives, roundups and guides.
+- [Full product overview](${absoluteUrl("/llms-full.txt")}): how ${siteName} works, its modules, runners and autonomy levels, key concepts, comparison with a tool stack and with Jira and Linear, frequently asked questions and the full text of the comparisons, alternatives, roundups and guides.
 - [Guides feed](${absoluteUrl(guidesFeedPath)}): RSS feed of new and updated guides.
 `;
 }
@@ -149,6 +202,8 @@ export function llmsFull() {
   return `${overview}
 
 ${concepts}
+
+${stackComparison()}
 
 ${comparison()}
 

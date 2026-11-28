@@ -1,4 +1,5 @@
 import { paths } from "@lictory/core/lib/paths";
+import { sessionTitle } from "@lictory/core/factory/entities";
 import {
   notificationKinds,
   type NotificationKind,
@@ -12,8 +13,28 @@ export type NotificationView = {
 };
 
 const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+// Agent session titles stored before the mention fix read "@@forge".
+const titled = (v: unknown) => {
+  const title = str(v);
+  return title && sessionTitle(title);
+};
 const num = (v: unknown) =>
   typeof v === "number" || typeof v === "string" ? String(v) : "?";
+
+// "in #payments", or "in a direct message".
+function channelPlace(d: Record<string, unknown>) {
+  const name = str(d.channelName);
+  return d.channelKind === "direct" || !name
+    ? "in a direct message"
+    : `in #${name}`;
+}
+
+// Quotes a title; quotation marks inside it become single ones, so a
+// suggestion titled “Change “up to”” never ends in two closing marks.
+function quote(text: string | null | undefined) {
+  const inner = (text ?? "").replace(/[“"](?=\S)/g, "‘").replace(/[”"]/g, "’");
+  return `“${inner}”`;
+}
 
 export function describeNotification(
   n: NotificationView,
@@ -21,11 +42,12 @@ export function describeNotification(
 ): { headline: string; body: string | null } {
   const d = n.detail;
   const item = str(d.itemKey) ?? "an item";
-  const page = str(d.pageTitle) ? `“${str(d.pageTitle)}”` : "a page";
+  const page = str(d.pageTitle) ? quote(str(d.pageTitle)) : "a page";
   const excerpt = str(d.excerpt);
+  const count = typeof d.count === "number" ? d.count : 1;
   const responsibility = str(d.responsibility);
   const suggestion = str(d.suggestionTitle)
-    ? `“${str(d.suggestionTitle)}”`
+    ? quote(str(d.suggestionTitle))
     : "a suggestion";
   switch (n.kind as NotificationKind) {
     case "review_requested":
@@ -58,7 +80,7 @@ export function describeNotification(
       return {
         headline: `Your approval of ${item} needs review again`,
         body: str(d.pullRequestTitle)
-          ? `${actor} changed the merge result of “${str(d.pullRequestTitle)}”.`
+          ? `${actor} changed the proposed change ${quote(str(d.pullRequestTitle))}.`
           : `${actor} revised the specification to revision ${num(d.revision)}.`,
       };
     case "specification_revised":
@@ -99,25 +121,28 @@ export function describeNotification(
       };
     case "pull_request_review_requested":
       return {
-        headline: `${actor} requested ${responsibility ?? ""} review of pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        headline: `${actor} requested ${responsibility ?? ""} review of the proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item}`,
         body: null,
       };
     case "pull_request_decided":
       return {
-        headline: `${actor} ${d.decision === "approve" ? "approved" : d.decision === "revoke" ? "revoked their review of" : "requested changes on"} pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
+        headline: `${actor} ${d.decision === "approve" ? "approved" : d.decision === "revoke" ? "revoked their review of" : "requested changes on"} the proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item}`,
         body: responsibility,
       };
     case "pull_request_mergeable":
       return {
-        headline: `Pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item} is ready to merge`,
-        body: str(d.target)
-          ? `Every requirement to merge into ${str(d.target)} is met.`
-          : "Every merge requirement is met.",
+        headline: `The proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item} is ready to apply`,
+        body: "Every requirement to apply it is met.",
       };
     case "pull_request_merged":
       return {
-        headline: `${actor} merged pull request “${str(d.pullRequestTitle) ?? "Proposed change"}” on ${item}`,
-        body: str(d.target) ? `Merged into ${str(d.target)}` : null,
+        headline: `${actor} applied the proposed change ${quote(str(d.pullRequestTitle) ?? "Proposed change")} on ${item}`,
+        body:
+          str(d.target) === "main"
+            ? "Applied to the specification"
+            : str(d.target)
+              ? `Applied to ${str(d.target)}`
+              : null,
       };
     case "suggestion_review_requested":
       return {
@@ -136,7 +161,7 @@ export function describeNotification(
       };
     case "suggestion_merged":
       return {
-        headline: `${actor} ${d.merged ? "merged" : "closed"} ${suggestion} on ${item}`,
+        headline: `${actor} ${d.merged ? "accepted" : "rejected"} ${suggestion} on ${item}`,
         body: null,
       };
     case "assigned":
@@ -177,14 +202,19 @@ export function describeNotification(
     case "export_failed": {
       const failures = (d.failures as { message: string | null }[]) ?? [];
       return {
-        headline: `Export ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} ${d.status === "partial" ? "partly failed" : "failed"}`,
-        body: `${num(d.failed)} of ${num(d.total)} items were not exported.${failures[0]?.message ? ` ${failures[0].message}` : ""}`,
+        headline: `Hand-off ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} ${d.status === "partial" ? "partly failed" : "failed"}`,
+        body: `${num(d.failed)} of ${num(d.total)} items were not handed off${d.status === "partial" ? "; the others were" : ""}.${failures[0]?.message ? ` ${failures[0].message}` : ""}`,
       };
     }
+    case "code_write_failed":
+      return {
+        headline: `${str(d.summary) ?? "A change"} in ${str(d.repository) ?? "a repository"} failed`,
+        body: str(d.message),
+      };
     case "export_completed":
       return {
-        headline: `Export ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} completed`,
-        body: `${num(d.total)} items exported.`,
+        headline: `Hand-off ${d.itemKey ? `of ${item} ` : ""}to ${str(d.connectionName) ?? "the delivery tool"} completed`,
+        body: `${num(d.total)} items handed off.`,
       };
     case "page_review_requested":
       return {
@@ -195,7 +225,7 @@ export function describeNotification(
       return {
         headline: `Your approval of a change to ${page} needs review again`,
         body: str(d.pullRequestTitle)
-          ? `${actor} changed “${str(d.pullRequestTitle)}” after you approved it.`
+          ? `${actor} changed ${quote(str(d.pullRequestTitle))} after you approved it.`
           : `${actor} changed it after you approved it.`,
       };
     case "page_mentioned":
@@ -209,6 +239,55 @@ export function describeNotification(
       };
     case "page_thread_reply":
       return { headline: `${actor} replied on ${page}`, body: excerpt };
+    case "agent_approval_requested":
+      return {
+        headline: `${str(d.agentName) ?? "An agent"} asks: ${str(d.question) ?? "a decision"}`,
+        body: titled(d.sessionTitle),
+      };
+    case "agent_session_finished": {
+      // Finished with no repository after changing files: the work was not
+      // kept, which is the news, not the agent's own summary.
+      const discarded =
+        typeof d.discardedFiles === "number" && d.discardedFiles > 0
+          ? d.discardedFiles
+          : 0;
+      return {
+        headline: `${str(d.agentName) ?? "An agent"} ${d.status === "failed" ? "failed" : discarded ? "finished, work not kept" : "finished"}: ${titled(d.sessionTitle) ?? "a session"}`,
+        body:
+          str(d.error) ??
+          (discarded
+            ? `${discarded === 1 ? "The file it changed was" : `The ${discarded} files it changed were`} discarded: no repository is linked to the session.`
+            : str(d.summary)),
+      };
+    }
+    case "channel_mentioned":
+      return {
+        headline: `${actor} mentioned you ${channelPlace(d)}`,
+        body: excerpt,
+      };
+    // Digested per conversation: `count` messages since the person last
+    // read it, the latest by `actor`.
+    case "direct_message":
+      return {
+        headline:
+          count > 1
+            ? `${count} new messages, the latest from ${actor}`
+            : `${actor} sent you a message`,
+        body: excerpt,
+      };
+    case "channel_thread_reply":
+      return {
+        headline:
+          count > 1
+            ? `${count} new replies to a thread ${channelPlace(d)}, the latest from ${actor}`
+            : `${actor} replied to a thread ${channelPlace(d)}`,
+        body: excerpt,
+      };
+    case "channel_message":
+      return {
+        headline: `${actor} posted ${channelPlace(d)}`,
+        body: excerpt,
+      };
     case "organization_deletion_scheduled":
       return {
         headline: `${actor} scheduled ${str(d.organizationName) ?? "the organization"} for deletion${str(d.deleteDay) ? ` on ${str(d.deleteDay)}` : ""}`,
@@ -234,6 +313,8 @@ export function notificationHref(
   n: NotificationView & { teamId?: string | null },
 ) {
   const d = n.detail;
+  const session = str(d.sessionId);
+  if (session) return paths.factorySession(orgSlug, session);
   const key = str(d.itemKey);
   if (key)
     return `${paths.itemByKey(orgSlug, key)}${str(d.pullRequestId) ? `?pr=${encodeURIComponent(str(d.pullRequestId)!)}` : ""}`;
@@ -247,9 +328,20 @@ export function notificationHref(
         : "";
     return `${paths.spacePage(orgSlug, spaceSlug, pageId)}${query}`;
   }
+  const channelId = str(d.channelId);
+  if (channelId) {
+    const thread = str(d.threadRootId);
+    const message = str(d.messageId);
+    const query = thread
+      ? `?thread=${encodeURIComponent(thread)}${message ? `&message=${encodeURIComponent(message)}` : ""}`
+      : message
+        ? `?message=${encodeURIComponent(message)}`
+        : "";
+    return `${paths.channel(orgSlug, channelId)}${query}`;
+  }
   const projectKey = str(d.projectKey);
   const iterationId = str(d.iterationId);
   if (projectKey && iterationId)
     return paths.iteration(orgSlug, projectKey, iterationId);
-  return paths.inbox(orgSlug);
+  return paths.inbox(orgSlug, "updates");
 }

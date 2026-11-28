@@ -185,7 +185,7 @@ test("a page becomes reviewed, delivered work that proposes the page update back
     await ada.page.getByRole("button", { name: "Commit", exact: true }).click();
     await ada.page
       .getByRole("dialog", { name: "Commit to this branch" })
-      .getByRole("button", { name: "Commit now" })
+      .getByRole("button", { name: "Commit only" })
       .click();
     await expect(ada.page.getByText("Committed version 2")).toBeVisible();
     const pullRequestId = crypto.randomUUID();
@@ -213,7 +213,7 @@ test("a page becomes reviewed, delivered work that proposes the page update back
       .click();
     await expect(
       ben.page
-        .getByRole("complementary", { name: "Review summary" })
+        .getByRole("complementary", { name: "Reviewers" })
         .getByText("Approved", { exact: true }),
     ).toBeVisible();
 

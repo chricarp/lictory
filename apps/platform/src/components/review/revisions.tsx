@@ -1,3 +1,4 @@
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { useMemo, useState, type ReactNode } from "react";
 import { GitCompareArrows, History } from "lucide-react";
 import { Toggle, ToggleGroup } from "@ui-sdk/react/toggle";
@@ -14,7 +15,7 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
-import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
+import { Badge, SectionLabel } from "@lictory/ui/primitives";
 import { Markdown } from "@lictory/platform/components/items/markdown";
 import {
   useItem,
@@ -28,9 +29,9 @@ import {
 } from "@lictory/platform/components/review/spec-diff";
 import { threadMarks } from "@lictory/platform/components/review/markdown-marks";
 
-// A specification's history, like a page's: Versions (every revision with
+// A specification's history, like a page's: Revisions (every revision with
 // who wrote it, why, the approvals given on it and the revisions accepted
-// for and delivered by delivery), and Branches & pull requests. Any two
+// for and delivered by delivery), and Proposed changes. Any two
 // revisions can be compared; restoring makes a new revision, it never
 // rewrites one.
 
@@ -60,8 +61,8 @@ export function HistoryNav({
     >
       {(
         [
-          ["versions", "Versions", onVersions],
-          ["branches", "Branches & pull requests", onBranches],
+          ["versions", "Revisions", onVersions],
+          ["branches", "Proposed changes", onBranches],
         ] as const
       ).map(([key, title, go]) => (
         <button
@@ -225,7 +226,18 @@ export function SpecVersions({
     capabilities,
     readOnly,
     threads,
+    entities,
   } = useItem();
+  // A revision an accepted suggestion created was written by the
+  // suggestion's author and saved by the person who accepted it: "Who
+  // changed this?" names both.
+  const suggestedBy = new Map(
+    entities.flatMap((e) =>
+      e.type === "suggestion" && e.mergedRevisionId
+        ? [[e.mergedRevisionId, e.authorId] as const]
+        : [],
+    ),
+  );
   const [view, setView] = useState<DiffView>("changes");
   const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState("");
@@ -274,11 +286,11 @@ export function SpecVersions({
     shown.id !== base.baseRevisionId;
   return (
     <div className="grid gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
-      <section aria-label="Versions">
-        <h2 className="mb-3 text-sm font-semibold">Versions</h2>
+      <section aria-label="Revisions">
+        <h2 className="mb-3 text-sm font-semibold">Revisions</h2>
         {/* Choosing the version on screen again reads it on its own. */}
         <ToggleGroup
-          aria-label="Versions"
+          aria-label="Revisions"
           orientation="vertical"
           value={[shown.id]}
           onValueChange={([next]) => select(next ?? shown.id)}
@@ -308,12 +320,15 @@ export function SpecVersions({
                     </span>
                   </span>
                   <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                    <Avatar
-                      userId={r.authorId}
-                      name={memberName(r.authorId)}
-                      size="xs"
-                    />
+                    <Actor userId={r.authorId} label="none" size={16} />
                     {memberName(r.authorId)}
+                    {suggestedBy.has(r.id) &&
+                      suggestedBy.get(r.id) !== r.authorId && (
+                        <>
+                          <span aria-hidden>·</span>
+                          suggested by {memberName(suggestedBy.get(r.id))}
+                        </>
+                      )}
                     <span aria-hidden>·</span>
                     <time
                       dateTime={r.createdAt}
@@ -407,14 +422,14 @@ export function SpecVersions({
             item.mainProtected &&
             capabilities.editSpecifications && (
               <p className="text-sm text-muted-foreground">
-                Main is protected. Use a branch and pull request to restore
-                earlier content.
+                This specification is protected. To restore earlier text,
+                propose it as a change and send it for review.
               </p>
             )}
           {canRestore && confirm && (
             <div className="space-y-2 rounded-xl p-3 ring-1 ring-foreground/10">
               <p className="text-sm">
-                Restore revision {shown.number} as a new main revision. Existing
+                Restore revision {shown.number} as a new revision. Existing
                 approvals will require review again.
               </p>
               {error && (

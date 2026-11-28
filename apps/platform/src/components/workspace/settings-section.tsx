@@ -1,6 +1,13 @@
 import type { ReactNode } from "react";
-import { SettingsNavigation } from "@lictory/platform/components/workspace/settings-navigation";
+import { Settings2 } from "lucide-react";
+import {
+  SettingsNavigation,
+  useSelectedSetting,
+} from "@lictory/platform/components/workspace/settings-navigation";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { cn } from "@lictory/core/lib/utils";
+import { docsUrl, type DocsPage } from "@lictory/core/lib/docs-links";
+import { Heading, HeadingScope } from "@lictory/ui/heading";
 
 // Shared surfaces for settings pages. A group names a context ("Workspace",
 // "People & access"); a section is one card inside it with a stable anchor id
@@ -18,16 +25,18 @@ export function SettingsGroup({
   return (
     <div className="space-y-4">
       <div className="px-1">
-        <h2 className="font-mono text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+        <Heading className="text-xs font-semibold text-muted-foreground">
           {title}
-        </h2>
+        </Heading>
         {description && (
           <p className="mt-1 text-[13px] text-muted-foreground">
             {description}
           </p>
         )}
       </div>
-      <div className="space-y-4">{children}</div>
+      <HeadingScope>
+        <div className="space-y-4">{children}</div>
+      </HeadingScope>
     </div>
   );
 }
@@ -41,11 +50,15 @@ export function SettingsSection({
   children,
   footer,
   className,
+  learnMore,
 }: {
   id: string;
   icon: ReactNode;
   title: string;
   description?: ReactNode;
+  // The documentation page that explains what the one-line description
+  // leaves out.
+  learnMore?: DocsPage;
   action?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
@@ -56,29 +69,39 @@ export function SettingsSection({
       id={id}
       aria-labelledby={`${id}-title`}
       className={cn(
-        "scroll-mt-6 rounded-xl bg-card shadow-(--shadow-border)",
+        "scroll-mt-16 rounded-xl bg-card shadow-(--shadow-border)",
         className,
       )}
     >
       {/* Wraps the actions below the title when both don't fit, so a narrow
           screen never squeezes the description to one word per line. */}
       <div className="flex flex-wrap items-start gap-3 px-5 py-4">
-        <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground [&>svg]:size-4">
+        {/* On phones the icon would keep a 44px gutter beside every line
+            of the description: the title carries the section alone. */}
+        <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-foreground max-sm:hidden [&>svg]:size-4">
           {icon}
         </div>
         <div className="min-w-0 flex-1 basis-48">
-          <h3 id={`${id}-title`} className="text-sm font-semibold">
+          <Heading id={`${id}-title`} className="text-sm font-semibold">
             {title}
-          </h3>
+          </Heading>
           {description && (
             <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">
               {description}
+              {learnMore && (
+                <>
+                  {" "}
+                  <LearnMore page={learnMore} />
+                </>
+              )}
             </p>
           )}
         </div>
         {action && <div className="flex shrink-0 items-center">{action}</div>}
       </div>
-      <div className="border-t border-border">{children}</div>
+      <HeadingScope>
+        <div className="border-t border-border">{children}</div>
+      </HeadingScope>
       {footer && (
         <div className="border-t border-border px-5 py-3 text-xs leading-5 text-muted-foreground">
           {footer}
@@ -129,16 +152,23 @@ export function SettingsSubheading({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-2">
-      <h4 className="text-[13px] font-medium">{children}</h4>
+      <Heading className="text-[13px] font-medium">{children}</Heading>
       {action}
     </div>
   );
 }
 
-export function InlineError({ children }: { children?: string }) {
+export function InlineError({
+  children,
+  id,
+}: {
+  children?: string;
+  // Referenced by the fields it is about (`aria-describedby`).
+  id?: string;
+}) {
   if (!children) return null;
   return (
-    <p role="alert" className="text-xs text-destructive">
+    <p id={id} role="alert" className="text-xs text-destructive">
       {children}
     </p>
   );
@@ -154,37 +184,34 @@ export type SettingsNavItem = {
   group?: string;
 };
 export function SettingsLayout({
-  icon,
   title,
   subtitle,
   nav,
   children,
 }: {
-  icon: ReactNode;
+  // The scope: "Organization settings", the project's name.
   title: string;
   subtitle?: ReactNode;
   nav: SettingsNavItem[];
   children: ReactNode;
 }) {
+  const selected = useSelectedSetting(nav);
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        <header className="flex items-center gap-3.5">
-          {icon}
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold tracking-tight">
-              {title}
-            </h1>
-            {subtitle && (
-              <p className="truncate text-[13px] text-muted-foreground">
-                {subtitle}
-              </p>
-            )}
+    <div className="flex h-full flex-col">
+      {/* The section is the page's title; the scope it belongs to is the
+          breadcrumb before it. */}
+      <PageHeader
+        title={selected?.label ?? title}
+        icon={<Settings2 />}
+        breadcrumbs={nav[0] ? [{ label: title, href: nav[0].href }] : []}
+        meta={subtitle}
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-5xl px-4 pt-4 pb-16 sm:px-6 lg:pt-8">
+          <div className="gap-10 lg:grid lg:grid-cols-[176px_minmax(0,1fr)]">
+            <SettingsNavigation nav={nav} selected={selected?.id} />
+            <div className="min-w-0 space-y-6">{children}</div>
           </div>
-        </header>
-        <div className="mt-8 gap-10 lg:grid lg:grid-cols-[176px_minmax(0,1fr)]">
-          <SettingsNavigation nav={nav} />
-          <div className="min-w-0 space-y-6">{children}</div>
         </div>
       </div>
     </div>
@@ -197,5 +224,27 @@ export function ReadOnlyNotice({ children }: { children: ReactNode }) {
     <p className="rounded-lg border border-dashed px-4 py-3 text-[13px] text-muted-foreground">
       {children}
     </p>
+  );
+}
+
+// A link to the documentation after a one-sentence explanation. It opens in
+// a new tab, so the settings being read stay where they are.
+export function LearnMore({
+  page,
+  children = "Learn more",
+}: {
+  page: DocsPage;
+  children?: string;
+}) {
+  return (
+    <a
+      href={docsUrl(page)}
+      target="_blank"
+      rel="noreferrer"
+      className="font-medium whitespace-nowrap text-foreground underline decoration-foreground/30 underline-offset-2 hover:decoration-foreground"
+    >
+      {children}
+      <span className="sr-only"> (opens in a new tab)</span>
+    </a>
   );
 }

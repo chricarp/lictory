@@ -12,6 +12,7 @@ import {
   typeOf,
   views,
   enabledTypes,
+  refinementMeta,
 } from "@lictory/core/lib/work-items";
 import {
   isAmended,
@@ -24,6 +25,7 @@ import { useProject } from "@lictory/platform/components/workspace/project-gate"
 import { useLifecycleQueues } from "@lictory/platform/components/items/queues";
 import { IssueList } from "@lictory/platform/components/items/issue-list";
 import { ProjectKnowledge } from "@lictory/platform/components/knowledge/project-knowledge";
+import { placeInProject } from "@lictory/platform/components/workspace/orientation";
 
 const viewIllustrations: Record<ViewId, IllustrationKind> = {
   all: "proposal",
@@ -34,11 +36,13 @@ const viewIllustrations: Record<ViewId, IllustrationKind> = {
   drafts: "drafts",
   updated: "updated",
 };
+// The tabs are the refinement states and carry their names (the Refinement
+// property's), so an item reads the same in the list and on its page.
 const refinementTabs = [
-  { id: undefined, label: "All in refinement" },
-  { id: "refinement", label: "In progress" },
-  { id: "review", label: "In review" },
-  { id: "ready", label: "Ready for delivery" },
+  { id: undefined, label: "All" },
+  { id: "refinement", label: refinementMeta.refinement.label },
+  { id: "review", label: refinementMeta.in_review.label },
+  { id: "ready", label: refinementMeta.ready.label },
 ] as const;
 
 // A proposal is an incomplete specification, not an item type. Readiness and
@@ -50,8 +54,14 @@ export function ViewPage({
   view: ViewId;
   phase?: "proposal" | "refinement";
 }) {
-  const { organization, userId, disciplineIds, delivery, capabilitiesIn } =
-    useWorkspace();
+  const {
+    organization,
+    userId,
+    disciplineIds,
+    delivery,
+    directory,
+    capabilitiesIn,
+  } = useWorkspace();
   const project = useProject();
   const params = useSearchParams();
   const overview = view === "all";
@@ -112,6 +122,15 @@ export function ViewPage({
   );
   const canPropose =
     capabilitiesIn(project.id).editSpecifications && hasSpecificationTypes;
+  // Without "New proposal", an empty queue says why, from the person's own
+  // disciplines, instead of leaving them to wonder.
+  const place = placeInProject(directory.disciplines, userId, project.id);
+  const noProposalNote =
+    hasSpecificationTypes && !place.canPropose ? (
+      <span className="mt-2 block">
+        {place.sentence} {place.whyNoProposal}
+      </span>
+    ) : null;
   const deliveryHref =
     project.deliveryMode === "external"
       ? paths.handoff(organization.slug, project.key)
@@ -169,8 +188,8 @@ export function ViewPage({
           ? `${asked} review requested on revision ${item.revisionNumber}`
           : item.suggestionReviewerIds.includes(userId)
             ? item.openSuggestions > 0
-              ? `${item.openSuggestions} proposed change${item.openSuggestions === 1 ? "" : "s"} waiting for your review`
-              : "A proposed change waits for your review"
+              ? `${item.openSuggestions} suggested change${item.openSuggestions === 1 ? "" : "s"} waiting for you to accept or reject`
+              : "A suggested change waits for you to accept or reject it"
             : `Revision ${item.revisionNumber}`,
       ];
       if (item.blockingThreads)
@@ -194,10 +213,16 @@ export function ViewPage({
       project={project}
       hrefFor={hrefFor}
       title={overview ? (proposals ? "Proposals" : "Refinement") : meta.label}
+      breadcrumbs={[
+        {
+          label: project.name,
+          href: paths.project(organization.slug, project.key),
+        },
+      ]}
       description={
         overview
           ? proposals
-            ? "A place for rough ideas. Capture the problem now, clarify the expected behavior, then start refinement and request the reviews it needs."
+            ? "Proposals are stories (and other specification items) in Draft: rough ideas, not a separate kind of document. Capture the problem now, clarify the expected behavior, then start refinement and request the reviews it needs. The same item then moves to Refinement."
             : // The queue holds specifications not yet in delivery (and
               // amendments of accepted ones): a story under way with its
               // accepted revision is delivery work, whatever its review.
@@ -234,7 +259,12 @@ export function ViewPage({
           </span>
         ) : overview ? (
           proposals ? (
-            "A title and a few notes are enough. Your team can shape the specification before committing to build it."
+            <span>
+              A proposal is a story in Draft: a title and a few notes are
+              enough. Your team can shape its specification before committing to
+              build it.
+              {noProposalNote}
+            </span>
           ) : (
             <span>
               {stage === "ready"
@@ -242,6 +272,7 @@ export function ViewPage({
                 : stage === "review"
                   ? "Specifications waiting on reviews appear here until they are accepted for delivery. Work already in delivery is not listed while its accepted revision is current."
                   : "Open a proposal and start refinement to work through the behavior, acceptance criteria and review concerns."}
+              {noProposalNote}
               <Link
                 className="mt-3 block text-primary hover:underline"
                 href={paths.proposals(organization.slug, project.key)}

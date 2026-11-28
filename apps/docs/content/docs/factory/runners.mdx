@@ -1,0 +1,254 @@
+---
+title: Runners
+description: Install lictory-runner on a server, VPS, laptop or Mac, register it with a one-time token and keep it running as a service.
+---
+
+A **runner** is a machine that runs agent sessions. It connects out to
+Lictory over HTTPS, so it needs no open port and works behind NAT, proxies
+and firewalls that allow outbound HTTPS. Each session works in its own git
+worktree; a runner can also run each session in a Docker container.
+
+- An **organization runner** runs any agent of the organization. An
+  organization administrator adds it.
+- A **personal runner** runs only your own agents, for example on your
+  laptop. Any member can add one.
+
+## Add a runner
+
+1. Open **Factory → Runners** and choose **Add runner**.
+2. Choose an organization or a personal runner and **Create registration
+   token**. The token works once and expires after an hour.
+3. Copy the command for your system and run it on the machine. It downloads
+   the installer, then runs it: the installer downloads `lictory-runner` of
+   your server's release, checks it against the release's checksums,
+   registers it and installs it as a service:
+
+```sh title="Install on Linux or macOS"
+curl -fsSLO https://github.com/chricarp/lictory/releases/latest/download/lictory-runner-install.sh &&
+  sh lictory-runner-install.sh --version <server release> --url https://lictory.example.com --token lrt_… --service
+```
+
+The installer says which release it installs and exits with a non-zero code,
+having installed nothing, when a download fails or a file does not match the
+checksums, so provisioning scripts can rely on it. (Downloading first matters:
+`curl … | sh` reports success when the download fails, because `sh` then runs
+an empty script.) A server built from source has no release of its own; its
+dialog leaves out `--version` and installs the latest stable release.
+
+On Windows, in PowerShell:
+
+```powershell title="Install on Windows"
+& ([scriptblock]::Create((irm https://github.com/chricarp/lictory/releases/latest/download/lictory-runner-install.ps1))) `
+  -Version <server release> -Url https://lictory.example.com -Token lrt_… -Service
+```
+
+The dialog fills in your server's release, address and token.
+
+### When the download answers 404
+
+A release published before runner downloads existed carries none of these
+files, and `curl` then reports `(22) … 404`. Build the same runner from your
+server's release tag instead: you need [Bun](https://bun.sh) and git. The Add
+runner dialog shows these commands with your release, address and token
+filled in under **The download answers 404?**:
+
+```sh
+git clone --depth 1 --branch v<server release> https://github.com/chricarp/lictory.git && cd lictory
+bun install --frozen-lockfile
+bun run --cwd apps/runner build linux-x64   # linux-arm64, darwin-arm64, darwin-x64, windows-x64…
+mkdir -p ~/.local/bin && cp apps/runner/dist/lictory-runner-linux-x64 ~/.local/bin/lictory-runner
+~/.local/bin/lictory-runner register --url https://lictory.example.com --token lrt_…
+~/.local/bin/lictory-runner install-service --enable
+```
+
+A server built from source has no release tag: leave out `--branch` to build
+the default branch.
+
+The installer puts `lictory-runner` in `/usr/local/bin` when it can write
+there and in `~/.local/bin` otherwise (`--dir` chooses another directory);
+on Windows in `%LOCALAPPDATA%\Programs\lictory-runner`, which it adds to your
+`PATH`. Without `--url` and `--token` it only installs and prints the
+commands to register:
+
+```sh title="Register, then keep it running"
+lictory-runner register --url https://lictory.example.com --token lrt_…
+lictory-runner install-service --enable
+```
+
+The runner appears in the list as soon as it registers and shows **Online**
+while it is connected. A runner that registered but has not connected since
+reads **Not started**: start it (`lictory-runner start`, or its service) on
+the machine. One that connected before and stopped reads **Offline** with
+when it was last seen. Organization administrators also see offline
+organization runners, sessions no runner can take, broken code host or
+Slack connections and background work the server could not finish (stuck or
+failing jobs, failed hand-offs) on their Home, under **Needs an
+administrator**.
+
+Choose a runner's row to see what it reported: its machine, version,
+harnesses (with their versions), isolation, labels, capacity, when it
+registered, and its latest sessions. **Last problem** is the last thing that
+failed on the machine (the server out of reach, asking for work refused),
+with when, as the runner reported it once it reached the server again: it
+tells a runner that lost its network from a machine that was turned off. A runner on an older release than the
+server reads **Update**, and the page says which runners lag after you
+upgrade the server.
+
+To install the newest stable release by hand, or download a binary for
+another machine, see [lictory.com/download](https://lictory.com/download#runner).
+
+Install the harnesses its agents use on the same machine: Claude Code
+(`claude`) or Codex (`codex`), signed in with your own subscription or API
+key. The built-in harness needs nothing on the machine: it uses the
+organization's Lictory Intelligence model through the server.
+
+## Commands
+
+| Command                          | What it does                                                                                                         |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `lictory-runner register`        | Exchanges a registration token for the runner's credential                                                           |
+| `lictory-runner start`           | Connects and runs sessions until stopped (Ctrl-C hands them back)                                                    |
+| `lictory-runner status`          | Shows whether the runner is running and what it is working on (exit 0 running, 1 stopped or stuck, 2 not registered) |
+| `lictory-runner doctor`          | Checks the server, the credential, git, harnesses (and that they are signed in), Docker and clock                    |
+| `lictory-runner install-service` | A systemd unit (Linux) or launchd agent (macOS); `--enable` starts it                                                |
+| `lictory-runner logs`            | Shows the service's log (`--follow` keeps watching, `--lines <n>` how many recent lines, default 100)                |
+| `lictory-runner version`         | Prints the runner's version (also `--version`)                                                                       |
+
+`lictory-runner <command> --help` (or `-h`, or
+`lictory-runner help <command>`) lists a command's options. `register` accepts `--name`,
+`--max-sessions <n>` (default 2), `--isolation host|container`,
+`--container-image <image@sha256:…>` (needed for container isolation),
+`--label <label>` and `--force` (replace this machine's registration). On
+Linux a user service stops when you log out unless lingering is on
+(`loginctl enable-linger`); `install-service` says whether it is on, and
+`--system` installs a system service instead. On
+Windows, `install-service` prints the Task Scheduler commands.
+
+One runner runs per configuration directory: a second `start` is refused
+with the PID of the running one, and `status` describes that one. To run two
+runners on one machine, register each with its own `LICTORY_RUNNER_HOME`.
+
+### Exit codes and logs
+
+| Code | Meaning                                                                                         |
+| ---- | ----------------------------------------------------------------------------------------------- |
+| 0    | Done (for `start`: stopped by Ctrl-C or SIGTERM)                                                |
+| 1    | Failed, for example the server is unreachable or a `doctor` check failed; a service restarts it |
+| 2    | A person must act first: the machine is not registered, or its credential was revoked           |
+| 64   | Wrong command line (unknown command or option)                                                  |
+
+`start`, `status` and `doctor` agree on these codes: an unregistered machine
+is 2 for each, and after the server refused the credential `status` and
+`doctor` say so (and exit 2) instead of suggesting `start`. `doctor` marks
+each line `ok`, `fail`, `warn` or `info` as well as with ✓, ✗, ! and ·.
+
+`doctor` also asks each installed harness whether it can sign in, without
+running a session: `claude auth status` for Claude Code and `codex login
+status` for Codex. A harness that is installed but not signed in fails the
+check, because the runner reports it to the server and its sessions would
+fail; sign in as the account the runner runs as (a service does not read
+your shell profile, so an API key belongs in the service's environment).
+In container isolation the harnesses sign in inside the image, so `doctor`
+does not check them on the machine. It ends with what agents may do there
+without asking: the isolation, Claude Code's permission mode and Codex's
+sandbox from `config.json`.
+
+The systemd unit restarts the runner five seconds after it fails, but not on
+codes 2 and 64 (`RestartPreventExitStatus`): after a revocation, create a
+token in **Factory → Runners**, run `lictory-runner register --url <server>
+--token <token> --force` and start the service again. (launchd on macOS
+cannot skip a code: it keeps retrying a revoked runner every ten seconds
+until you register it again or unload the agent.)
+
+`start` writes one line per event, prefixed with the time (the full ISO time
+when the output is not a terminal, as in a service's log file). Each session
+leaves a line when it starts, when it prepares its worktree, when it waits
+for a person (an approval or the next message), when a person answers,
+steers or interrupts it, and when it ends, with how it ended: completed (and
+the branch it pushed, which Lictory opens or updates a pull request for),
+failed (and why), canceled in Lictory, stopped because the runner no longer
+held it, or returned to the queue when the runner stopped. The line where a
+session starts, and each line where it waits for a person, ends with the
+address of its page in Lictory. A failure that
+repeats, such as an unreachable server, is logged once in full, then as a
+reminder every five minutes, and its recovery is logged.
+
+A runner started with `start` logs to its terminal. A service logs to the
+systemd journal on Linux and to `runner.log` in the configuration directory
+on macOS; `lictory-runner logs` shows either (it runs `journalctl --user -u
+lictory-runner`, or `tail` on the file, and prints the command first). Errors are plain text, never colored. When the server
+cannot be reached, the runner says which address and what to check: the
+address and port, DNS, a proxy or firewall, or a certificate the machine does
+not trust (add its authority with `NODE_EXTRA_CA_CERTS=<ca.pem>`).
+
+The configuration and credential are in `~/.config/lictory-runner` on Linux,
+`~/Library/Application Support/lictory-runner` on macOS and
+`%APPDATA%\lictory-runner` on Windows (`LICTORY_RUNNER_HOME` overrides
+it), readable only by your account. `config.json` also holds
+`claudePermissionMode` (what Claude Code may do without asking, default
+`acceptEdits`), `codexSandbox` (default `workspace-write`),
+`containerImage` and `keepWorktrees`. The runner reports the first two, and
+each agent's page says under **Without asking** what its harness does before
+a person is asked (for example, Claude Code in `acceptEdits` edits files
+without asking and asks before commands its settings do not allow). A runner
+older than this version does not report them, and the page says so.
+
+### Container isolation
+
+With `--isolation container` each session runs in its own Docker container
+with only its worktree mounted. Lictory publishes no sandbox image: build one
+that contains git and the harnesses your agents use, push it to a registry
+you trust and register with
+`--container-image registry.example.com/runner-sandbox@sha256:…`. Pin it by
+digest: a tag can be moved to other contents, a digest cannot.
+`lictory-runner doctor` warns about an image that is not pinned.
+
+## Operate many runners
+
+- **Capacity:** `--max-sessions` sets how many sessions run at once (default
+  2). Sessions waiting for a person's answer keep their lease without taking
+  a slot. Add runners rather than raising the number on one machine.
+- **Which agents run where:** a session can name a runner, an agent can have
+  a default runner, and a personal runner runs only its owner's agents.
+  Labels describe the machine; they do not route sessions.
+- **Updates:** run the installer again on each machine without a token (see
+  below), then restart the service. Keep runners on the server's release:
+  the add-runner command pins it.
+- **Maintenance:** stop the service (`systemctl stop lictory-runner`, or
+  Ctrl-C). The runner stops claiming, hands its running sessions back to the
+  queue and exits; another runner picks them up. Start it again afterwards.
+  To retire a machine for good, revoke it.
+- **Monitoring:** the server's monitor alerts when an organization runner has
+  been offline for ten minutes, when sessions wait 15 minutes with no online
+  runner that can take them, and when every capable runner is busy for an
+  hour ([monitoring](/self-hosting/monitoring)). Personal runners are not
+  alerted on.
+- **Revoked runners:** a revoked runner exits with status 2. The systemd unit
+  that `install-service` writes does not restart it; register it again to
+  bring it back.
+
+## Update a runner
+
+Run the installer again with the new version (or without `--version` for
+the latest stable release) and without a token: it replaces the binary in
+place. A runner running as a service keeps the old version until it
+restarts (`systemctl --user restart lictory-runner` on Linux,
+`launchctl kickstart -k gui/$(id -u)/com.lictory.runner` on macOS).
+
+## Verify a download
+
+Every release lists the SHA-256 of each file in `SHA256SUMS`, which the
+installers check. The files are also signed by the release workflow:
+`gh attestation verify <downloaded file> --repo chricarp/lictory` (for
+example `lictory-runner-linux-x64`) checks a downloaded binary, and `cosign verify-blob` checks `SHA256SUMS`
+against `SHA256SUMS.sigstore.json` (see the
+[release documentation](https://github.com/chricarp/lictory/blob/main/docs/operations/releases.md#runner-and-desktop-app)).
+
+## Revoke a runner
+
+Choose the trash icon on the runner's row, or **Remove runner…** in its
+details. The organization's audit log records who removed it. Its credential stops working at
+once and the sessions it was running return to the queue. A personal runner
+also stops working when its owner leaves the organization. A running runner
+notices within a heartbeat, says so and exits with code 2, which its service
+does not restart on.

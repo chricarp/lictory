@@ -13,6 +13,18 @@ import {
 
 type Stored = ExternalItem & { content: string; managedLabels: string[] };
 
+// Issue types with Jira's hierarchy: an issue's parent must sit strictly
+// higher (an Epic holds Stories and Tasks, a Story or Task holds Subtasks;
+// a Task cannot sit under a Story).
+const types = [
+  { id: "epic", name: "Epic", hierarchyLevel: 1 },
+  { id: "story", name: "Story", hierarchyLevel: 0 },
+  { id: "task", name: "Task", hierarchyLevel: 0 },
+  { id: "subtask", name: "Subtask", hierarchyLevel: -1 },
+].map((t) => ({ ...t, unsupportedRequiredFields: [] }));
+const levelOf = (typeId: string) =>
+  types.find((t) => t.id === typeId)?.hierarchyLevel ?? 0;
+
 export function createFakeProvider() {
   const items = new Map<string, Stored>();
   const edits: { id: string; field: OwnedField; at: Date }[] = [];
@@ -22,6 +34,9 @@ export function createFakeProvider() {
     when?: (payload?: DeliveryPayload) => boolean;
   }[] = [];
   const calls: string[] = [];
+  // Creates whose answer is lost after the item exists (a timeout or 5xx
+  // after the external system committed).
+  let lostCreates = 0;
   let sequence = 0;
   let clock = Date.UTC(2026, 0, 1);
   const now = () => new Date((clock += 1000));
@@ -35,6 +50,13 @@ export function createFakeProvider() {
   };
 
   const write = (stored: Stored, payload: DeliveryPayload) => {
+    const parent = payload.parent && items.get(payload.parent.id);
+    if (parent && levelOf(parent.typeId) <= levelOf(payload.externalTypeId))
+      throw new DeliveryError(
+        "validation",
+        `Jira rejected the item: ${parent.key} cannot be its parent.`,
+        { parent: "The parent issue type is not above this issue type." },
+      );
     const foreign = stored.labels.filter(
       (l) => !stored.managedLabels.includes(l),
     );
@@ -67,26 +89,7 @@ export function createFakeProvider() {
         id: "p1",
         key: "EXT",
         name: "External",
-        types: [
-          {
-            id: "epic",
-            name: "Epic",
-            hierarchyLevel: 1,
-            unsupportedRequiredFields: [],
-          },
-          {
-            id: "story",
-            name: "Story",
-            hierarchyLevel: 0,
-            unsupportedRequiredFields: [],
-          },
-          {
-            id: "subtask",
-            name: "Subtask",
-            hierarchyLevel: -1,
-            unsupportedRequiredFields: [],
-          },
-        ],
+        types,
       };
     },
     async getItem(_connection, idOrKey) {
@@ -129,8 +132,17 @@ export function createFakeProvider() {
         lictoryItemId: null,
         content: "",
       };
+      // A refused create leaves nothing behind, as in Jira.
+      const created = write(stored, payload);
       items.set(id, stored);
-      return write(stored, payload);
+      if (lostCreates > 0) {
+        lostCreates--;
+        throw new DeliveryError(
+          "unavailable",
+          "Jira returned an error (502). Try again later.",
+        );
+      }
+      return created;
     },
     async updateItem(_connection, ref, payload) {
       fail("updateItem", payload);
@@ -166,6 +178,10 @@ export function createFakeProvider() {
       when?: (payload?: DeliveryPayload) => boolean,
     ) {
       failures.push({ method, error, when });
+    },
+    // The next create succeeds externally but its answer never arrives.
+    loseNextCreate() {
+      lostCreates++;
     },
     // Simulate someone editing an owned field directly in the external tool.
     editExternally(id: string, field: OwnedField, value: string) {

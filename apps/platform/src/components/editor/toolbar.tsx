@@ -31,6 +31,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
+import { ScrollStrip } from "@lictory/platform/components/shell/scroll-strip";
 import { isSafePageLink } from "@lictory/core/spaces/document/schema";
 import { Button } from "@lictory/ui/button";
 import {
@@ -116,6 +117,7 @@ export function Toolbar({
   compact = false,
   disabled,
   label = "Formatting",
+  framed = true,
   className,
 }: {
   editor: Editor;
@@ -130,6 +132,9 @@ export function Toolbar({
   compact?: boolean;
   disabled: boolean;
   label?: string;
+  // Its own pill (a page's editor); false when it sits in a composer's
+  // frame, which then styles it through `className`.
+  framed?: boolean;
   className?: string;
 }) {
   const state = useEditorState({
@@ -397,19 +402,25 @@ export function Toolbar({
       Boolean(c) && (!source?.active || (c as Control).id === "source"),
   );
   const base =
-    "inline-flex h-7 min-w-0 shrink-0 cursor-default items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 font-normal text-foreground/75 transition-[background-color,color] duration-150 ease-out outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 data-disabled:opacity-40 data-open:bg-foreground/8 data-open:text-foreground data-pressed:bg-foreground/8 data-pressed:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground";
+    "inline-flex h-7 min-w-0 shrink-0 cursor-default items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 font-normal text-foreground/75 transition-[background-color,color] duration-150 ease-out outline-none hover:bg-muted hover:text-foreground focus-ring data-disabled:opacity-40 data-open:bg-foreground/8 data-open:text-foreground data-pressed:bg-foreground/8 data-pressed:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground";
   // Keeps the editor's selection while clicking.
   const keepSelection = (e: { preventDefault: () => void }) =>
     e.preventDefault();
-  return (
+  const root = (children: ReactNode) => (
     <ToolbarRoot
       aria-label={label}
       disabled={disabled}
       className={cn(
-        "flex max-w-none [scrollbar-width:none] flex-nowrap items-center gap-0.5 overflow-x-auto rounded-full border border-transparent bg-card px-1 py-1 shadow-(--shadow-border)",
+        "flex max-w-none [scrollbar-width:none] flex-nowrap items-center gap-0.5 overflow-x-auto rounded-full border border-transparent bg-card px-1 py-1",
+        !framed && "shadow-(--shadow-border)",
         className,
       )}
     >
+      {children}
+    </ToolbarRoot>
+  );
+  const items = (
+    <>
       {controls.map((control, index) => (
         <Fragment key={control.id}>
           {"separatorBefore" in control &&
@@ -496,7 +507,19 @@ export function Toolbar({
           )}
         </Fragment>
       ))}
-    </ToolbarRoot>
+    </>
+  );
+  // In its own pill the controls scroll sideways on a phone; the strip's
+  // arrow says more lies beyond the edge instead of a control cut in half.
+  return framed ? (
+    <ScrollStrip
+      surface="bg-card"
+      className="overflow-clip rounded-full bg-card shadow-(--shadow-border)"
+    >
+      {root(items)}
+    </ScrollStrip>
+  ) : (
+    root(items)
   );
 }
 
@@ -609,7 +632,7 @@ function LinkForm({
         placeholder="https://"
         aria-invalid={invalid}
         aria-describedby={invalid ? `${id}-error` : undefined}
-        className="h-8 w-full rounded-md border border-foreground/20 bg-background px-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive/60 touch:text-base"
+        className="h-8 w-full rounded-md border border-input bg-background px-2 text-[13px] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive/60 touch:text-base"
       />
       {invalid && (
         <p id={`${id}-error`} role="alert" className="text-xs text-destructive">

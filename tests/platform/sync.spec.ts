@@ -24,6 +24,11 @@ import { documentEnd } from "../helpers/keyboard";
 // reaches the others without reloading, the server stays authoritative, and
 // nothing a person wrote is lost when the server refuses it.
 
+// A desktop monitor: discussions, the specification and the review rail fit
+// side by side. On a laptop the rail steps aside while discussions are open
+// (item-detail.tsx), and these tests change properties and discuss at once.
+test.use({ viewport: { width: 1920, height: 1080 } });
+
 const properties = (page: Page) =>
   page.getByRole("heading", { name: "Properties", exact: true }).locator("..");
 
@@ -416,6 +421,10 @@ test("changes made offline survive a reload, apply once back online and reach ot
     await richEditor(ben.page, "Start a discussion");
     await ben.context.setOffline(true);
     await zero.interrupt();
+    // Losing the connection is said once, through the workspace's announcer.
+    await expect(ben.page.locator("[data-announcer]")).toContainText(
+      /You’re offline/,
+    );
     await setPriority(ben.page, "Low");
     const text = "Exports include reversed entries.";
     await fillMarkdown(ben.page, "Start a discussion", text);
@@ -431,6 +440,13 @@ test("changes made offline survive a reload, apply once back online and reach ot
     ).toBeVisible();
     // Nothing reached the server yet.
     expect(await priorityOf(workItemId)).toBe("medium");
+    // A phone has no sidebar on screen: the problem is a strip above the
+    // page, not a dot hidden behind the menu button.
+    await expect(ben.page.locator("[data-phone-sync-notice]")).toBeHidden();
+    await second.setViewportSize({ width: 390, height: 844 });
+    const phoneNotice = second.locator("[data-phone-sync-notice]");
+    await expect(phoneNotice).toBeVisible();
+    await expect(phoneNotice).toContainText(/You’re offline/);
 
     // Back online but still without a workspace connection: a reload keeps
     // the unsent work, kept by Zero on this device.
@@ -457,6 +473,7 @@ test("changes made offline survive a reload, apply once back online and reach ot
       ada.page.getByRole("article", { name: "discussion" }).getByText(text),
     ).toBeVisible();
     await waitUntilSaved(ben.page);
+    await expect(phoneNotice).toHaveCount(0, { timeout: 30_000 });
     expect(await priorityOf(workItemId)).toBe("low");
     // Applied exactly once.
     expect(
@@ -504,7 +521,7 @@ test("signing out removes the workspace from the browser before someone else sig
     await page.getByLabel("Email", { exact: true }).fill(other.owner.email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`/${other.slug}/`));
+    await expect(page).toHaveURL(new RegExp(`/${other.slug}(/|$)`));
     await expect(page.getByText("Other Company").first()).toBeVisible();
     await expect(page.getByText("Sync SWAP")).toHaveCount(0);
     await expect(page.getByText("Confidential roadmap item")).toHaveCount(0);

@@ -14,6 +14,8 @@ export const notificationCategories = [
   "iterations",
   "export",
   "pages",
+  "agents",
+  "channels",
   "organization",
 ] as const;
 export type NotificationCategory = (typeof notificationCategories)[number];
@@ -21,11 +23,13 @@ export type NotificationCategory = (typeof notificationCategories)[number];
 export const categoryLabels: Record<NotificationCategory, string> = {
   review: "Reviews and approvals",
   discussion: "Discussions and mentions",
-  suggestions: "Branches and pull requests",
+  suggestions: "Suggestions and proposed changes",
   delivery: "Work items",
   iterations: "Iterations",
-  export: "Exports",
+  export: "Hand-offs",
   pages: "Pages",
+  agents: "Agent sessions",
+  channels: "Channels and direct messages",
   organization: "Organization",
 };
 
@@ -131,30 +135,32 @@ export const notificationKinds = {
   },
   pull_request_review_requested: {
     category: "suggestions",
-    label: "Pull request review requested",
-    description: "You or one of your roles is asked to review a pull request.",
+    label: "Proposed change review requested",
+    description:
+      "You or one of your disciplines is asked to review a proposed change to a specification.",
     inApp: true,
     email: true,
   },
   pull_request_decided: {
     category: "suggestions",
-    label: "Pull request decision",
-    description: "A reviewer decides a review on your pull request.",
+    label: "Proposed change decision",
+    description: "A reviewer decides on your proposed change.",
     inApp: true,
     email: true,
   },
   pull_request_mergeable: {
     category: "suggestions",
-    label: "Pull request ready to merge",
+    label: "Proposed change ready to apply",
     description:
-      "Every merge requirement of your pull request is met: required approvals, no blocking discussions, no conflicts and passing actions.",
+      "Every requirement to apply your proposed change is met: required approvals, no blocking discussions, no conflicts and passing actions.",
     inApp: true,
     email: true,
   },
   pull_request_merged: {
     category: "suggestions",
-    label: "Pull request merged",
-    description: "A pull request you contribute to or review was merged.",
+    label: "Proposed change applied",
+    description:
+      "A proposed change you contribute to or review was applied to the specification.",
     inApp: true,
     email: false,
   },
@@ -181,8 +187,9 @@ export const notificationKinds = {
   },
   suggestion_merged: {
     category: "suggestions",
-    label: "Suggestion merged or closed",
-    description: "Your suggestion, or one you review, was merged or closed.",
+    label: "Suggestion accepted or rejected",
+    description:
+      "Your suggestion, or one you review, was accepted or rejected.",
     inApp: true,
     email: false,
   },
@@ -230,16 +237,16 @@ export const notificationKinds = {
   },
   export_failed: {
     category: "export",
-    label: "Export failed",
+    label: "Hand-off failed",
     description:
-      "An export you started finished with failures or conflicts that need attention.",
+      "A hand-off you started finished with failures or conflicts that need attention.",
     inApp: true,
     email: true,
   },
   export_completed: {
     category: "export",
-    label: "Export completed",
-    description: "An export you started finished successfully.",
+    label: "Hand-off completed",
+    description: "A hand-off you started finished successfully.",
     inApp: true,
     email: false,
   },
@@ -282,6 +289,55 @@ export const notificationKinds = {
     inApp: true,
     email: false,
   },
+  // The Factory: what agent sessions ask of the person who started them and
+  // the agent's owner.
+  agent_approval_requested: {
+    category: "agents",
+    label: "An agent asks for your decision",
+    description:
+      "An agent session you started, or whose agent you own, is waiting for you to approve or deny something, or to answer its question. The request waits in the Inbox's To do until it is answered; this setting decides whether you are also emailed.",
+    inApp: true,
+    email: true,
+  },
+  agent_session_finished: {
+    category: "agents",
+    label: "Agent session finished",
+    description: "An agent session you started completed or failed.",
+    inApp: true,
+    email: false,
+  },
+  // Lictory Channels. Ordinary channel traffic notifies nobody unless the
+  // member chose "all messages" for the channel; delivered only to people
+  // who can read the channel, and hidden again from anyone who loses access.
+  channel_mentioned: {
+    category: "channels",
+    label: "Mentioned in a channel",
+    description: "Someone @mentioned you in a channel or a direct message.",
+    inApp: true,
+    email: true,
+  },
+  direct_message: {
+    category: "channels",
+    label: "Direct message",
+    description: "Someone sent you a direct message.",
+    inApp: true,
+    email: false,
+  },
+  channel_thread_reply: {
+    category: "channels",
+    label: "Thread reply",
+    description: "Someone replied in a thread you take part in or follow.",
+    inApp: true,
+    email: false,
+  },
+  channel_message: {
+    category: "channels",
+    label: "Channel message",
+    description:
+      "A new message in a channel you set to notify you about all messages.",
+    inApp: true,
+    email: false,
+  },
   organization_deletion_scheduled: {
     category: "organization",
     label: "Organization scheduled for deletion",
@@ -299,6 +355,16 @@ export const notificationKinds = {
     email: true,
     required: true,
   },
+  // Code (docs/internals/code-hosts.md): a write Lictory sent to a code
+  // host for you (a branch, a pull request, a comment, a merge) failed.
+  code_write_failed: {
+    category: "delivery",
+    label: "Code host change failed",
+    description:
+      "A branch, pull request, comment or merge you asked for was refused by the code host or could not be sent.",
+    inApp: true,
+    email: true,
+  },
 } as const satisfies Record<string, Definition>;
 
 export type NotificationKind = keyof typeof notificationKinds;
@@ -308,6 +374,17 @@ export const notificationKindList = Object.keys(
 export function isNotificationKind(kind: string): kind is NotificationKind {
   return kind in notificationKinds;
 }
+
+// Kinds whose live state is an entry of the Inbox's To do: an agent's
+// question waits there, with its Approve and Deny, until someone answers it.
+// Their notifications still email and wake agents, but the Updates feed
+// neither lists nor counts them, so one ask is never two rows and never a
+// stale unread dot. Updates keeps the outcome (the session finished or
+// failed). See docs/internals/notifications.md#inbox.
+export const toDoKinds: readonly NotificationKind[] = [
+  "agent_approval_requested",
+];
+
 const isRequired = (kind: NotificationKind) =>
   (notificationKinds[kind] as Definition).required === true;
 // Kinds a person can turn on or off in notification settings.

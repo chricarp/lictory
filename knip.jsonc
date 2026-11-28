@@ -1,5 +1,8 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Browser specs run `bun <runner cli> register|start`; knip reads the
+  // runner's subcommands as binaries.
+  "ignoreBinaries": ["register", "start"],
   "workspaces": {
     ".": {
       // Bun runs colocated tests; operators and the Better Auth CLI load these by path.
@@ -43,7 +46,7 @@
     },
     "apps/platform": {
       "entry": ["src/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx,css}"],
       // Legacy suggestion views kept for existing history; remove each when its
       // follow-up lands. Do not add new entries without a reason.
       "ignore": [
@@ -51,27 +54,37 @@
         "src/components/review/suggestion-view.tsx",
         "src/components/review/suggestions.tsx",
       ],
-      // Self-hosted fonts are imported from CSS.
-      "ignoreDependencies": [
-        "@fontsource-variable/geist",
-        "@fontsource-variable/geist-mono",
-      ],
     },
     "apps/api": {
-      "entry": ["src/index.ts", "src/admin-cli.ts", "src/**/*.test.ts"],
+      "entry": ["src/admin-cli.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
     },
     "apps/worker": {
-      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
+    },
+    "apps/desktop": {
+      // esbuild bundles these (build.mjs); package.mjs and icons.mjs are run
+      // by hand or by a release job.
+      "entry": [
+        "src/main/index.ts",
+        "src/preload/*.ts",
+        "src/renderer/shell.ts",
+        "src/**/*.test.ts",
+        "tests/*.spec.ts",
+        "*.mjs",
+      ],
+      "project": ["src/**/*.ts", "tests/**/*.ts", "*.{ts,mjs}"],
     },
     "apps/collaboration": {
-      "entry": ["src/index.ts", "src/**/*.test.ts"],
+      "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
     },
+    "apps/runner": {
+      "entry": ["src/**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/**/*.ts"],
+    },
   },
-  // Tailwind is loaded through CSS.
-  "ignoreDependencies": ["tailwindcss"],
   // Exported types are contracts before they have consumers. Unused value
   // exports and duplicate (named + default) exports are not enforced yet.
   "rules": {

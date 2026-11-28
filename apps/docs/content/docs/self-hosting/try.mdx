@@ -75,33 +75,27 @@ takes a proposal from draft through review to delivery.
 
 ## Stop, start again and remove
 
-These commands use the default folder. If you chose another one with
-`LICTORY_TRY_DIR`, use that folder instead in both places: the start command
-prints these commands with it. `-p lictory-try` names the trial's Compose
-project, so the commands never act on another project, even when your shell
-sets `COMPOSE_PROJECT_NAME`.
-
-First clear Compose overrides in a subshell, so the commands use the trial's
-files and leave your shell settings unchanged:
+The start command writes a small `trial` script into the trial's folder and
+prints how to use it (with your folder, if you chose another one with
+`LICTORY_TRY_DIR`):
 
 ```sh
-(
-  unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES COMPOSE_PATH_SEPARATOR
-  cd ~/lictory-try && docker compose -p lictory-try stop
-)
+~/lictory-try/trial stop
 ```
 
 To start again or upgrade, run the start command again (with the same
-`LICTORY_TRY_DIR`, if you set one). It keeps your data.
+`LICTORY_TRY_DIR`, if you set one). It keeps your data. A trial started before
+the script existed gets it the next time you run the start command.
 
 To remove everything:
 
 ```sh
-(
-  unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES COMPOSE_PATH_SEPARATOR
-  cd ~/lictory-try && docker compose -p lictory-try down --volumes --rmi all && cd .. && rm -rf ~/lictory-try
-)
+~/lictory-try/trial remove
 ```
+
+The script runs Compose with the trial's own project (`-p lictory-try`) and
+ignores `COMPOSE_FILE` and the other Compose settings your shell may export,
+so it never acts on another project.
 
 Removing deletes the database with everything you created, the downloaded
 images and the folder.

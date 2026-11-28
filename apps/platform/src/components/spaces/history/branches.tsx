@@ -2,7 +2,9 @@ import {
   DropdownSelect,
   DropdownSelectOption,
 } from "@lictory/ui/dropdown-select";
-import { useState } from "react";
+import { useId, useState } from "react";
+import { GitBranch, GitPullRequest } from "lucide-react";
+import { StatusChip } from "@lictory/ui/status-chip";
 import { branchNameProblem } from "@lictory/core/lib/branch-name";
 import { Input } from "@ui-sdk/react/input";
 import { Button } from "@lictory/ui/button";
@@ -27,7 +29,9 @@ import {
 import { ConflictResolution } from "./conflicts";
 
 export function Branches({ pageId }: { pageId: string }) {
-  const { branches, commits, pullRequests } = usePageHistory(pageId);
+  // `loaded`: the server has answered, so the counts a deletion warns about
+  // are current, not what this browser cached on an earlier visit.
+  const { branches, commits, pullRequests, loaded } = usePageHistory(pageId);
   const { userId, memberName } = useWorkspace();
   const { canEdit } = usePageActions();
   const { branch, setBranch } = usePageBranchSelection();
@@ -46,159 +50,210 @@ export function Branches({ pageId }: { pageId: string }) {
   // After a cancelled deletion, focus returns to that branch's button.
   const [returnTo, setReturnTo] = useState<string>();
   const action = useHistoryAction();
+  const problemId = useId();
   const problem =
     branchNameProblem(name) ??
     (branches.some((b) => b.name.toLowerCase() === name.toLowerCase())
       ? "That branch name is already in use."
       : null);
+  // Open pull requests by source branch, for the list's chips.
+  const openPull = new Map(
+    pullRequests
+      .filter((p) => p.status !== "merged")
+      .map((p) => [p.sourceBranchId, p]),
+  );
   return (
-    <section className="space-y-4">
-      <h2 className="font-semibold">Branches</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <h2 className="font-semibold">Branches</h2>
+        <p className="text-[13px] leading-5 text-muted-foreground">
+          A branch is a working copy of this page for preparing a change without
+          touching the published version; a pull request asks for it to be
+          reviewed and published.
+        </p>
+      </div>
       <ActionError error={action.error} />
-      {branches.map((b) => (
-        <section key={b.id} className="space-y-2 rounded-xl border p-4 text-sm">
-          <h3 className="font-medium">{b.name}</h3>
-          <p className="text-muted-foreground">
-            Created by {memberName(b.authorId)}
-            {b.draft?.uncommittedChanges ? " · Uncommitted live changes" : ""}
-          </p>
-          {b.collaboratorIds.length > 0 && (
-            <p>Collaborators: {b.collaboratorIds.map(memberName).join(", ")}</p>
-          )}
-          {pullRequests
-            .filter((p) => p.sourceBranchId === b.id && p.status !== "merged")
-            .map((p) => (
-              <p key={p.id}>Open pull request: {p.title}</p>
-            ))}
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setBranch(b.isMain ? null : b.id)}
-            >
-              Select {b.name}
-            </Button>
-            {canEdit &&
-              !b.isMain &&
-              (b.authorId === userId || b.collaboratorIds.includes(userId)) && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setSync(b.id)}
+      {/* One scannable row per line: its name, who started it, whether a
+          review is open, and the actions on it. */}
+      <div className="divide-y rounded-xl border bg-card">
+        {branches.map((b) => {
+          const current = branch ? branch.id === b.id : b.isMain;
+          const pull = openPull.get(b.id);
+          return (
+            <section key={b.id} className="space-y-2 px-4 py-3 text-sm">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <GitBranch
+                      className="size-3.5 shrink-0 text-muted-foreground"
+                      aria-hidden
+                    />
+                    <h3 className="truncate font-medium">{b.name}</h3>
+                    {b.isMain && (
+                      <StatusChip tone="neutral">Published version</StatusChip>
+                    )}
+                    {pull && (
+                      <StatusChip tone="attention" icon={<GitPullRequest />}>
+                        In review: {pull.title}
+                      </StatusChip>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Created by {memberName(b.authorId)}
+                    {b.draft?.uncommittedChanges
+                      ? " · Uncommitted live changes"
+                      : ""}
+                    {b.collaboratorIds.length > 0 &&
+                      ` · Collaborators: ${b.collaboratorIds.map(memberName).join(", ")}`}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {current ? (
+                    <span className="px-2 text-xs text-muted-foreground">
+                      Showing
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`Open ${b.name}`}
+                      onClick={() => setBranch(b.isMain ? null : b.id)}
+                    >
+                      Open
+                    </Button>
+                  )}
+                  {canEdit &&
+                    !b.isMain &&
+                    (b.authorId === userId ||
+                      b.collaboratorIds.includes(userId)) && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setSync(b.id)}
+                      >
+                        Sync from main
+                      </Button>
+                    )}
+                  {canEdit && !b.isMain && b.authorId === userId && (
+                    <ChoosePerson
+                      label="Add collaborator"
+                      variant="ghost"
+                      onSelect={(id) => {
+                        void action.run({
+                          type: "setPageBranchCollaborator",
+                          branchId: b.id,
+                          userId: id,
+                          collaborator: true,
+                        });
+                      }}
+                    />
+                  )}
+                  {canEdit &&
+                    b.authorId === userId &&
+                    b.collaboratorIds.map((id) => (
+                      <Button
+                        key={id}
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          void action.run({
+                            type: "setPageBranchCollaborator",
+                            branchId: b.id,
+                            userId: id,
+                            collaborator: false,
+                          });
+                        }}
+                      >
+                        Remove {memberName(id)}
+                      </Button>
+                    ))}
+                  {canEdit && !b.isMain && deleting?.id !== b.id && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground"
+                      disabled={!loaded}
+                      autoFocus={returnTo === b.id}
+                      onFocus={() => {
+                        if (returnTo === b.id) setReturnTo(undefined);
+                      }}
+                      onClick={() => {
+                        setReturnTo(undefined);
+                        setDeleting({
+                          id: b.id,
+                          counts: b.discussionsOnDelete,
+                        });
+                      }}
+                    >
+                      Delete branch…
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {deleting?.id === b.id && (
+                <Confirmation
+                  label={`Delete branch ${b.name}`}
+                  className="space-y-2"
                 >
-                  Sync from main
-                </Button>
-              )}
-            {canEdit && !b.isMain && deleting?.id !== b.id && (
-              <Button
-                size="sm"
-                variant="ghost"
-                autoFocus={returnTo === b.id}
-                onFocus={() => {
-                  if (returnTo === b.id) setReturnTo(undefined);
-                }}
-                onClick={() => {
-                  setReturnTo(undefined);
-                  setDeleting({ id: b.id, counts: b.discussionsOnDelete });
-                }}
-              >
-                Delete branch…
-              </Button>
-            )}
-            {canEdit && !b.isMain && b.authorId === userId && (
-              <ChoosePerson
-                label="Add collaborator"
-                onSelect={(id) => {
-                  void action.run({
-                    type: "setPageBranchCollaborator",
-                    branchId: b.id,
-                    userId: id,
-                    collaborator: true,
-                  });
-                }}
-              />
-            )}
-            {canEdit &&
-              b.authorId === userId &&
-              b.collaboratorIds.map((id) => (
-                <Button
-                  key={id}
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    void action.run({
-                      type: "setPageBranchCollaborator",
-                      branchId: b.id,
-                      userId: id,
-                      collaborator: false,
-                    });
-                  }}
-                >
-                  Remove {memberName(id)}
-                </Button>
-              ))}
-          </div>
-          {deleting?.id === b.id && (
-            <Confirmation
-              label={`Delete branch ${b.name}`}
-              className="space-y-2"
-            >
-              <p>
-                Delete this branch and disconnect its editors? Commits remain in
-                history. Close any open pull requests first.
-              </p>
-              <DiscussionRemovalWarning
-                where="this branch"
-                counts={deleting.counts}
-              />
-              {!sameCounts(deleting.counts, b.discussionsOnDelete) && (
-                <CountsChanged />
-              )}
-              <Button
-                size="sm"
-                disabled={
-                  action.pending ||
-                  !sameCounts(deleting.counts, b.discussionsOnDelete)
-                }
-                onClick={() => {
-                  void action.run(
-                    {
-                      type: "deletePageBranch",
-                      branchId: b.id,
-                      ...(deleting.counts
-                        ? {
-                            discussionsToRemove: discussionTotal(
-                              deleting.counts,
-                            ),
-                          }
-                        : {}),
-                    },
-                    () => {
+                  <p>
+                    Delete this branch and disconnect its editors? Commits
+                    remain in history. Close any open pull requests first.
+                  </p>
+                  <DiscussionRemovalWarning
+                    where="this branch"
+                    counts={deleting.counts}
+                  />
+                  {!sameCounts(deleting.counts, b.discussionsOnDelete) && (
+                    <CountsChanged />
+                  )}
+                  <Button
+                    size="sm"
+                    disabled={
+                      action.pending ||
+                      !sameCounts(deleting.counts, b.discussionsOnDelete)
+                    }
+                    onClick={() => {
+                      void action.run(
+                        {
+                          type: "deletePageBranch",
+                          branchId: b.id,
+                          ...(deleting.counts
+                            ? {
+                                discussionsToRemove: discussionTotal(
+                                  deleting.counts,
+                                ),
+                              }
+                            : {}),
+                        },
+                        () => {
+                          setDeleting(undefined);
+                          if (branch?.id === b.id) setBranch(null);
+                        },
+                      );
+                    }}
+                  >
+                    Confirm delete
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
                       setDeleting(undefined);
-                      if (branch?.id === b.id) setBranch(null);
-                    },
-                  );
-                }}
-              >
-                Confirm delete
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setDeleting(undefined);
-                  setReturnTo(b.id);
-                }}
-              >
-                Cancel
-              </Button>
-            </Confirmation>
-          )}
-        </section>
-      ))}
+                      setReturnTo(b.id);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </Confirmation>
+              )}
+            </section>
+          );
+        })}
+      </div>
       {canEdit && (
         <form
-          className="space-y-3 rounded-xl border p-4"
+          aria-labelledby="new-branch-heading"
+          className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
             if (problem) return;
@@ -218,42 +273,56 @@ export function Branches({ pageId }: { pageId: string }) {
             );
           }}
         >
-          <h3 className="font-medium">New branch</h3>
-          <label className="block text-sm">
-            Branch name
-            <Input
-              className={`${field} mt-1`}
-              maxLength={80}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              aria-describedby="branch-name-problem"
-            />
-          </label>
+          <h3 id="new-branch-heading" className="text-sm font-medium">
+            Start a branch
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
+            <label className="block text-[13px] text-muted-foreground">
+              Branch name
+              <Input
+                // One height (40px), one shape and one text size for the
+                // field, the select and the button, so the labels share a
+                // baseline and the row a bottom edge.
+                className={`${field} mt-1 rounded-lg text-[13px]`}
+                maxLength={80}
+                placeholder="e.g. retry-window"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                aria-describedby={name && problem ? problemId : undefined}
+              />
+            </label>
+            <label className="block text-[13px] text-muted-foreground">
+              Start from
+              <DropdownSelect
+                variant="field"
+                size="lg"
+                className="mt-1 w-full"
+                value={from}
+                onValueChange={(value) => setFrom(value)}
+              >
+                <DropdownSelectOption value="">
+                  Current main version
+                </DropdownSelectOption>
+                {commits.map((c) => (
+                  <DropdownSelectOption key={c.id} value={c.id}>
+                    {c.message ?? c.title} · {c.id.slice(0, 8)}
+                  </DropdownSelectOption>
+                ))}
+              </DropdownSelect>
+            </label>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={!name.trim() || Boolean(problem) || action.pending}
+            >
+              Create branch
+            </Button>
+          </div>
           {name && problem && (
-            <p id="branch-name-problem" className="text-sm text-destructive">
+            <p id={problemId} className="text-sm text-destructive">
               {problem}
             </p>
           )}
-          <label className="block text-sm">
-            Start from
-            <DropdownSelect
-              className="w-full"
-              value={from}
-              onValueChange={(value) => setFrom(value)}
-            >
-              <DropdownSelectOption value="">
-                Current main version
-              </DropdownSelectOption>
-              {commits.map((c) => (
-                <DropdownSelectOption key={c.id} value={c.id}>
-                  {c.message ?? c.title} · {c.id.slice(0, 8)}
-                </DropdownSelectOption>
-              ))}
-            </DropdownSelect>
-          </label>
-          <Button type="submit" disabled={Boolean(problem) || action.pending}>
-            Create branch
-          </Button>
         </form>
       )}
       {sync && (

@@ -278,6 +278,90 @@ Lictory was designed for this cycle: proposals that can start rough, discipline-
 
 The result is not zero meetings. It is meetings only for the questions that genuinely need one.`,
   },
+  {
+    slug: "coding-agents-on-your-own-runners",
+    title: "Running coding agents on your own runners: a practical guide",
+    headline: "Running coding agents on your own runners",
+    description:
+      "How to run coding agents such as Claude Code, Codex or Gemini CLI on machines your team controls: isolation, credentials, accountable owners, approvals and proof that the work is done.",
+    published: "2026-11-24",
+    updated: "2026-11-24",
+    body: `Coding agents (Claude Code, Codex, OpenCode, Gemini CLI and others) can now implement a well-described task, run the tests and open a pull request. Most teams start by running them on one developer’s laptop, in that developer’s terminal, with that developer’s credentials. That works for one person. It stops working when several agents run at once, on shared work, for a team that has to answer for what they changed.
+
+A **runner** is a machine your team controls that executes agent sessions on the team’s behalf: a build server, a VPS, a spare laptop, a Mac mini under a desk. This guide covers what to get right before you leave agents running on one.
+
+## Why run agents on your own machines
+
+- **Your code and your network.** The agent works next to your repositories, package mirrors and internal services, behind your firewall.
+- **Your choice of harness and model.** Different tasks suit different agents. A runner can offer several, and the team picks the agent for each task.
+- **Capacity you can see.** A runner has a fixed number of slots. Work queues instead of spawning without limit, and you know what is running where.
+- **Shared, not personal.** A session started for the team keeps running when the person who started it closes their laptop.
+
+## Connect out, never in
+
+A runner should **connect out** to the system that assigns work (over HTTPS, long-polling for assignments) instead of listening on a port. It then works behind NAT and corporate proxies, and nothing on the internet can reach it.
+
+Assignments should be **leases**: the runner claims a session for a limited time and renews the lease with each heartbeat. A runner that disappears loses its session, which returns to the queue instead of being stuck as “running” forever.
+
+## Isolate every session
+
+Give each session its **own git worktree** (or checkout), so two agents never edit the same files, and a failed session leaves nothing behind for the next one. For untrusted or experimental work, run the harness inside a **container** and let a project require it.
+
+## Issue credentials, do not store them
+
+The most common mistake is giving an agent a long-lived personal access token. Instead:
+
+1. Issue a **short-lived token per session**, scoped to the one repository it works on.
+2. Bind the session’s access to the **agent’s identity**, not to a shared service account.
+3. Keep **model API keys on the server** where possible, and send model calls through it, so a compromised runner leaks nothing reusable.
+4. Never paste secrets into prompts, issues or chat messages an agent will read.
+
+## Give every agent an accountable person
+
+An agent should be a named member with an **owner** and a **scope**. It acts with its owner’s permissions, narrowed by its scope, and never with more. Show its actions as *Forge via Priya* and audit them that way, so “who changed this?” always has a human answer.
+
+## Treat text as data, not instructions
+
+Agents read issue bodies, pull request comments, chat messages and web pages. Any of them can contain text written to look like an instruction. The rule that keeps a team safe is simple: **text is information, never permission**. An agent’s instructions come from the work item, its approved specification and the person who started the session. Nothing an agent reads can authorize an action its owner has not allowed.
+
+## Decide which decisions stay human
+
+Write down, per project, how much an agent may do by itself:
+
+- **Assist:** agents help when a person asks; people start every session.
+- **Build:** ready work is dispatched to agents automatically; agents open pull requests and people merge them.
+- **Autopilot:** as Build, and an agent’s code pull request merges automatically when every required check passes.
+
+Whatever level you choose for code, keep the **decisions about what to build** with people: approving a specification, accepting scope and recording decisions. When an agent needs a permission it lacks, it should **ask** (an approval request a person answers) and wait, not work around it.
+
+## Prove that the work is done
+
+An agent saying “done” is a claim. Define **done as evidence** instead, in a Definition of Done:
+
+- a linked pull request is merged,
+- the required CI checks passed on its head commit,
+- a reviewer (person or reviewer agent) approved that commit,
+- the acceptance criteria were verified.
+
+When every check passes, the item moves to done and records which version of the specification it delivered.
+
+## A checklist before you leave agents running
+
+1. The runner connects out only and holds leases with heartbeats.
+2. Every session works in its own worktree, in a container where required.
+3. Credentials are short-lived, per session and per repository.
+4. Every agent has an owner and a scope, and its actions are audited via that person.
+5. Agents take instructions only from the work item, its specification and the person who started them.
+6. Agents claim only work that is ready to start.
+7. The project’s autonomy level is written down and visible on the pull requests it governs.
+8. Done is decided by checks, not by the agent’s report.
+
+## How Lictory runs agents
+
+Lictory’s Factory module works this way. \`lictory-runner\` is one binary for Linux, macOS and Windows (x64 and arm64). An organization admin creates a one-time registration token for an organization runner, or any member registers a personal runner that only runs their own agents. The runner connects out over HTTPS, runs Claude Code, Codex, OpenCode, Gemini CLI or Lictory’s built-in agent in a separate git worktree per session, and receives a short-lived, repository-scoped code host token for each one; the built-in agent’s model calls go through the server.
+
+Each session has a thread in a channel where people answer its questions and approve its requests, and the Factory view shows its event log, its diff and controls to interrupt, cancel or retry. In projects that deliver in Lictory, agents claim only items the readiness policy allows to start, and items reach done through the Definition of Done. Each project chooses Assist, Build or Autopilot, and specification approvals always stay with people.`,
+  },
 ];
 
 export function guide(slug: string) {

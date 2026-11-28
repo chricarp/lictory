@@ -49,7 +49,7 @@ export function ProjectPlanning({
       id="planning"
       icon={<CalendarRange />}
       title="Planning"
-      description="How this project plans and sizes work. Sprints are planned and started by hand; cycles start and complete on a schedule and roll unfinished work forward."
+      description="Sprints start by hand; cycles start on a schedule and roll unfinished work forward."
     >
       <SettingsBody className="space-y-5">
         {external && (

@@ -5,12 +5,44 @@ of them or changed in work they are part of. They are not an activity feed.
 
 ## Inbox
 
-The Inbox has two views of what is addressed to a person:
+The Inbox has two views of what is addressed to a person. It opens on To do
+when something waits on the person, else on Updates.
 
-- **Updates**: notifications, a history of events with read and archived state.
-- **To do**: current work derived from live state (reviews waiting on me, my
-  items blocked or with changes requested, my items ready). An entry leaves when
-  the state resolves; nothing needs marking as read.
+- **To do**: current work derived from live state (questions agents ask me
+  and agent sessions waiting for my next message, the same rows as the
+  Factory's "Agents need you", sessions I started that failed,
+  reviews waiting on me, with the blocking discussions on what I review, my
+  items blocked or with changes requested, my items ready). An entry leaves
+  when the state resolves; nothing needs marking as read. Home's "Waiting on
+  you" is the same list, so the two always count the same things: Home shows
+  its first rows and names the rest by kind ("2 blocked items · 1 failed
+  agent session"). The list is grouped by what the person does about it
+  (`waitingGroup`): agents stopped on their answer, reviews others wait
+  on, their own work. The sidebar's Inbox badge is this count, and so is the
+  desktop app's badge for the open organization (with unread mentions and
+  direct messages); unread updates add a quiet dot beside it. One number
+  for what waits on a person, everywhere: the Factory's sidebar row shows a
+  dot, not a second count of the same requests.
+- **Updates**: notifications, a history of events with read and archived
+  state. An agent's question is not listed or counted there
+  (`toDoKinds` in `src/notifications/catalog.ts`): it waits in To do, with
+  its Approve and Deny, until someone answers it, and its notification only
+  emails, wakes agents and raises the desktop app's native notification.
+  Updates keeps the outcome (the session finished or failed).
+  Conversation activity is digested per conversation, by one rule: a
+  direct conversation, a thread (its replies) and a channel (its top-level
+  messages, for people who chose "all messages") are each one row ("Ben
+  Ortiz · 2 messages", "3 replies to a thread in #payments from …",
+  "#payments · 3 messages from …"), read or archived together, so a busy
+  conversation never buries a review request. The fan-out already folds
+  unread direct messages and thread replies into one notification (see
+  [Lictory Channels](#lictory-channels)); the feed groups the rest by the
+  same rule and counts every message folded in. Mentions stay their own
+  rows: they are addressed to the person.
+  An agent's failed sessions are digested per agent the same way ("Forge
+  failed 3 sessions", the newest reason under it), so a failing agent never
+  floods Updates; a finished session stays its own row
+  (`src/notifications/digest.ts`).
 
 To do covers pages as well as work items, marked "Page": page pull requests
 that ask for my review and that I have not decided on (again after my
@@ -85,6 +117,13 @@ it on a retry.
 Without a running worker, events queue up and nobody is notified until one
 starts; nothing is lost.
 
+The fan-out also writes the [agent events](agent-events.md) of addressed
+notices (mentions, review requests, stale approvals…) for the same
+recipients, before preferences apply: a person who turned a kind off in the
+inbox still has their agents woken. Notices of agent-only kinds (claims,
+agent mentions, page and code pull request decisions) produce agent events
+and no notification row.
+
 ## Recipients
 
 A person is involved in a work item when they created it, are its assignee,
@@ -109,6 +148,10 @@ Always:
   specific one the person can receive wins (a mention beats "new discussion";
   a stale approval beats "revised"). A kind they turned off does not take the
   place of a broader one they kept on.
+- "Ready" is said once per person and revision (`item_ready` carries a
+  dedupe key of the item and revision): a revision that leaves ready (a
+  review requested after an approval) and returns does not announce itself
+  twice. To do shows the live state.
 
 Mentions are stored in message Markdown as `@[Name](mention:USER_ID)`. The
 label is display text; the server trusts only the ID after checking membership.
@@ -136,6 +179,25 @@ enough:
 Mentions use the same `@[label](mention:USER_ID)` tokens as specification
 discussions; mentioning someone who cannot read the space notifies nobody.
 See [Lictory Spaces](spaces.md#notifications) for who receives each kind.
+
+## Lictory Channels
+
+Channel notifications (`channel_mentioned`, `direct_message`,
+`channel_thread_reply`, `channel_message`; the "Channels and direct
+messages" category) are queued by the conversation writer with the message
+itself. Ordinary channel traffic notifies nobody unless the member chose
+"all messages" for the channel; a muted channel notifies nothing. Each
+notification names its `channel_id`, and the fan-out, the Inbox, unread
+counts and email (`notificationReadable`) require that the recipient can
+still read the channel: it is public, or they are its member. See
+[Lictory Channels](channels.md#notifications).
+
+Conversation traffic is digested at fan-out: while a person has not read
+or archived the last direct message notification of a conversation (or the
+last reply notification of a thread), the next one updates it in place (who
+wrote last, the latest excerpt, a count, the time) instead of adding a row,
+and sends no further email. "3 new messages, the latest from Ben" reads as
+one entry; once read, the next message starts a new one.
 
 ## Preferences
 

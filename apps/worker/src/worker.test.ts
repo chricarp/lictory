@@ -390,18 +390,25 @@ void test("the worker process reports health and exits cleanly on SIGTERM", asyn
     };
     assert.equal(body.listening, true);
     assert.deepEqual(body.jobs.map((j) => j.name).sort(), [
+      "agent-events",
       "ai",
       "chat-1",
       "chat-2",
       "chat-3",
       "chat-4",
+      "code",
+      "code-reconcile",
       "delivery",
       "delivery-status",
       "email",
       "export",
+      "factory",
+      "factory-leases",
       "notification",
       "organization-deletion",
       "schedules",
+      "slack",
+      "slack-prune",
     ]);
     child.kill("SIGTERM");
     assert.equal(await exited, 0);

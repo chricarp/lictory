@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as s from "@lictory/core/db/schema";
 import type { QueuedNotice } from "@lictory/core/db/notification-schema";
@@ -10,6 +10,11 @@ import {
   type NotificationKind,
   type PreferenceRule,
 } from "@lictory/core/notifications/catalog";
+import {
+  isAgentOnlyKind,
+  type AgentOnlyKind,
+} from "@lictory/core/agent-events/catalog";
+import { writeAgentEvents } from "@lictory/core/agent-events/feed";
 
 // The notification queue (docs/internals/notifications.md). A command only
 // records what happened and who might care: one `notification_event` row in
@@ -20,8 +25,21 @@ import {
 
 export type NotificationNotice = Omit<QueuedNotice, "userIds" | "kind"> & {
   userIds: Iterable<string>;
-  kind: NotificationKind;
+  // Agent-only kinds produce agent events and no notification
+  // (agent-events/catalog.ts).
+  kind: NotificationKind | AgentOnlyKind;
 };
+
+// The actor is never told about their own action, with one exception: a
+// notice addressed to one of their agents reaches it unless that agent is
+// the one that acted.
+function isOwnAction(
+  notice: Pick<QueuedNotice, "actorId" | "agentId" | "actorAgentId">,
+  userId: string,
+) {
+  if (userId !== notice.actorId) return false;
+  return !notice.agentId || notice.agentId === notice.actorAgentId;
+}
 
 // Queues one event, in the caller's transaction: the event exists exactly
 // when the change committed. Order notices most specific first; when one
@@ -35,7 +53,7 @@ export async function queueNotifications(
 ) {
   const queued: QueuedNotice[] = notices.flatMap((notice) => {
     const userIds = [...new Set(notice.userIds)].filter(
-      (userId) => userId !== notice.actorId,
+      (userId) => !isOwnAction(notice, userId),
     );
     if (!userIds.length && !(notice.watchers && notice.workItemId)) return [];
     return [{ ...notice, userIds }];
@@ -62,19 +80,74 @@ const noticesSchema = z.array(
     workItemId: text.nullish(),
     spaceId: text.nullish(),
     pageId: text.nullish(),
+    channelId: text.nullish(),
     detail: z.record(z.string(), z.unknown()).optional(),
     dedupeKey: text.optional(),
     watchers: z.boolean().optional(),
     skipUnwatched: z.boolean().optional(),
+    agentId: text.nullish(),
+    actorAgentId: text.nullish(),
   }),
 );
 
 type Draft = Omit<QueuedNotice, "userIds" | "kind"> & {
   userId: string;
-  kind: NotificationKind;
+  kind: NotificationKind | AgentOnlyKind;
   // One event tells a person at most once per slot (item and group).
   slot: string;
 };
+
+// Conversation traffic is digested (docs/internals/notifications.md#lictory-channels):
+// while a person has not read the last direct message or thread reply of a
+// conversation, the next one updates that notification (who wrote last, the
+// latest excerpt, how many, when) instead of adding another row. Returns
+// the ids of the rows it folded into existing ones.
+const digestKinds: ReadonlySet<string> = new Set([
+  "direct_message",
+  "channel_thread_reply",
+]);
+async function digestConversations(
+  tx: Tx,
+  organizationId: string,
+  rows: (typeof s.notification.$inferInsert)[],
+) {
+  const folded = new Set<string>();
+  for (const row of rows) {
+    if (!digestKinds.has(row.kind) || !row.channelId) continue;
+    const root = row.detail?.threadRootId;
+    const [open] = await tx
+      .select({ id: s.notification.id, detail: s.notification.detail })
+      .from(s.notification)
+      .where(
+        and(
+          eq(s.notification.organizationId, organizationId),
+          eq(s.notification.userId, row.userId),
+          eq(s.notification.kind, row.kind),
+          eq(s.notification.channelId, row.channelId),
+          isNull(s.notification.readAt),
+          isNull(s.notification.archivedAt),
+          ...(row.kind === "channel_thread_reply"
+            ? [sql`${s.notification.detail}->>'threadRootId' = ${String(root)}`]
+            : []),
+        ),
+      )
+      .orderBy(desc(s.notification.createdAt))
+      .limit(1)
+      .for("update");
+    if (!open) continue;
+    const count = typeof open.detail.count === "number" ? open.detail.count : 1;
+    await tx
+      .update(s.notification)
+      .set({
+        actorId: row.actorId,
+        detail: { ...row.detail, count: count + 1 },
+        createdAt: row.createdAt,
+      })
+      .where(eq(s.notification.id, open.id));
+    folded.add(row.id!);
+  }
+  return folded;
+}
 
 // Rows per insert statement: PostgreSQL binds at most 65,535 values in one.
 const INSERT_CHUNK = 1000;
@@ -119,7 +192,7 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
     // A kind this version does not know was queued by a newer one during a
     // rollout. The event fails and is retried, so the worker that knows the
     // kind delivers it; dropping the notice would lose it silently.
-    if (!isNotificationKind(kind))
+    if (!isNotificationKind(kind) && !isAgentOnlyKind(kind))
       throw new Error(`Unknown notification kind: ${kind}`);
     const item = notice.workItemId;
     const unwatched = new Set(
@@ -131,12 +204,12 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
       ...userIds,
       ...(item && notice.watchers ? watch(item, true) : []),
     ])) {
-      if (userId === notice.actorId || unwatched.has(userId)) continue;
-      const slot = `${userId}:${item ?? notice.pageId ?? ""}:${group}`;
+      if (isOwnAction(notice, userId) || unwatched.has(userId)) continue;
+      const slot = `${userId}:${item ?? notice.pageId ?? notice.channelId ?? ""}:${group}`;
       drafts.push({ ...notice, userId, kind, slot });
     }
   }
-  if (!drafts.length) return { notifications: 0, emails: 0 };
+  if (!drafts.length) return { notifications: 0, emails: 0, agentEvents: 0 };
 
   const userIds = [...new Set(drafts.map((d) => d.userId))];
   const actorIds = [
@@ -179,6 +252,46 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
         ).map((r) => `${r.spaceId}:${r.userId}`)
       : [],
   );
+  // Channel notifications reach only people who can read the channel now.
+  const channelIds = [
+    ...new Set(drafts.flatMap((d) => (d.channelId ? [d.channelId] : []))),
+  ];
+  const channelRows = channelIds.length
+    ? await tx
+        .select({ id: s.channel.id, kind: s.channel.kind })
+        .from(s.channel)
+        .where(
+          and(
+            eq(s.channel.organizationId, organizationId),
+            inArray(s.channel.id, channelIds),
+          ),
+        )
+    : [];
+  const publicChannels = new Set(
+    channelRows.filter((c) => c.kind === "public").map((c) => c.id),
+  );
+  const privateChannels = channelRows
+    .filter((c) => c.kind !== "public")
+    .map((c) => c.id);
+  const channelReaders = new Set(
+    privateChannels.length
+      ? (
+          await tx
+            .select({
+              channelId: s.channelMember.channelId,
+              userId: s.channelMember.userId,
+            })
+            .from(s.channelMember)
+            .where(
+              and(
+                eq(s.channelMember.organizationId, organizationId),
+                inArray(s.channelMember.channelId, privateChannels),
+                inArray(s.channelMember.userId, userIds),
+              ),
+            )
+        ).map((r) => `${r.channelId}:${r.userId}`)
+      : [],
+  );
   const rules = await tx
     .select()
     .from(s.notificationPreference)
@@ -198,10 +311,21 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
   const rows: (typeof s.notification.$inferInsert)[] = [];
   const emailIds = new Set<string>();
   const told = new Set<string>();
+  // Agent events follow the same recipients and access checks, but not
+  // notification preferences: turning an inbox kind off never hides from a
+  // person's agents what is waiting on them.
+  const addressed: Draft[] = [];
   for (const d of drafts) {
-    if (told.has(d.slot)) continue;
     if (!members.has(d.userId)) continue;
     if (d.spaceId && !readers.has(`${d.spaceId}:${d.userId}`)) continue;
+    if (
+      d.channelId &&
+      !publicChannels.has(d.channelId) &&
+      !channelReaders.has(`${d.channelId}:${d.userId}`)
+    )
+      continue;
+    addressed.push(d);
+    if (told.has(d.slot) || !isNotificationKind(d.kind)) continue;
     const channels = resolveChannels(rulesByUser.get(d.userId) ?? [], d.kind, {
       organizationId,
       projectId: d.projectId,
@@ -223,13 +347,24 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
       workItemId: d.workItemId ?? null,
       spaceId: d.spaceId ?? null,
       pageId: d.pageId ?? null,
+      channelId: d.channelId ?? null,
       detail,
       dedupeKey: d.dedupeKey ?? null,
       createdAt: event.createdAt,
     });
     if (channels.email) emailIds.add(id);
   }
-  if (!rows.length) return { notifications: 0, emails: 0 };
+  const agentEvents = await writeAgentEvents(tx, event, addressed);
+  // Folded into an unread notification of the same conversation: no new
+  // row and no new email, but the person's inbox refreshes.
+  const digested = await digestConversations(tx, organizationId, rows);
+  const digestedUsers = rows
+    .filter((r) => digested.has(r.id!))
+    .map((r) => r.userId);
+  for (const id of digested) emailIds.delete(id);
+  rows.splice(0, rows.length, ...rows.filter((r) => !digested.has(r.id!)));
+  if (!rows.length && !digestedUsers.length)
+    return { notifications: 0, emails: 0, agentEvents };
   const inserted: { id: string; userId: string }[] = [];
   for (let i = 0; i < rows.length; i += INSERT_CHUNK)
     inserted.push(
@@ -249,7 +384,9 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
       })),
     );
   // Delivered on commit; carries only who should refetch, never content.
-  const recipients = [...new Set(inserted.map((r) => r.userId))];
+  const recipients = [
+    ...new Set([...inserted.map((r) => r.userId), ...digestedUsers]),
+  ];
   for (let i = 0; i < recipients.length; i += 100) {
     const payload = JSON.stringify({
       organizationId,
@@ -257,7 +394,11 @@ async function fanOut(tx: Tx, event: typeof s.notificationEvent.$inferSelect) {
     });
     await tx.execute(sql`select pg_notify('lictory_notification', ${payload})`);
   }
-  return { notifications: inserted.length, emails: emails.length };
+  return {
+    notifications: inserted.length,
+    emails: emails.length,
+    agentEvents,
+  };
 }
 
 // Fans out queued notification events. Safe to run concurrently and
@@ -299,7 +440,13 @@ export async function processNotificationEvents(
       .orderBy(asc(s.notificationEvent.nextAttemptAt))
       .limit(options.limit ?? 50)
       .for("update", { skipLocked: true });
-    const outcome = { notifications: 0, emails: 0, retrying: 0, failed: 0 };
+    const outcome = {
+      notifications: 0,
+      emails: 0,
+      agentEvents: 0,
+      retrying: 0,
+      failed: 0,
+    };
     for (const event of events) {
       const one = eq(s.notificationEvent.id, event.id);
       try {
@@ -309,6 +456,7 @@ export async function processNotificationEvents(
         await tx.delete(s.notificationEvent).where(one);
         outcome.notifications += written.notifications;
         outcome.emails += written.emails;
+        outcome.agentEvents += written.agentEvents;
       } catch (error) {
         const attempts = event.attempts + 1;
         const final = attempts >= MAX_ATTEMPTS;

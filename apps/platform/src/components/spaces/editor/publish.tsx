@@ -8,6 +8,12 @@ import { MutationRejected } from "@lictory/platform/data/mutations";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import type { DraftSession } from "@lictory/platform/components/spaces/editor/session";
 import { touchTarget } from "@lictory/platform/components/spaces/touch";
+import { usePageHistory } from "@lictory/platform/components/spaces/store";
+import { suggestReviewer } from "@lictory/platform/components/spaces/history/pull-requests";
+import {
+  DropdownSelect,
+  DropdownSelectOption,
+} from "@lictory/ui/dropdown-select";
 
 // Publish (main in a Direct space) or Commit (a branch): seals the cut of
 // the draft the service has stored. The browser never sends content: it
@@ -53,7 +59,7 @@ export function PublishButton({
   const verb = target.isMain ? "Publish" : "Commit";
   return (
     <Popover
-      width={320}
+      width={340}
       align="end"
       disabled={!canPublish}
       trigger={(props) => (
@@ -99,10 +105,25 @@ function PublishForm({
   ) => void;
 }) {
   const labelId = usePopover()?.labelId;
-  const { mutateConfirmed } = useWorkspace();
+  const { mutateConfirmed, userId, directory } = useWorkspace();
   const messageId = useId();
+  const reviewerId = useId();
   const [message, setMessage] = useState("");
-  const [phase, setPhase] = useState<"idle" | "saving" | "sealing">("idle");
+  const [phase, setPhase] = useState<
+    "idle" | "saving" | "sealing" | "proposing"
+  >("idle");
+  // A branch exists to be reviewed: while no pull request is open from it,
+  // committing can also open one and ask its reviewer, so the person never
+  // has to find the pull request form in the page's history.
+  const history = usePageHistory(target.pageId);
+  const offerReview =
+    !target.isMain &&
+    !history.pullRequests.some(
+      (p) => p.sourceBranchId === target.branchId && p.status !== "merged",
+    );
+  const [reviewer, setReviewer] = useState<string | null>(null);
+  const chosenReviewer =
+    reviewer ?? suggestReviewer(history.branches, history.commits, userId);
   const [error, setError] = useState<string>();
   const watch = useRef<Watch | null>(null);
   const latest = useRef(target);
@@ -119,7 +140,7 @@ function PublishForm({
     }
   }, [target]);
 
-  const submit = async () => {
+  const submit = async (review: boolean) => {
     setError(undefined);
     try {
       setPhase("saving");
@@ -166,7 +187,41 @@ function PublishForm({
           return onDone({ kind: "nothing" });
         throw e;
       }
-      onDone(await outcome);
+      const sealed = await outcome;
+      if (review) {
+        setPhase("proposing");
+        const pullRequestId = crypto.randomUUID();
+        // The message's first line names the change; without one, the page.
+        const [firstLine = ""] = message.trim().split("\n");
+        const named =
+          firstLine.trim().slice(0, 200) ||
+          session.doc.getText("title").toJSON().trim() ||
+          title;
+        try {
+          await mutateConfirmed({
+            type: "createPagePullRequest",
+            pageId: before.pageId,
+            pullRequestId,
+            sourceBranchId: before.branchId,
+            title: named,
+          });
+          if (chosenReviewer)
+            await mutateConfirmed({
+              type: "requestPageReview",
+              pullRequestId,
+              userId: chosenReviewer,
+              required: true,
+            });
+        } catch (e) {
+          // The version is committed; only the review is missing. Sending
+          // again commits nothing and opens it.
+          setError(
+            `Committed, but the pull request was not opened${e instanceof Error ? `: ${e.message}` : "."} Send for review again.`,
+          );
+          return;
+        }
+      }
+      onDone(sealed);
     } catch (e) {
       setError(
         e instanceof Error
@@ -183,7 +238,7 @@ function PublishForm({
       className="flex flex-col gap-2 p-3"
       onSubmit={(e) => {
         e.preventDefault();
-        if (phase === "idle") void submit();
+        if (phase === "idle") void submit(offerReview);
       }}
     >
       <h2 id={labelId} className="text-sm font-semibold">
@@ -192,7 +247,9 @@ function PublishForm({
       <p className="text-xs text-muted-foreground">
         {verb === "Publish"
           ? "Readers will see what is saved now. Later edits stay unpublished."
-          : "Saves what is stored now as a version of this branch."}
+          : offerReview
+            ? "Saves what is stored now as a version of this branch and asks for its review. Readers see it once it is approved and merged."
+            : "Saves what is stored now as a version of this branch."}
       </p>
       <label htmlFor={messageId} className="text-xs font-medium">
         Message <span className="text-muted-foreground">(optional)</span>
@@ -208,6 +265,28 @@ function PublishForm({
         placeholder="What changed?"
         className="w-full resize-none rounded-md border bg-background px-2 py-1.5 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
       />
+      {offerReview && (
+        <>
+          <label htmlFor={reviewerId} className="text-xs font-medium">
+            Reviewer
+          </label>
+          <DropdownSelect
+            id={reviewerId}
+            className="w-full"
+            value={chosenReviewer}
+            onValueChange={(value) => setReviewer(value)}
+          >
+            <DropdownSelectOption value="">Ask nobody yet</DropdownSelectOption>
+            {directory.members
+              .filter((m) => m.id !== userId)
+              .map((m) => (
+                <DropdownSelectOption key={m.id} value={m.id}>
+                  {m.name}
+                </DropdownSelectOption>
+              ))}
+          </DropdownSelect>
+        </>
+      )}
       {error && (
         <p role="alert" className="text-xs text-destructive">
           {error}
@@ -222,10 +301,27 @@ function PublishForm({
             ? "Waiting for your edits to save…"
             : phase === "sealing"
               ? `${verb === "Publish" ? "Publishing" : "Committing"}…`
-              : ""}
+              : phase === "proposing"
+                ? "Opening the pull request…"
+                : ""}
         </span>
+        {offerReview && (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={phase !== "idle"}
+            onClick={() => void submit(false)}
+          >
+            Commit only
+          </Button>
+        )}
         <Button type="submit" size="sm" disabled={phase !== "idle"}>
-          {verb === "Publish" ? "Publish now" : "Commit now"}
+          {verb === "Publish"
+            ? "Publish now"
+            : offerReview
+              ? "Commit and send for review"
+              : "Commit now"}
         </Button>
       </div>
     </form>

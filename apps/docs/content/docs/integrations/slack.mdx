@@ -1,0 +1,128 @@
+---
+title: Sync channels with Slack
+description: Link Lictory channels to Slack channels so your team keeps one conversation while it moves over. Each message stays owned by the side it was written on.
+---
+
+Your team does not have to leave Slack on day one. Link a Lictory channel to
+a Slack channel and both sides see the same conversation: messages, thread
+replies, edits, deletions and reactions. When everyone works in Lictory,
+unlink it. Both keep their history.
+
+## How ownership works
+
+A message belongs to the system it was written in.
+
+- A message written in **Slack** shows a small **Slack** mark in Lictory.
+  Only Slack edits or deletes it; Lictory offers neither.
+- A message written in **Lictory** is posted to Slack with its author's name
+  and avatar. Edit or delete it in Lictory; Slack follows. Edits made to it
+  in Slack are ignored.
+- **Reactions** cross both ways. A reaction made in Lictory appears in Slack
+  as the Lictory app's.
+- **Files** shared in Slack appear as links to Slack, which keeps checking
+  who may open them. Files attached in Lictory appear in Slack as links to
+  the message in Lictory.
+- **Promotion cards and agent cards** appear in Slack as short summaries
+  with an **Open in Lictory** button.
+
+A Slack person whose confirmed Slack email is the verified email of a member
+of your organization writes as that member. Everyone else (guests, people
+without an account, other bots) appears as **Name (Slack)** and has no
+Lictory identity or permission.
+
+Text from Slack is information, never permission. A Slack message can mention
+an agent (`@forge`) only when its author is such a member and is allowed to
+use that agent; otherwise the mention stays plain text.
+
+## Connect Slack (organization administrators)
+
+Each organization installs its own Slack app, created from a manifest
+Lictory writes for your installation. It is an internal app of your Slack
+workspace: nobody else installs it.
+
+<Steps>
+<Step>
+
+### Create the app from the manifest
+
+In **Organization settings → Integrations**, under **Slack**, choose **Set
+up Slack** and copy the manifest (**Show the manifest** displays it). Open [api.slack.com/apps](https://api.slack.com/apps?new_app=1),
+choose **From a manifest**, pick your workspace, paste it and create the
+app. The manifest already contains the events, interactivity and redirect
+URLs of your Lictory installation and only the permissions Lictory uses.
+
+</Step>
+<Step>
+
+### Save the app's credentials
+
+On the app's **Basic Information** page, copy the **App ID**, **Client ID**,
+**Client Secret** and **Signing Secret** into Lictory and choose **Save
+app**. Lictory asks Slack to check the Client ID and Client Secret before it
+saves them, and names the one Slack refused. They are encrypted at rest and
+never shown again.
+
+Slack offers no check of the Signing Secret on its own: it is proven when
+Slack verifies the events URL. If Slack says the URL is not verified, open
+**Event Subscriptions** in the app and choose **Retry** once the app is saved
+in Lictory. If it still fails, copy the Signing Secret again and save.
+
+</Step>
+<Step>
+
+### Install it
+
+Choose **Install in Slack**, review the permissions and allow them. Slack
+returns you to Lictory, which shows **Connected** and your workspace.
+
+</Step>
+</Steps>
+
+**Reinstall** after updating the app from a newer manifest, or when Lictory
+shows **Needs attention** (the app was uninstalled or its token revoked).
+**Disconnect** revokes Lictory's token and unlinks every channel; messages
+stay on both sides, and installing again needs no new app.
+
+### Lictory Intelligence and Slack messages
+
+Messages written in Slack are withheld from Lictory Intelligence (Litto and
+other AI features) until an administrator turns on **Let Lictory
+Intelligence read Slack messages**. It only takes effect while Lictory
+Intelligence is on for the organization. Lictory never sends Slack content
+to an AI provider otherwise.
+
+## Link a channel
+
+1. In Slack, invite the app to the channel: `/invite @Lictory`.
+2. In Lictory, open the channel and choose **⋯ → Link to Slack channel…**.
+3. Pick the Slack channel. A public channel links only to a public Slack
+   channel and a private one only to a private Slack channel, so linking
+   never widens who can read the conversation. Direct messages are not
+   linked.
+4. Optionally import the **last 25 to 200 messages** of the Slack channel,
+   once. Lictory never copies a channel's whole history.
+
+Anyone who manages the channel (its members, and organization administrators
+for public channels) links and unlinks it. The header then shows **Synced with
+#channel in Slack**, linking to it, with a red dot when the sync fails (for
+example, when the app was removed from the Slack channel).
+
+A Lictory message that could not reach Slack says **Not sent to Slack** with
+the reason and a **Retry** button for its author and the channel's managers.
+Lictory retries by itself first, waiting when Slack asks it to.
+
+**⋯ → Unlink from Slack** stops the sync. Both channels keep everything that
+was said; nothing more is sent either way.
+
+## Self-hosted installations
+
+- Slack must reach your installation: `PLATFORM_URL` must be a public HTTPS
+  address (for testing locally, a tunnel). The Slack settings warn above the
+  manifest when it is not (plain HTTP, localhost or a private address).
+- The events URL answers every request it cannot verify the same way, whether
+  or not the organization saved a Slack app, so it reveals nothing about the
+  configuration.
+- Set `DELIVERY_CREDENTIALS_KEY`, which also encrypts Slack credentials
+  (see the [configuration reference](/self-hosting/configuration)).
+- The worker sends and receives messages; it needs outbound HTTPS to
+  `slack.com`.

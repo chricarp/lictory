@@ -7,6 +7,7 @@ import {
   type DirectoryProjection,
 } from "@lictory/core/contracts/projection";
 import {
+  isChannelCommand,
   isKnowledgeCommand,
   isSpaceCommand,
   mutationSchema,
@@ -20,6 +21,19 @@ import {
 } from "@lictory/core/spaces/optimistic";
 import { zql, type Schema } from "@lictory/zero/schema";
 import type { Transaction } from "@rocicorp/zero";
+import {
+  deleteMessageArgs,
+  editMessageArgs,
+  markReadArgs,
+  reactArgs,
+  sendMessageArgs,
+  threadArgs,
+} from "@lictory/core/channels/protocol";
+import {
+  REPLY_AUTHORS_MAX,
+  participantKey,
+  reactionId,
+} from "@lictory/core/channels/shared";
 
 // Every workspace command is one mutation of the existing domain protocol.
 // The client run predicts safe changes with the shared optimistic reducers;
@@ -28,6 +42,172 @@ import type { Transaction } from "@rocicorp/zero";
 // server. The API registers a server implementation under the same name that
 // runs the domain command inside Zero's transaction.
 export const mutators = defineMutators({
+  // Lictory Channels' conversation writer (docs/internals/channels.md). The
+  // client run predicts the message, reaction or cursor so the conversation
+  // feels instant; the API runs the writer inside Zero's transaction and the
+  // stored rows (same ids) replace the predictions. A refused write removes
+  // its prediction. Sequences are predicted as "next"; the server assigns
+  // the real one.
+  channels: {
+    send: defineMutator(sendMessageArgs, async ({ tx, args, ctx }) => {
+      if (tx.location === "server")
+        throw new Error("The API must override channels.send.");
+      const channel = await tx.run(
+        zql.channel.where("id", args.channelId).one(),
+      );
+      if (!channel) return;
+      const now = Date.now();
+      const sequence = channel.lastSequence + 1;
+      const root = args.threadRootId
+        ? await tx.run(zql.channelMessage.where("id", args.threadRootId).one())
+        : undefined;
+      await tx.mutate.channelMessage.insert({
+        id: args.messageId,
+        organizationId: args.organizationId,
+        channelId: args.channelId,
+        sequence,
+        threadRootId: root?.id ?? null,
+        rootIndex: root ? null : channel.rootCount + 1,
+        authorKind: "user",
+        authorUserId: ctx.userID,
+        authorAgentId: null,
+        onBehalfOfUserId: null,
+        via: null,
+        kind: "message",
+        body: args.body,
+        payload: null,
+        attachments: args.attachments ?? [],
+        replyCount: 0,
+        lastReplyAt: null,
+        replyAuthors: [],
+        editedAt: null,
+        deletedAt: null,
+        externalSource: null,
+        externalAuthorName: null,
+        externalFiles: [],
+        externalReactions: [],
+        createdAt: now,
+      });
+      await tx.mutate.channel.update({
+        id: channel.id,
+        lastSequence: sequence,
+        rootCount: channel.rootCount + (root ? 0 : 1),
+        lastMessageAt: now,
+      });
+      if (root) {
+        const key = participantKey("user", ctx.userID);
+        await tx.mutate.channelMessage.update({
+          id: root.id,
+          replyCount: root.replyCount + 1,
+          lastReplyAt: now,
+          replyAuthors: [
+            key,
+            ...root.replyAuthors.filter((k) => k !== key),
+          ].slice(0, REPLY_AUTHORS_MAX),
+        });
+        return;
+      }
+      const member = await tx.run(
+        zql.channelMember
+          .where("channelId", args.channelId)
+          .where("userId", ctx.userID)
+          .one(),
+      );
+      if (member)
+        await tx.mutate.channelMember.update({
+          id: member.id,
+          readSequence: sequence,
+          readRootCount: channel.rootCount + 1,
+          mentionCount: 0,
+        });
+    }),
+    edit: defineMutator(editMessageArgs, async ({ tx, args }) => {
+      if (tx.location === "server")
+        throw new Error("The API must override channels.edit.");
+      await tx.mutate.channelMessage.update({
+        id: args.messageId,
+        body: args.body,
+        editedAt: Date.now(),
+      });
+    }),
+    remove: defineMutator(deleteMessageArgs, async ({ tx, args }) => {
+      if (tx.location === "server")
+        throw new Error("The API must override channels.remove.");
+      await tx.mutate.channelMessage.update({
+        id: args.messageId,
+        body: "",
+        attachments: [],
+        deletedAt: Date.now(),
+      });
+    }),
+    react: defineMutator(reactArgs, async ({ tx, args, ctx }) => {
+      if (tx.location === "server")
+        throw new Error("The API must override channels.react.");
+      const id = reactionId(
+        args.messageId,
+        participantKey("user", ctx.userID),
+        args.emoji,
+      );
+      if (!args.add) {
+        await tx.mutate.channelReaction.delete({ id });
+        return;
+      }
+      await tx.mutate.channelReaction.upsert({
+        id,
+        organizationId: args.organizationId,
+        channelId: args.channelId,
+        messageId: args.messageId,
+        emoji: args.emoji,
+        reactorKind: "user",
+        userId: ctx.userID,
+        agentId: null,
+        createdAt: Date.now(),
+      });
+    }),
+    markRead: defineMutator(markReadArgs, async ({ tx, args, ctx }) => {
+      if (tx.location === "server")
+        throw new Error("The API must override channels.markRead.");
+      const [channel, member] = await Promise.all([
+        tx.run(zql.channel.where("id", args.channelId).one()),
+        tx.run(
+          zql.channelMember
+            .where("channelId", args.channelId)
+            .where("userId", ctx.userID)
+            .one(),
+        ),
+      ]);
+      if (!channel || !member) return;
+      // Only the "everything read" position is predicted exactly; others
+      // wait for the server's recount.
+      if (!args.unread && args.sequence >= channel.lastSequence)
+        await tx.mutate.channelMember.update({
+          id: member.id,
+          readSequence: channel.lastSequence,
+          readRootCount: channel.rootCount,
+          mentionCount: 0,
+        });
+    }),
+    thread: defineMutator(threadArgs, async ({ tx, args, ctx }) => {
+      if (tx.location === "server")
+        throw new Error("The API must override channels.thread.");
+      const [root, participant] = await Promise.all([
+        tx.run(zql.channelMessage.where("id", args.rootMessageId).one()),
+        tx.run(
+          zql.channelThreadParticipant
+            .where("rootMessageId", args.rootMessageId)
+            .where("userId", ctx.userID)
+            .one(),
+        ),
+      ]);
+      if (!root || !participant) return;
+      await tx.mutate.channelThreadParticipant.update({
+        rootMessageId: root.id,
+        userId: ctx.userID,
+        ...(args.read ? { readReplyCount: root.replyCount } : {}),
+        ...(args.following !== undefined ? { following: args.following } : {}),
+      });
+    }),
+  },
   workspace: {
     apply: defineMutator(mutationSchema, async ({ tx, args, ctx }) => {
       if (tx.location === "server")
@@ -44,6 +224,9 @@ export const mutators = defineMutators({
       // Knowledge links need the page's access checked by the server and
       // are projected with the page: nothing is predicted.
       if (isKnowledgeCommand(command)) return;
+      // Channel structure and membership wait for the server (names must be
+      // unique, access decides who may change what).
+      if (isChannelCommand(command)) return;
       const workItemId =
         "workItemId" in command && typeof command.workItemId === "string"
           ? command.workItemId

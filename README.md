@@ -2,10 +2,10 @@
   <img src="packages/ui/public/brand/lictory-logo.svg" alt="Lictory" width="240" />
 </p>
 
-<h1 align="center">Agree on what to build. Then ship it.</h1>
+<h1 align="center">From conversation to shipped code. People decide.</h1>
 
 <p align="center">
-  Open-source work management for software teams, with requirements reviewed like code.
+  The open-source control plane of a software factory: your team and its agents in one self-hosted product.
 </p>
 
 <p align="center">
@@ -17,12 +17,39 @@
   <a href="https://github.com/chricarp/lictory/discussions">Discussions</a>
 </p>
 
-Lictory helps Product, Engineering and QA turn rough proposals into specifications
-that a team can safely commit to. Review the behavior, discuss the exact text,
-propose changes on branches and approve a specific revision. Then deliver the
-work in Lictory or hand it off to Jira Cloud.
+Lictory is where a software team and its agents talk, agree on what to build,
+plan it, write and review the code, and ship it, with people making the
+decisions. Every piece of work follows one loop:
 
-Self-hosted. MIT licensed. Core collaboration works without AI or analytics.
+```text
+Conversation → Specification → Agents → Code → Shipped
+   promote      approve a        claim ready   merge (a person,   Definition
+   (a person)   revision         work, ask     or Autopilot when  of Done
+                (people only)    when unsure   every check passes) (evidence)
+```
+
+- **Channels:** team chat with channels, threads and direct messages, and
+  agents as members. What matters is promoted into a proposal, a decision or a
+  discussion on the specification.
+- **Work:** specifications reviewed like code (revisions, diffs, anchored
+  discussions, approvals that belong to a revision, readiness checks), then
+  delivery on native boards, backlogs and sprints, or published to Jira Cloud.
+- **Factory:** coding agents (Claude Code, Codex, OpenCode, Gemini CLI or a
+  built-in agent) run on runners you control, each with an accountable owner,
+  under a per-project autonomy policy: Assist, Build or Autopilot.
+- **Code:** branches, pull requests, issues and checks from GitHub, GitLab or
+  Bitbucket, linked to the work items they deliver.
+- **Spaces:** knowledge pages written together and changed through reviewed
+  history.
+- **Desktop:** an app for macOS, Windows and Linux with native notifications
+  and links.
+
+Text is never permission: a message, issue or model output cannot authorize an
+action, specification approvals always stay human, and an item is done when the
+evidence says so, not when an agent reports it.
+
+Self-hosted. MIT licensed. Chat, specifications, delivery and Spaces work
+without AI, agents or a code host connected.
 
 ## See how it works
 
@@ -76,6 +103,19 @@ propose page changes for people to review.
 Screenshots show the application with fictional data. See the
 [team guide](https://docs.lictory.com/getting-started) for the complete workflow.
 
+## Try it on your computer
+
+With Docker, one command starts the newest release on http://localhost with
+an inbox for its email and a first administrator (evaluation only: plain HTTP,
+local secrets, no backups):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/chricarp/lictory/main/deploy/try.sh | sh
+```
+
+It prints where to sign in and the `trial stop` and `trial remove` commands.
+See [try Lictory](https://docs.lictory.com/self-hosting/try).
+
 ## Install on your server
 
 Use a Linux server (amd64 or arm64) with Docker Engine 25+ and Compose 2.24+,
@@ -125,12 +165,22 @@ lists every option, variable and exit code, and
 [troubleshooting](https://docs.lictory.com/self-hosting/troubleshooting) the
 common problems.
 
+## Run agents on your own machines
+
+Agents that write code (Claude Code, Codex, OpenCode, Gemini CLI or the
+built-in agent) run on **runners**: `lictory-runner` on a server, VPS or
+laptop you control, which connects out to Lictory and runs each session in
+its own worktree. **Factory → Runners → Add runner** shows the install and
+register commands with a one-time token. See
+[runners](https://docs.lictory.com/factory/runners).
+
 ## Work with your coding agent
 
-Connect an MCP client to your installation's `https://<host>/api/mcp` using a
-personal access token from **Account settings → AI agents (MCP)**. Give each
-agent its own name, access level and expiry. The agent works with your current
-permissions, and its actions are attributed to you and its token's name.
+Create an external agent in **Factory → Agents**: it gets a name, a scope
+and, on its page, a token for your MCP client (`https://<host>/api/mcp`) and
+webhooks that wake it. The agent works with your current permissions, narrowed
+to its scope, and its actions read as the agent via you. For a script acting
+as you, use a personal access token from **Account settings**.
 
 For example, ask your terminal's coding agent:
 
@@ -163,8 +213,8 @@ On Windows, use WSL2. A dev container is also included.
 ```sh
 git clone https://github.com/chricarp/lictory.git
 cd lictory
-cp .env.example .env
 bun install --frozen-lockfile
+bun run dev:env               # writes .env: free ports, own Compose project, firewall fallback
 docker compose up -d --wait   # waits until zero-cache has finished starting
 bun run dev
 ```
@@ -174,8 +224,12 @@ bun run dev
 - Documentation: `bun run --cwd apps/docs dev`, http://localhost:3200
 - Mailpit: http://localhost:8025; MinIO console: http://localhost:9001
 
-Ports already taken by another PostgreSQL or Mailpit? Set the
-`LICTORY_DEV_*_PORT` variables in `.env` (listed in `.env.example`). The
+`bun run dev:env` creates `.env` from `.env.example`. Beside another checkout,
+or when another PostgreSQL or Mailpit holds a port, it gives this checkout its
+own Compose project and moves every port by the same offset (the defaults plus
+10000, so the app is then http://localhost:13000), and on Linux it turns on
+`compose.host-network.yaml` when a firewall keeps Docker from reaching the
+host. It prints what it changed. The
 [development runbook](docs/operations/development.md) covers environment
 settings, troubleshooting, OAuth callbacks, database migrations, daily commands and the complete
 required verification sequence.
@@ -189,6 +243,7 @@ required verification sequence.
 | `apps/worker`    | Background email, AI, Jira exports/status sync and cycles              |
 | `apps/marketing` | Static Next.js website at lictory.com                                  |
 | `apps/docs`      | Static Fumadocs site at docs.lictory.com                               |
+| `apps/desktop`   | Electron desktop app for macOS, Windows and Linux (any Lictory server) |
 | `packages/core`  | Domain rules, contracts, Drizzle/PostgreSQL access and adapters        |
 | `packages/zero`  | Synchronized projections, queries and mutations                        |
 | `packages/ui`    | Shared UI, theme and assets                                            |

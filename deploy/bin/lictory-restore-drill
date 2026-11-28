@@ -10,9 +10,20 @@
 # unencrypted backups (BACKUP_AGE_RECIPIENTS=none). The backup is read from the
 # environment's BACKUP_TARGET (s3, local or rclone).
 set -euo pipefail
+case "${1:-}" in
+  -h | --help)
+    printf '%b\n' 'Usage: lictory-restore-drill <environment> <age-identity-file|none> [latest|<key>|<file>]\n\nRestores a backup into a throwaway stack and verifies it; never touches the\nlive database. Operators use: lictory restore --drill'
+    exit 0
+    ;;
+esac
 
-environment="${1:?Usage: lictory-restore-drill <environment> <age-identity-file|none> [latest|<key>]}"
-identity="${2:?Usage: lictory-restore-drill <environment> <age-identity-file|none> [latest|<key>]}"
+# A missing argument is a usage error: exit 64, like every Lictory command.
+[ -n "${1:-}" ] && [ -n "${2:-}" ] || {
+  echo "Usage: lictory-restore-drill <environment> <age-identity-file|none> [latest|<key>|<file>]" >&2
+  exit 64
+}
+environment="$1"
+identity="$2"
 source="${3:-latest}"
 root="${LICTORY_ROOT:-/srv/lictory}"
 home="$root/$environment"

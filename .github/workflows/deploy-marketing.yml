@@ -82,6 +82,11 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" \
             --jq '(.draft == false) and (.prerelease == false)' | grep -qx true
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          # The files that release carries: /download links only those and
+          # says which are not in it (apps/marketing/src/content/downloads.ts).
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq .id)
+          assets=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$id/assets?per_page=100" --jq '.[].name' | paste -sd, -)
+          echo "assets=$assets" >> "$GITHUB_OUTPUT"
       - name: Stamp the version
         if: steps.version.outputs.version != ''
         env:
@@ -92,6 +97,7 @@ jobs:
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
           NEXT_PUBLIC_APP_VERSION: ${{ steps.version.outputs.version }}
+          NEXT_PUBLIC_RELEASE_ASSETS: ${{ steps.version.outputs.assets }}
           NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
           NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
           NEXT_PUBLIC_ANALYTICS_CONSENT: ${{ vars.ANALYTICS_CONSENT }}

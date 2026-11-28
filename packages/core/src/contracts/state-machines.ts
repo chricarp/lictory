@@ -121,15 +121,17 @@ export function stateMachine<S extends string, A extends string>(definition: {
 
 // ------------------------------------------------------- specifications
 
-// A proposal to merge a specification branch into another line. Closing one
-// removes it from the item; the merged text stays in the specification.
+// A proposal to merge a specification branch into another line. Closing an
+// unapplied one removes it from the item; an applied one stays as the record
+// of who approved which result.
 export const specificationPullRequest = stateMachine({
   name: "pull request",
   states: {
     draft: "Being prepared; reviewers are not asked to decide yet.",
     open: "Ready for review and, once its requirements are met, for merging.",
     merged: "Its result is part of the target line.",
-    closed: "Removed from the item by its author or a specification editor.",
+    closed:
+      "Removed from the item, before it applied, by its author or a specification editor.",
   },
   derived: ["closed"],
   steps: {
@@ -138,54 +140,58 @@ export const specificationPullRequest = stateMachine({
       from: ["open"],
       to: "draft",
       idempotent: true,
-      refused: "Merged pull requests cannot become drafts.",
+      refused: "An applied change cannot become a draft review.",
     },
     markReady: {
       does: "Mark ready for review",
       from: ["draft"],
       to: "open",
       idempotent: true,
-      refused: "A merged pull request cannot be marked ready for review.",
+      refused: "An applied change cannot be marked ready for review.",
     },
     requestReview: {
       does: "Request a review",
       from: ["draft", "open"],
-      refused: "This pull request is merged.",
+      refused: "This change is already applied.",
     },
     requestAction: {
       does: "Ask Lictory Intelligence for a review",
       from: ["draft", "open"],
-      refused: "This pull request is not open for review.",
+      refused: "This change is not open for review.",
     },
     discuss: {
       does: "Start a discussion",
       from: ["draft", "open"],
-      refused: "This pull request is unavailable for discussion.",
+      refused: "This review is unavailable for discussion.",
     },
     review: {
       does: "Approve, request changes or revoke a decision",
       from: ["open"],
       refused: (state) =>
         state === "draft"
-          ? "This pull request is a draft. Mark it ready for review first."
-          : "This pull request is merged.",
+          ? "This review is a draft. Mark it ready for review first."
+          : "This change is already applied.",
     },
     merge: {
       does: "Merge",
       from: ["open"],
       to: "merged",
-      refused: "Only an open pull request can be merged.",
+      refused: "Only a change open for review can be applied.",
     },
     close: {
       does: "Close",
-      from: ["draft", "open", "merged"],
+      from: ["draft", "open"],
       to: "closed",
-      refused: "This branch or pull request is unavailable.",
+      refused: (state) =>
+        state === "merged"
+          ? "This review is applied: it records who approved which result, so it stays on the item."
+          : "This proposed change or its review is unavailable.",
     },
   },
 });
 
-// Legacy proposals of replacement text, reviewed like a small pull request.
+// Proposed replacement text for a small change to main: its assigned
+// reviewer accepts (approves, then merges) or someone rejects (closes) it.
 export const suggestion = stateMachine({
   name: "suggestion",
   states: {
@@ -365,6 +371,83 @@ export const iteration = stateMachine({
   },
 });
 
+// --------------------------------------------------------------- claims
+
+// A lease by an agent session on one native delivery item
+// (docs/internals/claims.md). The lease is renewed while the agent works;
+// a question to people pauses it. Released and completed claims are history.
+export const claim = stateMachine({
+  name: "claim",
+  states: {
+    starting:
+      "Reserved by the dispatcher while a session is being started for it.",
+    active: "An agent session is working on the item and renews its lease.",
+    waiting:
+      "The agent asked people a question; the claim holds the item until it is resolved.",
+    released: "Given back without completing the item. History.",
+    completed: "The item reached Done through its Definition of Done.",
+  },
+  steps: {
+    activate: {
+      does: "Start working once the session runs",
+      from: ["starting"],
+      to: "active",
+      automatic: true,
+      refused: "This claim is not waiting for its session to start.",
+    },
+    renew: {
+      does: "Renew the lease",
+      from: ["starting", "active", "waiting"],
+      refused: (state) =>
+        `This claim is ${state}. Claim the item again if it is still claimable.`,
+    },
+    report: {
+      does: "Report progress",
+      from: ["active", "waiting"],
+      refused: (state) =>
+        state === "starting"
+          ? "This claim's session has not started yet."
+          : `This claim is ${state}; report progress on a live claim.`,
+    },
+    ask: {
+      does: "Ask people a question",
+      from: ["active", "waiting"],
+      to: "waiting",
+      refused: (state) =>
+        state === "starting"
+          ? "This claim's session has not started yet."
+          : `This claim is ${state}; only a live claim can ask.`,
+    },
+    resume: {
+      does: "Resume when every question is resolved",
+      from: ["waiting"],
+      to: "active",
+      automatic: true,
+      refused: "This claim is not waiting on a question.",
+    },
+    release: {
+      does: "Release",
+      from: ["starting", "active", "waiting"],
+      to: "released",
+      refused: (state) => `This claim is already ${state}.`,
+    },
+    expire: {
+      does: "Expire when its lease runs out",
+      from: ["starting", "active"],
+      to: "released",
+      automatic: true,
+      refused: "A waiting or ended claim does not expire.",
+    },
+    complete: {
+      does: "Complete when the item passes its Definition of Done",
+      from: ["starting", "active", "waiting"],
+      to: "completed",
+      automatic: true,
+      refused: (state) => `This claim is already ${state}.`,
+    },
+  },
+});
+
 // --------------------------------------------------------------- spaces
 
 // A proposal to merge one line of a page into another. Closing keeps the
@@ -437,6 +520,198 @@ export const pagePullRequest = stateMachine({
   },
 });
 
+// -------------------------------------------------------------- factory
+
+// One run of an agent on one task (docs/internals/factory.md). Runners take
+// the automatic steps under their lease; people steer, cancel and retry.
+// `waiting` means the agent asked a person something: it keeps its lease but
+// does not count against the runner's session slots.
+export const agentSession = stateMachine({
+  name: "agent session",
+  states: {
+    queued: "Waiting for a runner that may run its agent.",
+    assigned: "Claimed by a runner, which is preparing the workspace.",
+    running: "The agent is working.",
+    waiting:
+      "The agent waits on a person: a decision it asked for, or the next message.",
+    completed: "The agent finished; its result is a claim, not proof.",
+    failed: "Stopped by an error or after its runner was lost too often.",
+    canceled: "Stopped by a person.",
+  },
+  steps: {
+    assign: {
+      does: "Be claimed by a runner",
+      from: ["queued"],
+      to: "assigned",
+      automatic: true,
+      refused: "This session is not waiting for a runner.",
+    },
+    start: {
+      does: "Start working",
+      from: ["assigned"],
+      to: "running",
+      idempotent: true,
+      automatic: true,
+      refused: "This session is not assigned to a runner.",
+    },
+    wait: {
+      does: "Wait for a person's decision or next message",
+      from: ["running"],
+      to: "waiting",
+      idempotent: true,
+      automatic: true,
+      refused: "Only a running session can wait on a person.",
+    },
+    resume: {
+      does: "Work again once the person answered",
+      from: ["waiting"],
+      to: "running",
+      idempotent: true,
+      automatic: true,
+      refused: "This session is not waiting.",
+    },
+    finish: {
+      does: "Report its result",
+      from: ["assigned", "running", "waiting"],
+      to: ["completed", "failed"],
+      automatic: true,
+      refused: "This session is no longer active.",
+    },
+    requeue: {
+      does: "Return to the queue when its runner is lost",
+      from: ["assigned", "running", "waiting"],
+      to: ["queued", "failed"],
+      automatic: true,
+      refused: "This session is not held by a runner.",
+    },
+    sendMessage: {
+      does: "Send a message to the agent",
+      from: ["queued", "assigned", "running", "waiting"],
+      refused: (state) =>
+        `This session is ${state}. Retry it or start a new session to continue.`,
+    },
+    interrupt: {
+      does: "Stop the agent's current turn; it waits for the next message",
+      // A waiting agent has no turn to stop: it already waits on a person.
+      from: ["running"],
+      refused: (state) =>
+        state === "queued" || state === "assigned"
+          ? "The agent has not started yet. Cancel the session instead."
+          : state === "waiting"
+            ? "The agent is not working: it already waits on a person's answer or next message. Reply, answer its request, or cancel the session."
+            : `This session is ${state}.`,
+    },
+    answerApproval: {
+      does: "Approve or deny what the agent asked for",
+      from: ["waiting"],
+      refused: (state) =>
+        `This session is ${state}; nothing is waiting for an answer.`,
+    },
+    cancel: {
+      does: "Cancel",
+      from: ["queued", "assigned", "running", "waiting"],
+      to: "canceled",
+      idempotent: true,
+      refused: (state) => `This session is already ${state}.`,
+    },
+    retry: {
+      does: "Retry from the task, with the messages sent before",
+      from: ["failed", "canceled"],
+      to: "queued",
+      refused: (state) =>
+        state === "completed"
+          ? "A completed session is history. Start a new session instead."
+          : "Only a failed or canceled session can be retried.",
+    },
+  },
+});
+
+// Something an agent session asked a person. Answering it is a decision. A
+// request that names its action (a tool and its input) is a permission, which
+// a person approves or denies; one that names none is a question, which a
+// person answers in words or denies: a title is never approved.
+export const agentApproval = stateMachine({
+  name: "approval request",
+  states: {
+    pending: "Waiting for the requester or the agent's owner.",
+    approved: "Approved by a person.",
+    denied: "Denied by a person.",
+    answered: "Answered in words by a person (a question, not a permission).",
+    expired: "The session ended before anyone answered.",
+  },
+  steps: {
+    answer: {
+      does: "Approve, deny or answer in words",
+      from: ["pending"],
+      to: ["approved", "denied", "answered"],
+      refused: (state) => `This request was already ${state}.`,
+    },
+    expire: {
+      does: "Expire when its session ends",
+      from: ["pending"],
+      to: "expired",
+      automatic: true,
+      refused: "This request was already answered.",
+    },
+  },
+});
+
+// Where a person's agent events are delivered (docs/internals/agent-events.md):
+// a webhook a person registered, or an MCP Events subscription an MCP client
+// created. People pause and resume; the delivery worker suspends after
+// sustained failure and expires MCP subscriptions whose lease passed.
+export const agentEventSubscription = stateMachine({
+  name: "event subscription",
+  states: {
+    active: "Events are delivered as they happen.",
+    paused: "Turned off by its person; events wait after its cursor.",
+    suspended:
+      "Stopped after repeated delivery failures; resume it once the receiver works again.",
+    expired:
+      "The MCP client did not renew it in time; subscribing again recreates it.",
+  },
+  steps: {
+    pause: {
+      does: "Pause delivery",
+      from: ["active", "suspended"],
+      to: "paused",
+      idempotent: true,
+      refused: (state) => `This subscription is ${state}.`,
+    },
+    resume: {
+      does: "Resume delivery",
+      from: ["paused", "suspended"],
+      to: "active",
+      idempotent: true,
+      refused: (state) =>
+        state === "expired"
+          ? "This subscription expired; its agent subscribes again to recreate it."
+          : `This subscription is ${state}.`,
+    },
+    suspend: {
+      does: "Stop after repeated delivery failures",
+      from: ["active"],
+      to: "suspended",
+      automatic: true,
+      refused: "Only an active subscription is suspended.",
+    },
+    expire: {
+      does: "Expire when its lease passed",
+      from: ["active", "paused", "suspended"],
+      to: "expired",
+      automatic: true,
+      refused: "This subscription already expired.",
+    },
+    renew: {
+      does: "Renew from its MCP client",
+      from: ["active", "paused", "suspended", "expired"],
+      to: ["active", "paused"],
+      automatic: true,
+      refused: "This subscription cannot be renewed.",
+    },
+  },
+});
+
 // The state of a pull request row: closing is recorded as a deletion time
 // beside the stored status.
 export function pullRequestState<S extends string>(row: {
@@ -451,6 +726,118 @@ export const pullRequestIsActive = (row: {
   status: string;
   deletedAt?: unknown;
 }) => !row.deletedAt && row.status !== "merged";
+
+// ------------------------------------------------------------------ code
+
+// A pull request on a code host (docs/internals/code-hosts.md). The host
+// owns its state; these are the steps Lictory sends to the host for a
+// person or the autonomy policy, refused here before anything is queued.
+// A merge also needs its evidence (code/merge-rules.ts).
+export const codePullRequest = stateMachine({
+  name: "code pull request",
+  states: {
+    open: "Open on the code host; it can be reviewed, merged or closed.",
+    closed: "Closed on the code host without merging; it can be reopened.",
+    merged: "Merged on the code host.",
+  },
+  steps: {
+    merge: {
+      does: "Merge",
+      from: ["open"],
+      to: "merged",
+      idempotent: true,
+      refused: (state) =>
+        state === "closed"
+          ? "This pull request is closed. Reopen it on the code host or from Lictory before merging."
+          : "This pull request is already merged.",
+    },
+    close: {
+      does: "Close",
+      from: ["open"],
+      to: "closed",
+      idempotent: true,
+      refused:
+        "This pull request is merged; a merged pull request cannot be closed.",
+    },
+    reopen: {
+      does: "Reopen",
+      from: ["closed"],
+      to: "open",
+      idempotent: true,
+      refused:
+        "This pull request is merged; a merged pull request cannot be reopened.",
+    },
+    comment: {
+      does: "Comment on",
+      from: ["open", "closed", "merged"],
+      refused: "This pull request cannot take comments.",
+    },
+    requestReview: {
+      does: "Request a review of",
+      from: ["open"],
+      refused: (state) =>
+        `This pull request is ${state}; reviews can only be requested on an open pull request.`,
+    },
+    review: {
+      does: "Review",
+      from: ["open"],
+      refused: (state) =>
+        `This pull request is ${state}; only an open pull request can be reviewed.`,
+    },
+  },
+});
+
+// One write Lictory sends to a code host (create a branch, open, comment
+// on or merge a pull request). The worker sends queued writes; a failed
+// write stays visible with its error until a person retries or cancels it.
+export const codeWrite = stateMachine({
+  name: "code host write",
+  states: {
+    queued: "Waiting for the worker to send it to the code host.",
+    sending: "Being sent to the code host.",
+    succeeded: "The code host accepted it.",
+    failed:
+      "The code host refused it or could not be reached; it can be retried.",
+    canceled: "Canceled before it succeeded.",
+  },
+  steps: {
+    send: {
+      does: "Send",
+      from: ["queued"],
+      to: "sending",
+      automatic: true,
+      refused: "Only a queued write is sent.",
+    },
+    settle: {
+      does: "Record the answer of",
+      from: ["sending"],
+      to: ["succeeded", "failed", "queued"],
+      automatic: true,
+      refused: "Only a write being sent is settled.",
+    },
+    retry: {
+      does: "Retry",
+      from: ["failed"],
+      to: "queued",
+      refused: (state) =>
+        state === "succeeded"
+          ? "This write already succeeded."
+          : state === "canceled"
+            ? "This write was canceled. Ask for the change again instead."
+            : "This write is still waiting to be sent.",
+    },
+    cancel: {
+      does: "Cancel",
+      from: ["queued", "failed"],
+      to: "canceled",
+      idempotent: true,
+      refused: (state) =>
+        state === "sending"
+          ? "This write is being sent right now. Wait for its result."
+          : "This write already succeeded.",
+    },
+  },
+});
 
 // ----------------------------------------------- every stored status
 
@@ -481,6 +868,7 @@ export const statusColumns: Record<string, AnyStateMachine | StatusOwner> = {
   iteration_state: declared(iteration),
   page_pull_request_status: declared(pagePullRequest),
   "specification_pull_request.status": declared(specificationPullRequest),
+  claim_state: declared(claim),
   thread_status: {
     moves: "toggle",
     owner: "updateThread in domain/service.ts",
@@ -537,8 +925,34 @@ export const statusColumns: Record<string, AnyStateMachine | StatusOwner> = {
     moves: "job",
     owner: "intelligence/chat/runs.ts",
   },
+  agent_session_status: declared(agentSession),
+  agent_approval_status: declared(agentApproval),
+  slack_installation_status: {
+    moves: "consequence",
+    owner:
+      "saving the app, the OAuth install, disconnecting and Slack's authentication errors and uninstall events in channels/slack/installation.ts",
+  },
+  agent_event_subscription_status: declared(agentEventSubscription),
   "invitation.status": {
     moves: "external",
     owner: "Better Auth's organization plugin",
+  },
+  code_pull_request_state: declared(codePullRequest),
+  code_write_status: declared(codeWrite),
+  code_connection_status: {
+    moves: "consequence",
+    owner: "connecting and code host authentication errors in code/service.ts",
+  },
+  code_issue_state: {
+    moves: "consequence",
+    owner: "mirrored from the code host by code/ingest.ts",
+  },
+  code_checks_state: {
+    moves: "consequence",
+    owner: "mirrored from the code host by code/ingest.ts",
+  },
+  code_webhook_status: {
+    moves: "job",
+    owner: "the webhook processor in code/ingest.ts",
   },
 };

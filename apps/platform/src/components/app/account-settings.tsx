@@ -1,8 +1,9 @@
 import { usePathname, useRouter } from "@lictory/platform/lib/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AtSign,
   Check,
+  Keyboard,
   Monitor,
   Moon,
   Palette,
@@ -16,12 +17,14 @@ import {
 } from "lucide-react";
 
 import { AgentAccessSection } from "@lictory/platform/components/app/agent-access";
+import { EventWebhooksSection } from "@lictory/platform/components/app/event-webhooks";
 import {
   PasskeysSection,
   TwoFactorSection,
 } from "@lictory/platform/components/app/security-settings";
 import { ProfilePhoto } from "@lictory/platform/components/app/profile-photo";
 import { useAppearance } from "@lictory/platform/components/app/appearance-provider";
+import { saveAppearance } from "@lictory/platform/lib/appearance-save";
 import { HandleForm } from "@lictory/platform/components/auth/handle-form";
 import {
   ProviderIcon,
@@ -53,7 +56,8 @@ import {
   accountChanged,
   forgetAccountLocally,
 } from "@lictory/platform/lib/account";
-import { useSessionUser } from "@lictory/platform/lib/session";
+import { refreshSession, useSessionUser } from "@lictory/platform/lib/session";
+import { Switch } from "@lictory/ui/switch";
 import { oauthErrorMessage } from "@lictory/core/lib/oauth-errors";
 import { cn, formValue } from "@lictory/core/lib/utils";
 
@@ -78,30 +82,70 @@ type AccountSettingsProps = {
   connectionError?: string;
 };
 
-// The section nearest the top of the viewport, for the anchor nav.
+// The section being read, for the anchor nav: the last one whose heading
+// has passed a reading line a third down the viewport. A section someone
+// jumped to (the URL's #hash or a nav link) stays current until they scroll
+// themselves, even when the page cannot scroll it to the top (the last
+// sections of a page), so `/account#webhooks` marks Event webhooks.
 function useActiveSection(ids: string[]) {
   const [active, setActive] = useState(ids[0]);
+  const pin = useRef<string | null>(null);
   const key = ids.join(",");
   useEffect(() => {
-    const sections = key
-      .split(",")
+    const all = key.split(",");
+    const sections = all
       .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => Boolean(el));
-    if (!sections.length || typeof IntersectionObserver === "undefined") return;
-    const visible = new Map<string, boolean>();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries)
-          visible.set(entry.target.id, entry.isIntersecting);
-        const first = sections.find((el) => visible.get(el.id));
-        if (first) setActive(first.id);
-      },
-      { rootMargin: "0px 0px -60% 0px" },
-    );
-    for (const el of sections) observer.observe(el);
-    return () => observer.disconnect();
+    if (!sections.length) return;
+    const hashed = () => {
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      return all.includes(id) ? id : null;
+    };
+    pin.current = hashed();
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      if (pin.current) return setActive(pin.current);
+      const line = window.innerHeight / 3;
+      let current = sections[0]!;
+      for (const el of sections)
+        if (el.getBoundingClientRect().top <= line) current = el;
+      setActive(current.id);
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    const jumped = () => {
+      pin.current = hashed();
+      schedule();
+    };
+    // Only a person's own scrolling releases a jump.
+    const released = () => {
+      if (!pin.current) return;
+      pin.current = null;
+      schedule();
+    };
+    update();
+    document.addEventListener("scroll", schedule, true);
+    window.addEventListener("hashchange", jumped);
+    window.addEventListener("wheel", released, { passive: true });
+    window.addEventListener("touchmove", released, { passive: true });
+    window.addEventListener("keydown", released);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      document.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("hashchange", jumped);
+      window.removeEventListener("wheel", released);
+      window.removeEventListener("touchmove", released);
+      window.removeEventListener("keydown", released);
+    };
   }, [key]);
-  return active;
+  // A nav link chosen again (the hash does not change) jumps as well.
+  const jump = (id: string) => {
+    pin.current = id;
+    setActive(id);
+  };
+  return [active, jump] as const;
 }
 
 // Personal settings, laid out like organization settings: an anchor nav on the
@@ -116,30 +160,33 @@ export function AccountSettings(props: AccountSettingsProps) {
     { id: "handle", label: "Handle" },
     { id: "email", label: "Email" },
     { id: "appearance", label: "Appearance" },
+    { id: "keyboard", label: "Keyboard" },
     ...(props.signIn.password ? [{ id: "password", label: "Password" }] : []),
     { id: "two-factor", label: "Two-factor" },
     ...(props.signIn.password ? [{ id: "passkeys", label: "Passkeys" }] : []),
     { id: "connections", label: "Connected accounts" },
     { id: "sessions", label: "Sessions" },
-    { id: "agents", label: "AI agents" },
+    { id: "tokens", label: "Access tokens" },
+    { id: "webhooks", label: "Event webhooks" },
     { id: "delete", label: "Delete account" },
   ];
 
-  const active = useActiveSection(nav.map((n) => n.id));
+  const [active, jump] = useActiveSection(nav.map((n) => n.id));
   return (
     <div className="mt-8 gap-10 lg:grid lg:grid-cols-[160px_minmax(0,1fr)]">
       <nav
         aria-label="Settings sections"
-        className="hidden pt-14 lg:sticky lg:top-0 lg:block lg:self-start"
+        className="hidden pt-14 lg:sticky lg:top-11 lg:block lg:self-start"
       >
         <ul className="space-y-0.5">
           {nav.map((n) => (
             <li key={n.id}>
               <a
                 href={`#${n.id}`}
+                onClick={() => jump(n.id)}
                 aria-current={n.id === active ? "location" : undefined}
                 className={cn(
-                  "block rounded-lg px-2.5 py-1.5 text-[13px] text-muted-foreground transition-[background-color,color,box-shadow] duration-100 hover:bg-muted hover:text-foreground",
+                  "block rounded-lg px-2.5 py-1.5 text-[13px] text-muted-foreground focus-ring-inset transition-[background-color,color,box-shadow] duration-100 outline-none hover:bg-muted hover:text-foreground",
                   n.id === active &&
                     "bg-card font-medium text-foreground shadow-(--shadow-border) hover:bg-card",
                 )}
@@ -163,9 +210,10 @@ export function AccountSettings(props: AccountSettingsProps) {
 
         <SettingsGroup
           title="Preferences"
-          description="How Lictory looks for you, on every device you sign in to."
+          description="How Lictory looks and responds to you, on every device you sign in to."
         >
           <AppearanceSection />
+          <KeyboardSection />
         </SettingsGroup>
 
         <SettingsGroup
@@ -196,9 +244,10 @@ export function AccountSettings(props: AccountSettingsProps) {
 
         <SettingsGroup
           title="Integrations"
-          description="AI agents that work in Lictory on your behalf."
+          description="Scripts and tools that work in Lictory as you. AI agents with a name and scope of their own are connected in each organization's Factory › Agents."
         >
           <AgentAccessSection />
+          <EventWebhooksSection />
         </SettingsGroup>
 
         <SettingsGroup
@@ -301,11 +350,7 @@ function ProfileSection({ user }: Pick<AccountSettingsProps, "user">) {
                 autoComplete="name"
                 required
               />
-              <Button
-                type="submit"
-                variant="secondary"
-                disabled={pending || !dirty}
-              >
+              <Button type="submit" disabled={pending || !dirty}>
                 {pending ? "Saving…" : "Save"}
               </Button>
             </div>
@@ -712,20 +757,10 @@ function AppearanceSection() {
     revert: () => void,
   ) {
     setError(null);
-    const response = await fetch("/api/appearance", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    }).catch(() => null);
-    if (!response?.ok) {
+    const failed = await saveAppearance(body);
+    if (failed) {
       revert();
-      const result = (await response?.json().catch(() => null)) as {
-        error?: { message?: string };
-      } | null;
-      setError(
-        result?.error?.message ??
-          "Appearance was not saved. Check your connection and try again.",
-      );
+      setError(failed);
     }
   }
 
@@ -811,6 +846,74 @@ function AppearanceSection() {
             ))}
           </RadioGroup>
         </div>
+        <Status tone="error">{error}</Status>
+      </SettingsBody>
+    </SettingsSection>
+  );
+}
+
+// Single-character shortcuts can fire by accident, from a speech-input
+// command or a stray key (WCAG 2.1.4), so each person may turn them off.
+// Applied at once; saved in the background and reverted if it fails.
+function KeyboardSection() {
+  const saved = useSessionUser().singleKeyShortcuts;
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const on = chosen ?? saved;
+
+  async function choose(next: boolean) {
+    setError(null);
+    setChosen(next);
+    const response = await fetch("/api/preferences", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ singleKeyShortcuts: next }),
+    }).catch(() => null);
+    if (!response?.ok) {
+      setChosen(null);
+      setError(
+        "The shortcut setting was not saved. Check your connection and try again.",
+      );
+      return;
+    }
+    await refreshSession().catch(() => undefined);
+    setChosen(null);
+  }
+
+  return (
+    <SettingsSection
+      id="keyboard"
+      icon={<Keyboard />}
+      title="Keyboard"
+      description="Shortcuts with Ctrl, ⌘ or Alt always work. Arrow keys, Enter and Esc work either way."
+      learnMore="shortcuts"
+    >
+      <SettingsBody className="space-y-3">
+        <label className="flex items-start justify-between gap-4">
+          <span className="min-w-0">
+            <span
+              id="single-key-shortcuts-label"
+              className="block text-[13px] font-medium"
+            >
+              Single-key shortcuts
+            </span>
+            <span
+              id="single-key-shortcuts-hint"
+              className="block text-[13px] leading-5 text-muted-foreground"
+            >
+              C creates an item, / searches, [ folds the sidebar, G then a
+              letter goes to a page, J, K and O move through lists. Turn them
+              off if you use speech input or press keys by accident.
+            </span>
+          </span>
+          <Switch
+            className="mt-0.5"
+            checked={on}
+            aria-labelledby="single-key-shortcuts-label"
+            aria-describedby="single-key-shortcuts-hint"
+            onCheckedChange={(next) => void choose(next)}
+          />
+        </label>
         <Status tone="error">{error}</Status>
       </SettingsBody>
     </SettingsSection>

@@ -1,6 +1,6 @@
 ---
 title: Your account
-description: Change your profile, handle, email, appearance and sign-in methods, manage sessions and agent tokens, or delete your account.
+description: Change your profile, handle, email, appearance, keyboard shortcuts and sign-in methods, manage sessions and agent tokens, or delete your account.
 ---
 
 Your account is yours, not an organization's: the same name, handle, sign-in
@@ -8,11 +8,12 @@ methods and appearance apply in every organization you belong to. Open it from
 your name at the bottom of the sidebar → **Account settings**. **Back**
 returns you to where you were.
 
-![Account settings: Profile, Handle, Email, Appearance, Password, Two-factor, Passkeys, Connected accounts, Sessions, AI agents and Delete account in the list on the left, and the profile, handle and email on the right](/screenshots/account-settings.webp)
+![Account settings: Profile, Handle, Email, Appearance, Password, Two-factor, Passkeys, Connected accounts, Sessions, Access tokens, Event webhooks and Delete account in the list on the left, and the profile, handle and email on the right](/screenshots/account-settings.webp)
 
 The page has five groups: **Identity** (profile, handle, email),
-**Preferences** (appearance), **Sign-in & security** (password, two-factor,
-passkeys, connected accounts, sessions), **Integrations** (AI agents) and
+**Preferences** (appearance and keyboard), **Sign-in & security** (password, two-factor,
+passkeys, connected accounts, sessions), **Integrations** (access tokens
+and event webhooks) and
 **Danger zone** (delete account).
 
 ## Identity
@@ -37,6 +38,13 @@ it does. The choice is saved to your account, so it follows you to every
 device you sign in on.
 
 ![The PAY-2 specification in the dark variant of the Lictory theme, with the Discussions panel and the review rail beside the text](/screenshots/work-discussions-panel-dark.webp)
+
+## Keyboard
+
+**Single-key shortcuts** turns the one-key shortcuts (`C`, `/`, `[`, `G`
+chords, `J`, `K`, `O`) on or off. They are on by default; turn them off if you
+use speech input or press keys by accident. Shortcuts with `Mod` or `Alt`
+always work. See [keyboard shortcuts](/basics/shortcuts).
 
 ## Sign-in and security
 
@@ -74,16 +82,21 @@ Some actions ask you to sign out and in again first ("For your security,
 sign out and sign in again…"): turning two-factor off, adding a passkey,
 disconnecting an account and deleting your account need a recent sign-in.
 
-## AI agents
+## Access tokens and event webhooks
 
-**AI agents (MCP)** creates personal access tokens for agents that work in
-Lictory as you: a coding agent in your terminal or editor. Each token is a
-named agent, with **Read & write** or **Read only** access and an expiry.
-Its actions are recorded under the token's name. See
+**Personal access tokens** are for scripts and tools that work in Lictory
+as you, with your permissions in every organization you belong to. Each
+token has a name, **Read & write** or **Read only** access and an expiry;
+its actions are recorded under its name. **Event webhooks** wake such a
+tool when something waits on you.
+
+To connect an AI agent, create it in **Factory → Agents** instead: it gets
+a name, a scope, its token and its wake-ups on its own page, and Account
+settings only links there. See [Agents](/factory/agents) and
 [AI agents and MCP](/integrations/agents).
 
-Agents never see your password, and cannot create tokens, connect
-integrations or change your account. **Revoke** disconnects an agent at
+Tokens never see your password, and cannot create tokens, connect
+integrations or change your account. **Revoke** disconnects a token at
 once.
 
 ## Delete your account

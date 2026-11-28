@@ -96,10 +96,24 @@ export function statusOf(d: Delivery, item: Pick<WorkItem, "statusId">) {
 export function categoryOf(d: Delivery, item: Pick<WorkItem, "statusId">) {
   return d.statuses.get(item.statusId)?.category;
 }
-// Higher-level types (Epic by default) group implementation work: boards and
+// Type levels order the hierarchy: a parent sits strictly above its
+// children. The default types are Epic 3 > Story 2 > Task and Bug 1 >
+// Subtask 0, so a Story breaks down into Tasks and Bugs, which may also sit
+// directly under an Epic. Levels from `epic` up (Epic, an Initiative above
+// it) group work; organizations name and add types, the levels keep their
+// meaning.
+export const typeLevels = {
+  subtask: 0,
+  task: 1,
+  story: 2,
+  epic: 3,
+  initiative: 4,
+} as const;
+export const maxTypeLevel = typeLevels.initiative;
+// Grouping types (Epic by default) group implementation work: boards and
 // backlogs show their children instead.
 export const isTopLevel = (type: Pick<WorkItemType, "level">) =>
-  type.level >= 2;
+  type.level >= typeLevels.epic;
 // The project's workflow, in order. Every item of a project uses it.
 export function projectStatuses(d: Delivery, projectId: string | undefined) {
   return [...d.statuses.values()]
@@ -416,9 +430,20 @@ export function relativeTime(iso: string, now = Date.now()) {
     day: "numeric",
   });
 }
-export function absoluteTime(iso: string) {
+// The product's one absolute format ("Nov 27, 2026, 4:50 AM"), for tooltips
+// beside a relative time and for moments that must be exact. Dates without
+// a time use `formatDate` ("Nov 27, 2026").
+export function absoluteTime(iso: string | number | Date) {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
 }
 
 export function byType<T extends Entity["type"]>(entities: Entity[], type: T) {
@@ -499,7 +524,7 @@ export const milestoneStatusMeta: Record<MilestoneStatus, string> = {
   completed: "Completed",
   cancelled: "Cancelled",
 };
-export function formatDate(iso: string | null) {
+export function formatDate(iso: string | number | Date | null) {
   if (!iso) return "";
   const d = new Date(iso);
   return Number.isNaN(d.getTime())

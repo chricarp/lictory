@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Radio, RadioGroup } from "@ui-sdk/react/radio";
 import { Archive, ArchiveRestore, Plus, Shapes } from "lucide-react";
 import { cn } from "@lictory/core/lib/utils";
-import { labelColorClasses } from "@lictory/core/lib/work-items";
+import { labelColorClasses, typeLevels } from "@lictory/core/lib/work-items";
 import {
   labelColors,
   type Command,
@@ -36,10 +36,12 @@ const icons: WorkItemType["icon"][] = [
   "spike",
   "chore",
 ];
+// Indexed by level (`typeLevels`): a parent sits strictly above its children.
 const levelLabel = [
   "Subtask level",
-  "Work level",
-  "Group level",
+  "Task level",
+  "Story level",
+  "Epic level",
   "Initiative level",
 ];
 
@@ -49,11 +51,13 @@ export function OrganizationTypes() {
   const { delivery, isAdmin, directory, mutate } = useWorkspace();
   const [error, setError] = useState<string>();
   const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState({
+  const [draft, setDraft] = useState<
+    Pick<WorkItemType, "name" | "icon" | "color" | "level" | "hasSpecification">
+  >({
     name: "",
-    icon: "task" as WorkItemType["icon"],
-    color: "blue" as LabelColor,
-    level: 1,
+    icon: "task",
+    color: "blue",
+    level: typeLevels.task,
     hasSpecification: false,
   });
   const run = async (command: Command) => {
@@ -80,7 +84,7 @@ export function OrganizationTypes() {
         id="types"
         icon={<Shapes />}
         title="Work item types"
-        description="Levels order the hierarchy: a parent sits above its children. Types with a specification are refined and reviewed; others are plain work. Each project chooses which of these types it uses in its workflow settings."
+        description="A parent sits a level above its children. Types with a specification are refined and reviewed; each project picks the types it uses."
         action={
           isAdmin && !creating ? (
             <Button

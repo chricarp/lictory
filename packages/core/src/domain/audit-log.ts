@@ -73,6 +73,8 @@ const eventCategories = new Set<AuditCategory>([
   "membership",
   "access",
   "organization",
+  // Autopilot's merges; agents' calls come from `capability_invocation`.
+  "agent",
 ]);
 
 function conditions(
@@ -222,10 +224,26 @@ const roleName = (role: unknown) =>
 const quoted = (value: string | null | undefined) =>
   value ? `“${value}”` : "an access token";
 
-// "updateProject" → "Update project".
+// "updateProject" → "Updated project": the log says what happened, in the
+// past tense like every other entry ("Added an agent event webhook").
 function humanize(command: string) {
-  const words = command.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+  const [verb = "", ...rest] = command
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(" ");
+  const words = [pastTense(verb), ...rest].join(" ");
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+const unchanged = new Set(["set", "reset", "put"]);
+const doubled = new Set(["stop", "plan", "drop", "pin", "unpin", "ship"]);
+
+function pastTense(verb: string) {
+  if (unchanged.has(verb) || verb.endsWith("ed")) return verb;
+  if (doubled.has(verb)) return `${verb}${verb.at(-1)}ed`;
+  if (verb.endsWith("e")) return `${verb}d`;
+  if (/[^aeiou]y$/.test(verb)) return `${verb.slice(0, -1)}ied`;
+  return `${verb}ed`;
 }
 
 // Configuration commands in words, for the ones people look for most in the
@@ -294,6 +312,33 @@ function describeEvent(row: Row, detail: Record<string, unknown>) {
           ? `, expiring ${detail.expiresAt.slice(0, 10)}`
           : ", without expiry"
       }`;
+    case "autopilot.merged":
+      return `Autopilot merged ${row.target_label ?? "a pull request"}${
+        typeof detail.headSha === "string"
+          ? ` at ${detail.headSha.slice(0, 7)}`
+          : ""
+      }${typeof detail.workItem === "string" ? ` for ${detail.workItem}` : ""} under the autonomy policy${
+        typeof detail.policyVersion === "number"
+          ? ` (version ${detail.policyVersion})`
+          : ""
+      } this person set`;
+    case "done_check.overridden":
+    case "done_check.override_withdrawn": {
+      const check =
+        typeof detail.label === "string" ? `“${detail.label}”` : "a check";
+      const item = row.target_label ?? "an item";
+      const revision =
+        typeof detail.revision === "number"
+          ? ` (revision ${detail.revision})`
+          : "";
+      return row.action === "done_check.overridden"
+        ? `Passed ${check} by hand on ${item}${revision}${
+            typeof detail.reason === "string" && detail.reason
+              ? `: “${detail.reason}”`
+              : ""
+          }`
+        : `Withdrew the override of ${check} on ${item}${revision}`;
+    }
     case "access_token.revoked":
       return `Revoked access token ${quoted(row.target_label)}`;
     case "two_factor.requirement_changed":
@@ -370,14 +415,20 @@ function toEntry(row: Row): AuditEntry {
   };
 }
 
+// Every field of an entry, so the export is the whole record: a stable entry
+// id (source and id) for de-duplicating overlapping exports, and the actor's
+// and target's ids beside their names at the time. docs/internals/audit.md.
 const csvHeader = [
   "Time (UTC)",
+  "Entry",
   "Category",
+  "Actor id",
   "Actor",
   "Actor email",
   "Action",
   "Summary",
   "Target type",
+  "Target id",
   "Target",
   "Details",
 ];
@@ -385,13 +436,16 @@ const csvHeader = [
 function auditCsvLine(entry: AuditEntry) {
   return csvLine([
     entry.at,
+    `${entry.source}:${entry.id}`,
     entry.category,
+    entry.actor?.id ?? "",
     entry.actor?.name ?? (entry.actor ? "" : "Lictory"),
     entry.actor?.email ?? "",
     entry.action,
     entry.summary,
     entry.target?.type ?? "",
-    entry.target?.label ?? entry.target?.id ?? "",
+    entry.target?.id ?? "",
+    entry.target?.label ?? "",
     JSON.stringify(entry.detail),
   ]);
 }

@@ -665,7 +665,7 @@ test("Inbox To do asks for a page review until it is given", async ({
     .click();
   await expect(
     reader.page
-      .getByRole("complementary", { name: "Review summary" })
+      .getByRole("complementary", { name: "Reviewers" })
       .getByText("Approved", { exact: true }),
   ).toBeVisible();
   await reader.page.goto(`/${seeded.slug}/inbox?view=todo`);

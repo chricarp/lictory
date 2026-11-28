@@ -1,0 +1,169 @@
+---
+title: Agents, autonomy and Done
+description: Let agents claim agreed work, choose how much the factory does by itself, and define when work is done from evidence.
+---
+
+Agents can do much of a project's delivery work: take agreed items, write the
+code, open pull requests and answer review comments. People decide what is
+agreed, how much agents may do by themselves, and what counts as done. This
+page covers projects that deliver in Lictory; projects that hand work off to
+Jira let Jira own execution, and agents do not claim their work.
+
+## The Factory queue
+
+Open **Factory queue** in the project's sidebar to see where the factory
+stands:
+
+| Section               | What it lists                                                                                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Waiting on people** | Agents' open questions, and ready specifications whose scope nobody has accepted yet.                                                                  |
+| **Claimed**           | Items an agent holds, with the agent, the person it acts for (**Forge via Ada**) and its latest progress note.                                         |
+| **Claimable now**     | Agreed work an agent can take, in backlog rank order.                                                                                                  |
+| **Left to people**    | Agreed work the factory leaves to people, and why: the policy leaves it to the person it is assigned to, or a person's pull request already covers it. |
+| **Blocked**           | Agreed work that cannot start yet, and why: a blocking item that is not done, readiness lost on the agreed revision.                                   |
+
+## What agents can claim
+
+An agent **claims** an item to work on it. While the claim lasts, no other
+agent can take the item, and the item shows a small agent mark on the board
+and in the backlog. An item can be claimed when:
+
+- the project delivers in Lictory and the item has not started;
+- every item that **blocks** it is done;
+- a person accepted its scope: a specification is **Ready** and **Accept
+  revision N for delivery** was chosen; a Task or Subtask under it is covered
+  by that agreement;
+- a Task without any specification above it was moved out of the backlog to
+  **Todo** (or another unstarted status) by a person.
+
+Claiming moves the item to the project's first started status, exactly as
+moving it on the board would, attributed to the agent acting for its
+person. The item's right panel shows the claim under **Factory**, or the
+reasons it cannot be claimed yet.
+
+### Questions from agents
+
+When an agent needs something it asks: a blocking discussion appears on the
+exact sentence of the specification it is about, and the item's reviewers are
+mentioned. The claim waits. When a person resolves the discussion, the agent
+continues: the discussion's replies reach its session as a message. A
+question never changes the specification: the answer becomes part of it only
+when someone saves a revision. When the project reports to a channel (below),
+the question is announced there and in the session's thread, with **Answer in
+the discussion**.
+
+### Releasing a claim
+
+The agent's person, project administrators and people who change properties
+can choose **Release claim…** on the item or in the Factory queue, with an
+optional note. The item returns to the status it had before the claim, unless
+someone moved it since. Releasing does not stop the agent's session: cancel
+the session if it should stop too. A claim also ends when the item moves to Done, is canceled
+or archived, or is moved back out of progress, and when its agent stops
+renewing it (after about 15 minutes).
+
+## From a session to a merged pull request
+
+When a project's repositories are linked (see
+[code hosts](/integrations/code-hosts)), a session started for an item works
+in the project's default repository, on a branch named for the item
+(`lictory/pay-142-refund-retries-1a2b3c4d`). The runner receives a credential
+for that repository only for as long as the session runs (where the host
+offers one), and only if the agent's person can work with the project's code.
+
+1. When the session finishes, the runner pushes the branch and Lictory opens
+   a pull request for the item, titled with its key, as the agent acting for
+   its person (**Forge via Ada**). The pull request is linked to the item and
+   the session, its card in the thread links it, and the agent says so in the
+   thread. Finishing again opens no second pull request for the same branch.
+2. On **Build** and **Autopilot**, the project's reviewer agent gets a review
+   session for each new head commit. Its approval or requested changes are
+   recorded in Lictory for that commit and posted on the pull request, signed.
+   An agent never reviews its own pull request.
+3. CI reports to the code host; its webhook updates the item's Definition of
+   Done.
+4. On **Build** a person merges. On **Autopilot**, when CI passed on the head
+   commit, the reviewer agent approved it and every other check passed,
+   Lictory merges it once, as **Autopilot · policy set by** the administrator
+   who chose Autopilot, and says so on the pull request. New commits, a
+   failing check, conflicts, a lowered level or an administrator who no
+   longer administers the project stop it.
+5. The merged pull request completes the Definition of Done: the item moves
+   to Done and records the revision it delivered.
+
+## Autonomy levels
+
+Project administrators choose the level in **Project settings → Autonomy**:
+
+| Level                | What happens                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Assist** (default) | Agents help when asked. People start every agent session; nothing is dispatched automatically.                                                              |
+| **Build**            | Claimable items are dispatched to the chosen implementer agents in rank order, up to the number of concurrent sessions. People merge the pull requests.     |
+| **Autopilot**        | As Build, and Lictory merges an agent's pull request when the required checks pass. The merge is attributed to the policy and the administrator who set it. |
+
+**Report to channel** (optional) names a channel where every session the
+dispatcher starts posts its live card. The card's thread is the session's
+thread: its agent's answers and approval requests arrive there, the agent's
+owner steers it by replying, and the agent's questions are announced in the
+channel. When the work lands, Lictory says so beside the card ("PAY-4 is
+Done: its Definition of Done passed. Pull request #3 was merged by Bo Lind.
+Delivered revision 2."). The note names who merged: the person who merged
+from Lictory, or "Autopilot · policy set by" its administrator. A merge made
+on the code host shows the host login, as the member who linked that login
+under **Code**, or as the bare login when nobody has linked it. Without a
+reporting channel, dispatched sessions are followed in the Factory.
+
+Under **Before an automatic merge**, Autopilot can also require the reviewer
+agent's approval of the head commit and every other Definition of Done check;
+passing CI is always required. A commit the code host has reported no checks
+for has not passed CI: Autopilot waits until CI reports on the head commit,
+and the pull request page says so. If a linked repository has never reported
+a check, the Autonomy settings warn you before you choose Autopilot. They
+also warn when the reviewer agent's approval is not required (Autopilot then
+merges code nobody reviewed once CI passes), and when the reviewer agent
+belongs to a colleague: its reviews are recorded as that colleague's agent's,
+and choosing it does not ask them.
+
+Every change is recorded in the audit log, and **History** restores an
+earlier policy. Lowering the level releases nothing: claims in flight
+continue until they finish or someone releases them; the factory just stops
+starting new work, and below Autopilot it stops merging. Specification approvals, accepted scope, merged breakdowns
+and resolved discussions stay a person's decision at every level.
+
+If the dispatcher cannot start a session (no runner is online, for example),
+it tries again after 5, 20 and 80 minutes, then holds the item. The queue
+shows **Dispatch held** with **Retry**.
+
+## Definition of Done
+
+**Project settings → Definition of Done** sets what must be true before work
+is done, next to the Definition of Ready:
+
+- **A linked code pull request is merged** and none is still open. Pull
+  requests that name the item's key (PAY-142) are linked automatically.
+- **Required CI checks passed** on the head commit. A commit the code host
+  has reported no checks for does not pass it: no check is no evidence. A
+  project without CI removes this check.
+- **A reviewer approved the head commit**: the project's reviewer agent when
+  one is set (its review recorded in Lictory for that commit); otherwise any
+  approval, in Lictory or on the host.
+- **Acceptance criteria verified**: a sign-off by a person of the disciplines
+  you choose, such as QA. Add as many sign-offs as you need.
+
+By default a project requires a merged pull request with passing checks. The
+item's right panel shows each check under **Definition of Done** while work
+is in progress. When every check passes, the item moves to Done by itself and
+records the revision it delivered; the Done item keeps showing the checks that
+passed and the pull requests they read. An agent saying it is finished never
+moves it.
+
+When a check cannot pass from evidence (the change needed no code, CI cannot
+run), someone who changes properties in the project chooses **Pass by
+hand** and gives a reason. The check then counts as passed for that item's
+accepted revision only, and the override, with the person and the reason, is
+recorded in the item's history and in the organization's
+[audit log](/organization/audit). Anyone who changes properties can withdraw
+it. Agents cannot pass a check by hand. With no checks at all, people
+always move work to Done themselves.
+
+Until a code host is connected, the code checks say so and cannot pass.

@@ -298,10 +298,7 @@ void test("breakdown-only PRs preserve proposals, stale changed approvals and ma
   await f.approve(pullRequestId);
   child.description += " Keep the same identifier on retries.";
   await f.commit(branchId, [child]);
-  await assert.rejects(
-    f.merge(pullRequestId),
-    /approve the current merge result/,
-  );
+  await assert.rejects(f.merge(pullRequestId), /approve the current result/);
   await f.approve(pullRequestId);
   const mutationId = crypto.randomUUID();
   const mergeCommand: Command = {
@@ -339,6 +336,21 @@ void test("breakdown-only PRs preserve proposals, stale changed approvals and ma
   assert.equal(parent.type, "workItem");
   assert.equal(parent.revisionNumber, 2);
   assert.equal(children[0]!.sourceRevisionId, parent.revisionId);
+  // The revision names the applied review in requirements words, and the
+  // applied review stays: it records who approved the breakdown.
+  const [applied] = await db
+    .select({ summary: s.specificationRevision.changeSummary })
+    .from(s.specificationRevision)
+    .where(eq(s.specificationRevision.id, parent.revisionId));
+  assert.match(applied!.summary ?? "", /^Applied “/);
+  await assert.rejects(
+    f.command({
+      type: "deletePullRequest",
+      workItemId: f.workItemId,
+      pullRequestId,
+    }),
+    /This review is applied/,
+  );
   // Merging made the merger the child's creator, not its owner: a status
   // change by someone else reaches explicit watchers, not the merger.
   await db.insert(s.workItemWatcher).values({
@@ -660,10 +672,7 @@ void test("a reviewed breakdown renames, moves and archives existing children on
   await f.approve(pullRequestId);
   // A breakdown-only change stales approval like any other result change.
   await f.commit(branchId, [fresh, ...changes.slice(0, 2)]);
-  await assert.rejects(
-    f.merge(pullRequestId),
-    /approve the current merge result/,
-  );
+  await assert.rejects(f.merge(pullRequestId), /approve the current result/);
   await f.commit(branchId, [fresh, ...changes]);
   // A sibling branch carrying the same changes must not apply them twice.
   const later = await f.branch("later", branchId);

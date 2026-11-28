@@ -314,7 +314,7 @@ function SearchList<T extends string>({
         <CommandInput
           placeholder={placeholder}
           aria-label={title ?? placeholder}
-          className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/70 touch:text-base"
+          className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-placeholder touch:text-base"
         />
       </div>
       <CommandList

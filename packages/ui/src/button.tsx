@@ -36,13 +36,16 @@ type Look = Pick<ButtonProps, "variant" | "size">;
 export const buttonClass = ({ variant = "primary", size = "md" }: Look = {}) =>
   cn(
     // Pills: the shape of every action, from the sidebar to the website.
-    "inline-flex shrink-0 cursor-default items-center justify-center gap-1.5 rounded-full border-0 font-medium whitespace-nowrap transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/60 not-data-disabled:active:scale-[0.96] data-disabled:cursor-not-allowed data-disabled:opacity-50 data-pending:cursor-progress",
+    "inline-flex shrink-0 cursor-default items-center justify-center gap-1.5 rounded-full border-0 font-medium whitespace-nowrap transition-[background-color,color,box-shadow,scale] duration-150 ease-out outline-none select-none focus-ring not-data-disabled:active:scale-[0.96] data-disabled:cursor-not-allowed data-disabled:opacity-50 data-pending:cursor-progress",
     size === "sm" && "h-7 px-3 text-xs",
     size === "md" && "h-8 px-3.5 text-[13px]",
     size === "lg" && "h-10 px-5 text-sm",
     size === "icon" && "size-7 p-0 text-xs",
+    // Disabled, the primary action recedes to a quiet well with muted text
+    // instead of a half-transparent fill: a grey solid reads as another
+    // active button.
     variant === "primary" &&
-      "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-(--primary-hover)",
+      "bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_1px_2px_rgb(0_0_0/0.12)] hover:bg-(--primary-hover) data-disabled:bg-muted data-disabled:text-muted-foreground data-disabled:opacity-100 data-disabled:shadow-(--shadow-border) data-disabled:hover:bg-muted",
     variant === "secondary" &&
       "bg-card text-foreground shadow-(--shadow-border) hover:bg-muted hover:shadow-(--shadow-border-hover)",
     variant === "outline" &&

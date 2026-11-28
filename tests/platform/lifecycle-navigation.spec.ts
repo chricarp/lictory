@@ -172,7 +172,7 @@ test("custom types move from proposal through refinement to native delivery, wit
   );
   await page
     .getByRole("navigation", { name: "Specification lifecycle" })
-    .getByRole("link", { name: /^Ready for delivery/ })
+    .getByRole("link", { name: /^Ready/ })
     .click();
   await expect(
     page.getByRole("link", { name: new RegExp(`^${proposalTitle}`) }),
@@ -233,9 +233,7 @@ test("custom types move from proposal through refinement to native delivery, wit
   await expect(workflow).toContainText("Accepted revision 1");
   await expect(scope).toHaveCount(0);
   await page.screenshot({ path: "/tmp/lictory-agreed-delivery-scope.png" });
-  await workflow
-    .getByRole("link", { name: "Open delivery", exact: true })
-    .click();
+  await workflow.getByRole("link", { name: "Open board", exact: true }).click();
   await expect(page).toHaveURL(paths.board(seeded.slug, "NAV"));
   await expect(
     page.locator("[data-card]", { hasText: proposalTitle }),
@@ -292,7 +290,11 @@ test("custom types move from proposal through refinement to native delivery, wit
   await page.screenshot({ path: "/tmp/lictory-custom-types-catalog.png" });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(paths.proposals(seeded.slug, "NAV"));
-  await page.getByRole("button", { name: "New proposal", exact: true }).click();
+  // Phones create from the bar's one "+", which opens a proposal here.
+  await expect(
+    page.getByRole("button", { name: "New proposal", exact: true }),
+  ).toBeHidden();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
   await expect(create).toBeVisible();
   await expect(
     create.getByRole("textbox", { name: "Title", exact: true }),

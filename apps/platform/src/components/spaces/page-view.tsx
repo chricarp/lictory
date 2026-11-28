@@ -35,7 +35,7 @@ import {
 import { useSpace } from "@lictory/platform/components/spaces/space-gate";
 import { usePageActions } from "@lictory/platform/components/spaces/page-actions";
 import { PageTree } from "@lictory/platform/components/spaces/page-tree";
-import { SpaceBreadcrumbs } from "@lictory/platform/components/spaces/breadcrumbs";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { SpaceIcon } from "@lictory/platform/components/spaces/space-meta";
 import { ArchivedSpaceNotice } from "@lictory/platform/components/spaces/archived-notice";
 import { usePageLine } from "@lictory/platform/components/spaces/editor/line";
@@ -62,9 +62,10 @@ const PageSurface = lazy(
   () => import("@lictory/platform/components/spaces/editor/page-surface"),
 );
 
-// One page: the tree of its space beside it (on wide frames), the page with
-// one calm header (breadcrumbs, title, what is on screen and one toolbar),
-// and its discussions in a column of their own beside the text. Widths come
+// One page: the tree of its space beside it (on wide frames), the page
+// under the shell's one `PageHeader` (Spaces › space › parent pages, the
+// title, and the page's toolbar), its title and what is on screen at the
+// top of the text, and its discussions in a column of their own beside it. Widths come
 // from the frame: the comments column shows from 48rem (narrower frames
 // open a sheet) and the tree from 56rem. The tree can be put away (the
 // choice is remembered in this browser), and while comments are open it
@@ -161,10 +162,12 @@ export function PageView() {
           treeShown && "@min-[56rem]/frame:flex",
         )}
       >
-        <SpacePaneHeader />
+        <SpacePaneHeader
+          onHide={treeToggle?.shown ? treeToggle.toggle : undefined}
+        />
         <PageTree variant="pane" activePageId={page?.id} />
       </aside>
-      <div className="min-w-0 flex-1 overflow-y-auto">
+      <div className="flex min-w-0 flex-1 flex-col">
         {page ? (
           <PageArticle
             key={page.id}
@@ -196,12 +199,14 @@ export function PageView() {
   );
 }
 
-function SpacePaneHeader() {
+// The tree's own bar, level with the page header: the space, a new page,
+// and putting the tree away.
+function SpacePaneHeader({ onHide }: { onHide?: () => void }) {
   const space = useSpace();
   const { organization } = useWorkspace();
   const { canEdit, createPage } = usePageActions();
   return (
-    <div className="flex h-12 shrink-0 items-center gap-1 px-3">
+    <div className="flex h-11 shrink-0 items-center gap-0.5 border-b px-2">
       <Link
         href={paths.space(organization.slug, space.slug)}
         className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-[13px] font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/60"
@@ -209,6 +214,18 @@ function SpacePaneHeader() {
         <SpaceIcon space={space} />
         <span className="truncate">{space.name}</span>
       </Link>
+      {onHide && (
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Hide pages"
+          title="Hide pages"
+          className="text-muted-foreground"
+          onClick={onHide}
+        >
+          <PanelLeftClose className="size-4" aria-hidden />
+        </Button>
+      )}
       {canEdit && (
         <Button
           variant="ghost"
@@ -269,152 +286,174 @@ function PageArticle({
   const [editingMain, setEditingMain] = useState(false);
   const editing =
     line.writable && (!line.isMain || editingMain) && !line.viewed;
-  // Where the live draft puts Close editor and Publish: the header's toolbar, the
+  // Where the live draft puts Close editor and Publish: the toolbar, the
   // same place Edit takes while reading.
   const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
-  return (
-    <article className="mx-auto w-full max-w-3xl min-w-0 px-4 pt-4 pb-24 sm:px-8 sm:pt-5">
-      {/* One header: where the page is and its toolbar, the title, then
-          one line saying what is on screen. Phones put the toolbar under
-          that line. */}
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-3">
-        <div className="flex min-w-0 flex-1 basis-48 items-center gap-1.5">
-          {treeToggle && (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={treeToggle.shown ? "Hide pages" : "Show pages"}
-              title={treeToggle.shown ? "Hide pages" : "Show pages"}
-              className="-ml-2 shrink-0 text-muted-foreground"
-              onClick={treeToggle.toggle}
-            >
-              {treeToggle.shown ? (
-                <PanelLeftClose className="size-4" aria-hidden />
-              ) : (
-                <PanelLeftOpen className="size-4" aria-hidden />
-              )}
-            </Button>
-          )}
-          <SpaceBreadcrumbs
-            space={space}
-            ancestors={ancestors}
-            page={page}
-            showPage={false}
-          />
-        </div>
-        {/* Phones: one row under the title, the primary action at its
-            end. */}
-        <div className="flex shrink-0 items-center gap-1.5 max-sm:order-last max-sm:w-full max-sm:gap-2 touch:gap-2">
-          <LineSwitcher
-            page={page}
-            history={history}
-            discussions={discussions.counts}
-          />
-          <CommentsToggle
-            space={space}
-            lineName={lineName}
-            counts={discussions.counts}
-            open={commentsOpen}
-            onToggle={() => onCommentsOpenChange(!commentsOpen)}
-          />
-          <PageMoreMenu page={page} history={history} />
-          <div className="flex items-center gap-1.5 max-sm:ml-auto max-sm:gap-2 touch:gap-2">
-            {editing ? (
-              <span ref={setActionsSlot} className="contents" />
-            ) : (
-              !archived && (
-                <EditButton line={line} onEdit={() => setEditingMain(true)} />
-              )
-            )}
-          </div>
-        </div>
-        {/* The live editor shows the title as a field and its own status
-            line. */}
-        {!editing && (
-          <div className="mt-2 basis-full">
-            <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight break-words">
-              {line.isMain ? page.title : (line.head?.title ?? page.title)}
-            </h1>
-            <div className="mt-2.5 text-[13px] text-muted-foreground">
-              <PageStatement
-                space={space}
-                page={page}
-                line={line}
-                history={history}
-              />
-            </div>
-          </div>
-        )}
-      </header>
-      {space.archivedAt && <ArchivedSpaceNotice space={space} />}
-      {archived && !space.archivedAt && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-muted px-4 py-3 text-[13px] ring-1 ring-foreground/8 ring-inset">
-          <Archive
-            className="size-4 shrink-0 text-muted-foreground"
-            aria-hidden
-          />
-          <p className="min-w-0 flex-1 basis-56">
-            <span className="font-medium">This page is archived.</span>{" "}
-            <span className="text-muted-foreground">
-              {parentArchived
-                ? "It was archived with a page above it; restore that page to bring it back."
-                : "It is hidden from the space until it is restored."}
-            </span>
-          </p>
-          {canEdit && !parentArchived && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => restorePage(page)}
-            >
-              <ArchiveRestore className="size-3.5" aria-hidden /> Restore
-            </Button>
-          )}
-        </div>
-      )}
-      <ReviewedNotice line={line} page={page} branches={history.branches} />
-      <PageWorkProvider
-        space={space}
+  // The toolbar sits in the header where it fits, else in a row under the
+  // title (phones).
+  const [wideProbe, setWideProbe] = useState<HTMLElement | null>(null);
+  const wide = useLaidOut(wideProbe);
+  const { organization } = useWorkspace();
+  const org = organization.slug;
+  const title = line.isMain ? page.title : (line.head?.title ?? page.title);
+  const toolbar = (
+    <div className="flex shrink-0 items-center gap-1.5 max-sm:w-full max-sm:gap-2 touch:gap-2">
+      <LineSwitcher
         page={page}
-        line={line}
         history={history}
-        editing={editing}
-        onEdit={() => setEditingMain(true)}
-      >
-        <SurfaceBoundary>
-          <Suspense
-            fallback={
-              <div className="mt-8">
-                <PageDocument
-                  commit={line.viewed ?? line.head}
-                  loading={!history.loaded}
-                />
-              </div>
-            }
+        discussions={discussions.counts}
+      />
+      <CommentsToggle
+        space={space}
+        lineName={lineName}
+        counts={discussions.counts}
+        open={commentsOpen}
+        onToggle={() => onCommentsOpenChange(!commentsOpen)}
+      />
+      <PageMoreMenu page={page} history={history} />
+      <div className="flex items-center gap-1.5 max-sm:ml-auto max-sm:gap-2 touch:gap-2">
+        {editing ? (
+          <span ref={setActionsSlot} className="contents" />
+        ) : (
+          !archived && (
+            <EditButton line={line} onEdit={() => setEditingMain(true)} />
+          )
+        )}
+      </div>
+    </div>
+  );
+  return (
+    <>
+      <PageHeader
+        title={title || "Untitled"}
+        breadcrumbs={[
+          { label: "Spaces", href: paths.spaces(org) },
+          { label: space.name, href: paths.space(org, space.slug) },
+          ...ancestors.map((a) => ({
+            label: a.title || "Untitled",
+            href: paths.spacePage(org, space.slug, a.id),
+          })),
+        ]}
+        actions={
+          <>
+            {treeToggle && !treeToggle.shown && (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Show pages"
+                title="Show pages"
+                className="text-muted-foreground"
+                onClick={treeToggle.toggle}
+              >
+                <PanelLeftOpen className="size-4" aria-hidden />
+              </Button>
+            )}
+            {wide && toolbar}
+          </>
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <span
+          ref={setWideProbe}
+          aria-hidden
+          className="hidden @min-[40rem]/frame:block"
+        />
+        <article className="mx-auto w-full max-w-3xl min-w-0 px-4 pt-4 pb-24 sm:px-8 sm:pt-8">
+          {/* The title (the header names it as the page's heading) and one
+          line saying what is on screen; phones put the toolbar under that
+          line. The live editor shows the title as a field and its own
+          status line. */}
+          {(!editing || !wide) && (
+            <header className="flex flex-col gap-3">
+              {!editing && (
+                <div>
+                  <p className="text-[1.75rem] leading-tight font-semibold tracking-tight break-words">
+                    {title}
+                  </p>
+                  <div className="mt-2.5 text-[13px] text-muted-foreground">
+                    <PageStatement
+                      space={space}
+                      page={page}
+                      line={line}
+                      history={history}
+                    />
+                  </div>
+                </div>
+              )}
+              {!wide && toolbar}
+            </header>
+          )}
+          {space.archivedAt && <ArchivedSpaceNotice space={space} />}
+          {archived && !space.archivedAt && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-muted px-4 py-3 text-[13px] ring-1 ring-foreground/8 ring-inset">
+              <Archive
+                className="size-4 shrink-0 text-muted-foreground"
+                aria-hidden
+              />
+              <p className="min-w-0 flex-1 basis-56">
+                <span className="font-medium">This page is archived.</span>{" "}
+                <span className="text-muted-foreground">
+                  {parentArchived
+                    ? "It was archived with a page above it; restore that page to bring it back."
+                    : "It is hidden from the space until it is restored."}
+                </span>
+              </p>
+              {canEdit && !parentArchived && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => restorePage(page)}
+                >
+                  <ArchiveRestore className="size-3.5" aria-hidden /> Restore
+                </Button>
+              )}
+            </div>
+          )}
+          <ReviewedNotice line={line} page={page} branches={history.branches} />
+          <PageWorkProvider
+            space={space}
+            page={page}
+            line={line}
+            history={history}
+            editing={editing}
+            onEdit={() => setEditingMain(true)}
           >
-            <PageSurface
-              space={space}
-              page={page}
-              history={history}
-              line={line}
-              discussions={discussions}
-              editing={editing}
-              onStopEditing={() => setEditingMain(false)}
-              commentsOpen={commentsOpen}
-              onCommentsOpenChange={onCommentsOpenChange}
-              commentsSlot={commentsSlot}
-              commentsWide={commentsWide}
-              actionsSlot={actionsSlot}
-            />
-          </Suspense>
-        </SurfaceBoundary>
-      </PageWorkProvider>
-      {/* The work this page knows about, under the published page. */}
-      {line.isMain && !editing && !line.viewed && (
-        <PageWorkPanel pageId={page.id} />
-      )}
-      <BlockInsertHost defaultProjectId={space.projectId} />
-    </article>
+            <SurfaceBoundary>
+              <Suspense
+                fallback={
+                  <div className="mt-8">
+                    <PageDocument
+                      commit={line.viewed ?? line.head}
+                      loading={!history.loaded}
+                    />
+                  </div>
+                }
+              >
+                <PageSurface
+                  space={space}
+                  page={page}
+                  history={history}
+                  line={line}
+                  discussions={discussions}
+                  editing={editing}
+                  onStopEditing={() => setEditingMain(false)}
+                  commentsOpen={commentsOpen}
+                  onCommentsOpenChange={onCommentsOpenChange}
+                  commentsSlot={commentsSlot}
+                  commentsWide={commentsWide}
+                  actionsSlot={actionsSlot}
+                />
+              </Suspense>
+            </SurfaceBoundary>
+          </PageWorkProvider>
+          {/* The work this page knows about, under the published page. */}
+          {line.isMain && !editing && !line.viewed && (
+            <PageWorkPanel pageId={page.id} />
+          )}
+          <BlockInsertHost defaultProjectId={space.projectId} />
+        </article>
+      </div>
+    </>
   );
 }
 
@@ -429,7 +468,12 @@ export function PageDocument({
 }) {
   if (!commit)
     return loading ? (
-      <div aria-busy="true" aria-label="Loading page" className="space-y-3">
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Loading page"
+        className="space-y-3"
+      >
         <Bone className="h-4 w-11/12" />
         <Bone className="h-4 w-10/12" />
         <Bone className="h-4 w-8/12" />

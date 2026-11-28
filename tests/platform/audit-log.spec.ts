@@ -114,11 +114,11 @@ test("with analytics disabled, role and token changes appear in the audit log", 
   await expect(row.getByText("Admin", { exact: true })).toBeVisible();
 
   // An access token created and revoked in account settings.
-  await page.goto("/account#agents");
-  const agents = page.locator("#agents");
-  await agents.getByRole("button", { name: "New token" }).click();
-  await agents.getByLabel("Agent name", { exact: true }).fill("Audit agent");
-  await agents.getByRole("button", { name: "Create token" }).click();
+  await page.goto("/account#tokens");
+  const tokens = page.locator("#tokens");
+  await tokens.getByRole("button", { name: "New token" }).click();
+  await tokens.getByLabel("Name", { exact: true }).fill("Audit agent");
+  await tokens.getByRole("button", { name: "Create token" }).click();
   await expect(page.getByTestId("access-token-secret")).toBeVisible();
 
   await page.goto(`/${slug}/settings/audit`);
@@ -134,7 +134,7 @@ test("with analytics disabled, role and token changes appear in the audit log", 
 
   // Filters run on the server.
   await log.getByLabel("Activity").click();
-  await page.getByRole("option", { name: "Access tokens" }).click();
+  await page.getByRole("option", { name: "Access", exact: true }).click();
   await expect(log.getByText(/Created write access token/)).toBeVisible();
   await expect(
     log.getByText(`Changed ${teammate.name}'s application role`),

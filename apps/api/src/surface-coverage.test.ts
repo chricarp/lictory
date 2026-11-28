@@ -30,6 +30,9 @@ const routeFiles = [
   "routes/intelligence.ts",
   "routes/events.ts",
   "routes/admin.ts",
+  "routes/runner.ts",
+  "routes/code.ts",
+  "routes/slack.ts",
 ].map((file) => join(api, file));
 
 const registration =

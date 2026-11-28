@@ -152,11 +152,14 @@ export function IterationPicker({
   const options = [...delivery.iterations.values()]
     .filter((i) => i.projectId === project.id && i.state !== "completed")
     .sort((a, b) => a.number - b.number);
+  // "No sprint", like "No priority": "Backlog" is also a workflow status,
+  // and the two sat two rows apart meaning different things.
+  const none = project.iterationMode === "automatic" ? "No cycle" : "No sprint";
   const content = (
     <>
       <Repeat className="size-3.5 text-muted-foreground" />
       <span className={cn("truncate", !current && "text-muted-foreground")}>
-        {current ? iterationLabel(current, project?.iterationMode) : "Backlog"}
+        {current ? iterationLabel(current, project?.iterationMode) : none}
       </span>
     </>
   );
@@ -168,7 +171,7 @@ export function IterationPicker({
       trigger={(props) => (
         <button
           {...props}
-          aria-label={`Iteration: ${current ? iterationLabel(current, project?.iterationMode) : "Backlog"}`}
+          aria-label={`Iteration: ${current ? iterationLabel(current, project?.iterationMode) : none}`}
           className={trigger}
         >
           {content}
@@ -178,7 +181,7 @@ export function IterationPicker({
       <Picker
         title={project.iterationMode === "automatic" ? "Cycle" : "Sprint"}
         options={[
-          { value: "none", label: "Backlog" },
+          { value: "none", label: none, hint: "In the backlog" },
           ...options.map((i) => ({
             value: i.id,
             label: iterationLabel(i, project?.iterationMode),
@@ -210,10 +213,13 @@ export function EstimatePicker({
       ? "No estimate"
       : (options.find((o) => o.value === item.estimate)?.label ??
         String(item.estimate));
+  // What the control shows is also what it is called (voice control users
+  // say what they see): "5 pts", named "Estimate: 5 pts".
+  const shown =
+    item.estimate !== null && scale !== "tshirt" ? `${label} pts` : label;
   const content = (
     <span className={cn(item.estimate === null && "text-muted-foreground")}>
-      {label}
-      {item.estimate !== null && scale !== "tshirt" && " pts"}
+      {shown}
     </span>
   );
   if (!onChange) return <span className={trigger}>{content}</span>;
@@ -223,7 +229,7 @@ export function EstimatePicker({
       trigger={(props) => (
         <button
           {...props}
-          aria-label={`Estimate: ${label}`}
+          aria-label={`Estimate: ${shown}`}
           className={trigger}
         >
           {content}

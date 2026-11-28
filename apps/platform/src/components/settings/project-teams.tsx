@@ -51,7 +51,7 @@ export function ProjectTeams({
       id="teams"
       icon={<UsersRound />}
       title="Teams"
-      description="Teams are groups of people working on one vertical of this project, such as Checkout or Platform. Every team follows the project's workflow and planning; boards and backlogs can be narrowed to a team. Items don't need a team."
+      description="People working on one vertical, such as Checkout. Teams share the project's workflow; boards and backlogs can be narrowed to one."
       action={
         canEdit && !creating ? (
           <Button
@@ -170,7 +170,7 @@ function TeamRow({
               editable ? "What this team works on" : "No description"
             }
             aria-label={`Description of ${t.name}`}
-            className="h-7 w-full rounded-md bg-transparent px-1 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-muted enabled:hover:bg-muted touch:text-base"
+            className="h-7 w-full rounded-md bg-transparent px-1 text-xs text-muted-foreground outline-none placeholder:text-placeholder focus:bg-muted enabled:hover:bg-muted touch:text-base"
             onBlur={(e) => {
               const description = e.currentTarget.value.trim() || null;
               if (description !== (t.description ?? null))

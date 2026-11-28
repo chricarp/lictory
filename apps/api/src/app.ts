@@ -1,3 +1,4 @@
+import { jsonLog } from "@lictory/api/log";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { authenticateAccessToken } from "@lictory/core/capabilities/access-tokens";
@@ -9,13 +10,16 @@ import { trackCommitted } from "@lictory/core/capabilities/workspace";
 import { db } from "@lictory/core/db";
 import { auth } from "@lictory/core/lib/auth";
 import { matchesPlatformOrigin } from "@lictory/core/lib/auth-base-url";
-import { handleMcp } from "@lictory/core/mcp/server";
+import { handleMcpHttp } from "@lictory/core/mcp/server";
 import { limit, MB, sameOriginWrites } from "@lictory/api/middleware";
 import { eventRoutes } from "@lictory/api/routes/events";
 import { intelligenceRoutes } from "@lictory/api/routes/intelligence";
 import { documentRoutes, relayRoutes } from "@lictory/api/routes/public";
 import { DEFAULT_BODY_LIMIT, webRoutes } from "@lictory/api/routes/web";
 import { adminRoutes } from "@lictory/api/routes/admin";
+import { runnerRoutes } from "@lictory/api/routes/runner";
+import { codeWebhookRoutes } from "@lictory/api/routes/code";
+import { slackRoutes } from "@lictory/api/routes/slack";
 import { createZeroEndpoints, validApiKey } from "@lictory/api/zero/server";
 
 function rpcError(status: number, message: string, headers?: HeadersInit) {
@@ -24,9 +28,11 @@ function rpcError(status: number, message: string, headers?: HeadersInit) {
     { status, headers },
   );
 }
+// Header values are ASCII, so ">" stands for the "→" of the JSON body; the
+// places are named the same way in both.
 const mcpChallenge = {
   "WWW-Authenticate":
-    'Bearer realm="lictory", error="invalid_token", error_description="Create a personal access token in Lictory account settings."',
+    'Bearer realm="lictory", error="invalid_token", error_description="Use an agent\'s token from Factory > Agents > the agent > Connection, or a personal access token from Account settings > Access tokens."',
 };
 
 export function createApp(options: { draining?: () => boolean } = {}) {
@@ -67,7 +73,7 @@ export function createApp(options: { draining?: () => boolean } = {}) {
     if (!token)
       return rpcError(
         401,
-        "A valid Lictory access token is required.",
+        "A valid Lictory access token is required. An agent's token comes from Factory → Agents → the agent → Connection (a new token is shown once); a person's own from Account settings → Access tokens. Revoked and expired tokens are refused.",
         mcpChallenge,
       );
     let payload: unknown;
@@ -89,14 +95,20 @@ export function createApp(options: { draining?: () => boolean } = {}) {
         surface: "mcp",
         tokenId: token.tokenId,
         agentName: token.name,
+        agent: token.agent,
         access: token.access,
         client: request.headers.get("user-agent"),
       },
       request.headers,
     );
-    const result = await handleMcp(ctx, payload);
-    if (result === null) return new Response(null, { status: 202 });
-    return Response.json(result, { headers: { "Cache-Control": "no-store" } });
+    const { body, status } = await handleMcpHttp(ctx, payload, {
+      headers: request.headers,
+    });
+    if (body === null) return new Response(null, { status });
+    return Response.json(body, {
+      status,
+      headers: { "Cache-Control": "no-store" },
+    });
   });
   // No server-initiated streams or sessions.
   app.on(
@@ -143,6 +155,13 @@ export function createApp(options: { draining?: () => boolean } = {}) {
     return c.json(await zero.mutate(c.req.raw, userID));
   });
 
+  // The runner protocol: bearer runner credentials, its own body limits.
+  app.route("/", runnerRoutes());
+  // Code host webhooks: their own body limit, signature authentication.
+  app.route("/", codeWebhookRoutes());
+  // Slack's Events API, interactivity and OAuth redirect: signed by Slack.
+  app.route("/", slackRoutes());
+
   app.use("/api/*", limit(DEFAULT_BODY_LIMIT));
   app.route("/", webRoutes());
   app.route("/", adminRoutes());
@@ -155,16 +174,13 @@ export function createApp(options: { draining?: () => boolean } = {}) {
   app.route("/", documentRoutes());
 
   app.onError((error, c) => {
-    console.error(
-      JSON.stringify({
-        event: "api.unhandled",
-        path: c.req.path,
-        error:
-          error instanceof Error
-            ? { name: error.name, message: error.message, stack: error.stack }
-            : String(error),
-      }),
-    );
+    jsonLog("error", "api.unhandled", {
+      path: c.req.path,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message, stack: error.stack }
+          : String(error),
+    });
     return c.json(
       {
         error: {

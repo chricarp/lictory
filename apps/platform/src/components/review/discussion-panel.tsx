@@ -4,6 +4,8 @@ import { Collapsible } from "@ui-sdk/react/collapsible";
 import { cn } from "@lictory/core/lib/utils";
 import { Button } from "@lictory/ui/button";
 import { SectionLabel } from "@lictory/ui/primitives";
+import { HeadingScope } from "@lictory/ui/heading";
+import { commentShortcut } from "@lictory/platform/lib/keyboard-selection";
 import { Tooltip } from "@lictory/ui/tooltip";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { DiscussionCounts } from "@lictory/platform/components/discussions/presentation";
@@ -14,6 +16,10 @@ import {
   ThreadComposer,
 } from "@lictory/platform/components/review/threads";
 import { useSpecDiscussions } from "@lictory/platform/components/review/spec-discussions";
+import {
+  SuggestionComposer,
+  SuggestionList,
+} from "@lictory/platform/components/review/inline-suggestions";
 
 // The specification's discussions beside its text, like a page's comments:
 // threads whose passage is on screen in document order, then those whose
@@ -22,10 +28,7 @@ import { useSpecDiscussions } from "@lictory/platform/components/review/spec-dis
 // folded away until asked for; resolving never deletes a message.
 // Pull request and suggestion threads stay with their change.
 
-const mod =
-  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform)
-    ? "⌘⌥M"
-    : "Ctrl+Alt+M";
+const mod = commentShortcut;
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 // Header toggle: the open discussions of the current revision, with a
@@ -167,6 +170,9 @@ export function SpecDiscussionPanel({
     pending,
     setPending,
     showRevision,
+    suggesting,
+    startSuggestion,
+    editSuggestion,
   } = discussions;
   const openThreads = located.filter((l) => l.thread.status === "open");
   const anchored = openThreads.filter((l) => l.placement !== "general");
@@ -253,6 +259,18 @@ export function SpecDiscussionPanel({
           Blocking discussions hold readiness back until they are resolved.
         </p>
       )}
+      {/* A change suggested on selected text is written first, beside
+        its passage; suggested changes wait for a decision above the
+        discussions. */}
+      {!readOnly && suggesting && (
+        <SuggestionComposer
+          key={`${suggesting.section}:${suggesting.occurrence}:${suggesting.quote}`}
+          draft={suggesting}
+          onClose={() => startSuggestion(null)}
+          onOpenEditor={(quote) => editSuggestion.current?.(quote)}
+        />
+      )}
+      <SuggestionList />
       {/* One composer, on top: a comment on selected text fills it with
         the passage; otherwise it starts a discussion of the whole text. */}
       {!readOnly && (
@@ -276,9 +294,11 @@ export function SpecDiscussionPanel({
         )}
         {anchored.map(card)}
         {general.length > 0 && (
-          <SectionLabel className="mt-2">
-            On the whole specification
-          </SectionLabel>
+          <HeadingScope level={3}>
+            <SectionLabel className="mt-2">
+              On the whole specification
+            </SectionLabel>
+          </HeadingScope>
         )}
         {general.map(card)}
         {resolved.length > 0 && (
@@ -297,7 +317,7 @@ export function SpecDiscussionPanel({
           </Collapsible>
         )}
       </div>
-      <p className="mt-1 text-[11px] leading-4 text-muted-foreground touch:hidden">
+      <p className="mt-1 text-xs leading-4 text-muted-foreground max-sm:hidden touch:hidden">
         Alt+↑ / Alt+↓ move between discussions · {mod} comments on selected text
       </p>
     </section>

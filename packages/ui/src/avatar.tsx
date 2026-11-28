@@ -11,6 +11,7 @@ import { cn } from "@lictory/core/lib/utils";
 import { initials } from "@lictory/core/lib/work-items";
 import { safeProfileImage } from "@lictory/core/profile/photo";
 import { AI_ACTOR_NAME } from "@lictory/core/contracts/ai";
+import { identityColor } from "@lictory/ui/identity-color";
 
 const Images = createContext<ReadonlyMap<string, string | null | undefined>>(
   new Map(),
@@ -49,14 +50,21 @@ export function Avatar({
   const raw = image === undefined && userId ? images.get(userId) : image;
   const src = preview && raw?.startsWith("blob:") ? raw : safeProfileImage(raw);
   const intelligence = name === AI_ACTOR_NAME;
+  // A person is a circle in their own color everywhere (the platform's
+  // `PersonAvatar` draws the same color from the same id), never a grey
+  // disc that looks the same for everyone.
+  const color = intelligence ? undefined : identityColor(userId ?? name);
+  // Two initials do not fit 16px: the first one, with the name on hover.
+  const letters = size === "xs" ? initials(name).slice(0, 1) : initials(name);
   return (
     <AvatarPrimitive
       role="img"
       title={name}
       aria-label={name}
+      style={color ? { background: color } : undefined}
       className={cn(
-        "relative inline-grid shrink-0 place-items-center overflow-hidden rounded-full bg-secondary font-semibold text-secondary-foreground",
-        size === "xs" && "size-4 text-[8px]",
+        "relative inline-grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold text-white",
+        size === "xs" && "size-4 text-[9px]",
         size === "sm" && "size-5 text-[9px]",
         size === "md" && "size-6 text-[10px]",
         size === "lg" && "size-16 text-xl",
@@ -72,7 +80,7 @@ export function Avatar({
         // They stay underneath the photo while it loads, or if it fails.
         <AvatarFallback
           aria-hidden
-          data-initials={initials(name)}
+          data-initials={letters}
           className="before:content-[attr(data-initials)]"
         />
       )}

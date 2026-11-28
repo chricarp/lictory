@@ -1,0 +1,2 @@
+ALTER TABLE "autonomy_policy" ADD COLUMN "reporting_channel_id" text;--> statement-breakpoint
+CREATE INDEX "agent_session_thread_idx" ON "agent_session" USING btree ("organization_id","thread_root_message_id");

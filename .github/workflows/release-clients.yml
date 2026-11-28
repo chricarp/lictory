@@ -1,0 +1,217 @@
+name: Release clients
+
+# The client downloads of a release, built from its exact source with its
+# version: lictory-runner for Linux, macOS and Windows on x64 and arm64 with
+# its installers, and the desktop app for each operating system with the
+# latest*.yml files installed apps update from. Nightly and Release call this
+# for every candidate; their publishing job checks the files, signs and
+# attests their SHA256SUMS and attaches them to the draft before publishing
+# (docs/operations/releases.md#runner-and-desktop-app). Nothing here can
+# publish or sign keylessly: the jobs read the repository and keep artifacts.
+#
+# Run workflow builds every download of a branch for testing: unsigned, with
+# the version given, kept as workflow artifacts for a week. CI calls it the
+# same way for pull requests that change the runner or the desktop app, so
+# every package is built on its own operating system before it merges.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Exact source commit"
+        type: string
+        required: true
+      version:
+        description: "Release version to embed"
+        type: string
+        required: true
+      signing:
+        description: "Sign the desktop app with the desktop-signing environment's certificates"
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to embed (a nightly-shaped one, for example 0.0.0-nightly.20260101.1)"
+        type: string
+        default: "0.0.0-nightly.20260101.1"
+
+permissions: {}
+
+jobs:
+  # Bun cross-compiles every target from one machine; its darwin binaries are
+  # signed ad hoc, which is all macOS asks of a binary downloaded with curl.
+  runner:
+    name: lictory-runner for every system
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          release-version: ${{ inputs.version }}
+          bun-cache: "false" # Release builds never restore a cached Bun binary.
+      - name: Compile the six targets
+        run: bun apps/runner/scripts/build.ts
+      - name: The binary runs and carries the release version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          built=$(apps/runner/dist/lictory-runner-linux-x64 --version)
+          [ "$built" = "$VERSION" ] || { echo "::error::lictory-runner reports $built, not $VERSION."; exit 1; }
+      - name: Collect the downloads
+        run: |
+          out="$RUNNER_TEMP/clients"
+          mkdir -p "$out"
+          for target in linux-x64 linux-arm64 darwin-x64 darwin-arm64; do
+            cp "apps/runner/dist/lictory-runner-$target" "$out/"
+          done
+          for target in windows-x64 windows-arm64; do
+            cp "apps/runner/dist/lictory-runner-$target.exe" "$out/"
+          done
+          cp apps/runner/install.sh "$out/lictory-runner-install.sh"
+          cp apps/runner/install.ps1 "$out/lictory-runner-install.ps1"
+          ls -l "$out"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: clients-runner
+          path: ${{ runner.temp }}/clients
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+  # One job per operating system (electron-builder packages macOS only on
+  # macOS and NSIS best on Windows); each builds both architectures.
+  desktop:
+    name: Desktop app for ${{ matrix.system }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: macOS
+            runner: macos-15
+            platform: --mac
+          - system: Windows
+            runner: windows-2025
+            platform: --win
+          - system: Linux
+            runner: ubuntu-24.04
+            platform: --linux
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    # Certificates live in the desktop-signing environment (deployment
+    # branches main and release/*). Without them, or for a test build, the
+    # app is built unsigned and records that it cannot update itself.
+    environment: ${{ inputs.signing && 'desktop-signing' || '' }}
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          release-version: ${{ inputs.version }}
+          bun-cache: "false"
+      - name: Package ${{ matrix.system }} (x64 and arm64)
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          MAC_CSC_LINK: ${{ inputs.signing && secrets.MAC_CSC_LINK || '' }}
+          MAC_CSC_KEY_PASSWORD: ${{ inputs.signing && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_API_KEY_P8: ${{ inputs.signing && secrets.APPLE_API_KEY_P8 || '' }}
+          APPLE_API_KEY_ID: ${{ inputs.signing && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ inputs.signing && secrets.APPLE_API_ISSUER || '' }}
+          WIN_CSC_LINK: ${{ inputs.signing && secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ inputs.signing && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+        # package.mjs signs (and on macOS notarizes) only when electron-builder's
+        # variables are set; empty ones are removed so it never sees a blank
+        # certificate. GitHub masks the secrets in the log.
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = macOS ] && [ -n "$MAC_CSC_LINK" ]; then
+            export CSC_LINK="$MAC_CSC_LINK" CSC_KEY_PASSWORD="$MAC_CSC_KEY_PASSWORD"
+            if [ -n "$APPLE_API_KEY_P8" ]; then
+              key="$RUNNER_TEMP/notary-key.p8"
+              printf '%s\n' "$APPLE_API_KEY_P8" > "$key"
+              export APPLE_API_KEY="$key"
+            fi
+          fi
+          unset MAC_CSC_LINK MAC_CSC_KEY_PASSWORD APPLE_API_KEY_P8
+          for name in APPLE_API_KEY_ID APPLE_API_ISSUER WIN_CSC_LINK WIN_CSC_KEY_PASSWORD; do
+            [ -n "${!name}" ] || unset "$name"
+          done
+          [ "$RUNNER_OS" = Windows ] || unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
+          [ "$RUNNER_OS" = macOS ] || unset APPLE_API_KEY_ID APPLE_API_ISSUER
+          bun run --cwd apps/desktop package -- "$PLATFORM"
+      # Each installer also goes out under a name without the version (a
+      # copy: latest*.yml keep naming the versioned files electron-updater
+      # downloads), so `releases/latest/download/<name>` always serves the
+      # newest stable release's. These names are a contract
+      # (packages/core/src/release/downloads.ts, which the check job and
+      # the publishing job enforce; lictory.com/download links to them).
+      - name: Collect the downloads
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          out="$RUNNER_TEMP/clients"
+          mkdir -p "$out"
+          rm -f "$RUNNER_TEMP/notary-key.p8"
+          cd apps/desktop/out
+          files=(latest*.yml *.dmg *.zip *.exe *.AppImage *.deb *.blockmap)
+          [ "${#files[@]}" -gt 0 ] || { echo "::error::electron-builder produced no packages."; exit 1; }
+          cp "${files[@]}" "$out/"
+          latest() { [ ! -f "$1" ] || cp "$1" "$out/$2"; }
+          latest "Lictory-$VERSION-mac-universal.dmg" Lictory-mac-universal.dmg
+          latest "Lictory-$VERSION-windows-setup.exe" Lictory-windows-setup.exe
+          latest "Lictory-$VERSION-linux-x86_64.AppImage" Lictory-linux-x64.AppImage
+          latest "Lictory-$VERSION-linux-arm64.AppImage" Lictory-linux-arm64.AppImage
+          latest "lictory_${VERSION}_amd64.deb" lictory_amd64.deb
+          latest "lictory_${VERSION}_arm64.deb" lictory_arm64.deb
+          ls -l "$out"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: clients-desktop-${{ matrix.system }}
+          path: ${{ runner.temp }}/clients
+          if-no-files-found: error
+          retention-days: 7
+          overwrite: true
+
+  # The whole set, checked as the publishing job checks it before signing
+  # (every runner binary and installer, every desktop installer and its
+  # version-free copy, latest*.yml describing their installers), so a pull
+  # request proves what a release would publish. Nothing is signed here.
+  check:
+    name: Every download, checked
+    needs: [runner, desktop]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          release-version: ${{ inputs.version }}
+          bun-cache: "false"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: clients-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/clients
+      - name: Check the downloads of ${{ inputs.version }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: bun scripts/check-client-downloads.ts "$RUNNER_TEMP/clients" "$VERSION"

@@ -103,17 +103,74 @@ const entities: { table: PgTable; omit?: string[] }[] = [
   { table: s.workItemPageSource },
   { table: s.pageBranchOrigin },
   { table: s.pageContextLink },
+  // Lictory Channels: conversations, memberships with read cursors,
+  // messages (tombstones included), reactions, thread participation and
+  // promotion links. Previous bodies of edited and deleted messages and the
+  // resolved mentions (derived) are not exported.
+  { table: s.channel },
+  { table: s.channelMember },
+  { table: s.channelMessage },
+  { table: s.channelReaction },
+  { table: s.channelThreadParticipant },
+  { table: s.channelPromotion },
+  // Links to Slack channels and the installation (without its secrets,
+  // tokens or install state). The mirror outbox, the Slack event inbox and
+  // the Slack people cache are operational state.
+  { table: s.channelExternalLink },
+  {
+    table: s.slackInstallation,
+    omit: [
+      "encryptedClientSecret",
+      "encryptedSigningSecret",
+      "encryptedBotToken",
+      "oauthStateHash",
+      "oauthStateUserId",
+      "oauthStateExpiresAt",
+    ],
+  },
   { table: s.fileObject },
   { table: s.deliveryConnection, omit: ["encryptedCredential"] },
   { table: s.deliveryTarget },
   { table: s.workItemExternalLink },
   { table: s.deliveryPublication },
+  // Code: connections without their secrets, the repositories projects
+  // use and the links people, agents and key detection made. Mirrors
+  // (pull requests, branches, issues, checks) are the hosts' and are read
+  // there.
+  {
+    table: s.codeConnection,
+    omit: ["encryptedCredential", "encryptedWebhookSecret"],
+  },
+  { table: s.codeRepository },
+  { table: s.codeRepositoryProject },
+  { table: s.codeWorkLink },
+  // Reviews recorded in Lictory (an agent's approval of a head commit).
+  { table: s.codeReview },
   { table: s.organizationOnboarding },
   { table: s.organizationLogo, omit: ["content"] },
   { table: s.organizationBranding },
   { table: s.aiRun },
+  // Claims, autonomy policy and the Definition of Done
+  // (docs/internals/claims.md). Dispatcher backoff is operational state.
+  { table: s.workItemClaim },
+  { table: s.claimQuestion },
+  { table: s.autonomyPolicy },
+  { table: s.definitionOfDone },
+  { table: s.doneSignOff },
+  { table: s.autopilotMerge },
+  // Agent events: the organization's webhook policy. The events and the
+  // destinations (secrets) are personal operational state.
+  { table: s.agentEventPolicy },
   { table: s.intelligenceContextEntry },
   { table: s.intelligenceContextVersion },
+  // The Factory. Credentials (runner credential hashes, registration
+  // tokens, session tokens) and lease tokens never leave the server.
+  { table: s.agent },
+  { table: s.runner, omit: ["credentialHash", "credentialPrefix"] },
+  { table: s.agentSession, omit: ["leaseToken", "accessTokenId"] },
+  { table: s.agentSessionEvent },
+  { table: s.agentSessionInput },
+  { table: s.agentApproval },
   { table: s.invitation },
   { table: s.configurationAudit },
   { table: s.auditEvent },

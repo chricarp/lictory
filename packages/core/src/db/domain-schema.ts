@@ -25,6 +25,7 @@ import { organization, user } from "@lictory/core/db/auth-schema";
 // Circular with spaces-schema (which homes spaces in projects and teams);
 // both only reference each other inside lazy foreign key callbacks.
 import { page } from "@lictory/core/db/spaces-schema";
+import { channel } from "@lictory/core/db/channel-schema";
 
 // Keep IDs compatible with Better Auth's text IDs; domain IDs are UUID strings.
 const id = () =>
@@ -427,7 +428,7 @@ export const formerMember = pgTable(
 );
 
 // Organization-wide type registry. Hierarchy level orders parents above
-// children (Epic 2, Story/Task/Bug 1, Subtask 0). Spec-backed types carry
+// children (Epic 3, Story 2, Task/Bug 1, Subtask 0). Spec-backed types carry
 // revisions, reviews, approvals and readiness; others are plain work.
 export const workItemType = pgTable(
   "work_item_type",
@@ -449,7 +450,7 @@ export const workItemType = pgTable(
     uniqueIndex("work_item_type_org_active_name_unique")
       .on(t.organizationId, sql`lower(${t.name})`)
       .where(sql`${t.archivedAt} IS NULL`),
-    check("work_item_type_level", sql`${t.level} BETWEEN 0 AND 3`),
+    check("work_item_type_level", sql`${t.level} BETWEEN 0 AND 4`),
     check("work_item_type_name_present", sql`length(trim(${t.name})) > 0`),
   ],
 );
@@ -721,8 +722,9 @@ export const workItem = pgTable(
 
 // File bytes are stored only in private object storage. A row is retained when
 // removed from the attachment list so historical Markdown links still resolve.
-// A file belongs to exactly one owner: a work item (with its project) or a
-// Lictory Spaces page, whose space access governs reading it.
+// A file belongs to exactly one owner: a work item (with its project), a
+// Lictory Spaces page, whose space access governs reading it, or a channel,
+// whose access governs reading it (files attached to messages).
 export const fileObject = pgTable(
   "file_object",
   {
@@ -731,6 +733,7 @@ export const fileObject = pgTable(
     projectId: text("project_id"),
     workItemId: text("work_item_id"),
     pageId: text("page_id"),
+    channelId: text("channel_id"),
     objectKey: text("object_key").notNull().unique(),
     filename: text("filename").notNull(),
     mimeType: text("mime_type").notNull(),
@@ -757,11 +760,19 @@ export const fileObject = pgTable(
     index("file_object_page_idx")
       .on(t.organizationId, t.pageId)
       .where(sql`${t.pageId} IS NOT NULL`),
+    foreignKey({
+      columns: [t.organizationId, t.channelId],
+      foreignColumns: [channel.organizationId, channel.id],
+    }).onDelete("restrict"),
+    index("file_object_channel_idx")
+      .on(t.organizationId, t.channelId)
+      .where(sql`${t.channelId} IS NOT NULL`),
     check("file_object_size_positive", sql`${t.size} > 0`),
     check(
       "file_object_one_owner",
-      sql`(${t.workItemId} IS NOT NULL AND ${t.projectId} IS NOT NULL AND ${t.pageId} IS NULL)
-        OR (${t.workItemId} IS NULL AND ${t.projectId} IS NULL AND ${t.pageId} IS NOT NULL)`,
+      sql`(${t.workItemId} IS NOT NULL AND ${t.projectId} IS NOT NULL AND ${t.pageId} IS NULL AND ${t.channelId} IS NULL)
+        OR (${t.workItemId} IS NULL AND ${t.projectId} IS NULL AND ${t.pageId} IS NOT NULL AND ${t.channelId} IS NULL)
+        OR (${t.workItemId} IS NULL AND ${t.projectId} IS NULL AND ${t.pageId} IS NULL AND ${t.channelId} IS NOT NULL)`,
     ),
   ],
 );
@@ -1615,6 +1626,15 @@ export const deliveryTarget = pgTable(
     // Lictory work item type id → external issue type id.
     typeMapping: jsonb("type_mapping")
       .$type<Record<string, string>>()
+      .default({})
+      .notNull(),
+    // External issue type id → provider-neutral hierarchy level (1 epic-like,
+    // 0 standard, -1 subtask), read when the mapping was saved. Decides where
+    // a child goes when the external system cannot nest it under its parent
+    // (a Jira Task under a Story). Empty for targets saved before it existed
+    // until the next export fills it.
+    typeHierarchy: jsonb("type_hierarchy")
+      .$type<Record<string, number>>()
       .default({})
       .notNull(),
     createdAt: createdAt(),

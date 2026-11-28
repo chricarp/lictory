@@ -1,3 +1,4 @@
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { useState } from "react";
 import {
   Check,
@@ -11,7 +12,7 @@ import {
 import { cn } from "@lictory/core/lib/utils";
 import { relativeTime } from "@lictory/core/lib/work-items";
 import type { EntityOf } from "@lictory/core/contracts/protocol";
-import { Avatar, Badge, SectionLabel } from "@lictory/ui/primitives";
+import { Badge, SectionLabel } from "@lictory/ui/primitives";
 import { diffStats } from "@lictory/ui/diff";
 import { useItem } from "@lictory/platform/components/items/item-context";
 import { suggestion as suggestionMachine } from "@lictory/core/contracts/state-machines";
@@ -74,14 +75,14 @@ export function SuggestionStatusBadge({
   if (suggestion.status === "merged")
     return (
       <Badge tone="good">
-        <GitMerge className="size-3" /> Merged as revision{" "}
+        <GitMerge className="size-3" /> Accepted as revision{" "}
         {revisionNumber(suggestion.mergedRevisionId ?? "") ?? ""}
       </Badge>
     );
   if (suggestion.status === "closed")
     return (
       <Badge>
-        <X className="size-3" /> Closed
+        <X className="size-3" /> Rejected
       </Badge>
     );
   if (suggestion.status === "draft")
@@ -105,7 +106,7 @@ export function SuggestionStatusBadge({
   if (mergeable)
     return (
       <Badge tone="good">
-        <Check className="size-3" /> Approved · ready to merge
+        <Check className="size-3" /> Approved · ready to accept
       </Badge>
     );
   if (approvals.length)
@@ -190,11 +191,7 @@ function SuggestionRow({
         </span>
         <SuggestionStatusBadge suggestion={suggestion} />
         <span className="flex w-full items-center gap-2 pl-7 text-xs text-muted-foreground">
-          <Avatar
-            userId={suggestion.authorId}
-            name={memberName(suggestion.authorId)}
-            size="xs"
-          />
+          <Actor userId={suggestion.authorId} label="none" size={16} />
           {memberName(suggestion.authorId)}
           <span>· {relativeTime(suggestion.updatedAt)}</span>
           <span>
@@ -213,11 +210,11 @@ function SuggestionRow({
           {reviewers.length > 0 && (
             <span className="ml-auto flex items-center gap-1">
               {reviewers.map((r) => (
-                <Avatar
+                <Actor
                   key={r.id}
                   userId={r.userId}
-                  name={memberName(r.userId)}
-                  size="xs"
+                  label="none"
+                  size={16}
                   className={cn(
                     approvals.some((a) => a.reviewerId === r.userId) &&
                       "ring-2 ring-emerald-500",

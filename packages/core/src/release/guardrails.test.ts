@@ -26,6 +26,8 @@ import {
   releaseFile,
 } from "@lictory/core/release/images";
 import { nightlyEvents } from "@lictory/core/release/plan";
+import { latestDesktopInstallers } from "@lictory/core/release/downloads";
+import { assertBuildVersion } from "@lictory/core/release/version";
 
 void test("releases are pinned by digest in the configured registry", () => {
   assert.deepEqual(assertImages(images(), registry), images());
@@ -116,6 +118,7 @@ void test("manual production intent remains frozen when retries happen after a n
 type Step = {
   if?: string;
   id?: string;
+  name?: string;
   uses?: string;
   run?: string;
   with?: Record<string, string>;
@@ -175,7 +178,12 @@ void test("releases publish from the exact candidate source and hold no deployme
   assert.equal(nightly.concurrency?.queue, "max");
   assert.equal(release.jobs.verify!.uses, "./.github/workflows/ci.yml");
   assert.equal(release.jobs.verify!.with?.ref, "${{ needs.plan.outputs.sha }}");
-  assert.deepEqual(release.jobs.publish!.needs, ["plan", "verify", "build"]);
+  assert.deepEqual(release.jobs.publish!.needs, [
+    "plan",
+    "verify",
+    "build",
+    "clients",
+  ]);
   for (const flow of [release, nightly]) {
     const source = flow.jobs.publish!.steps!.find(
       (step) => step.with?.path === "source",
@@ -294,6 +302,120 @@ void test("release images are signed and attested before publication, and only t
   );
 });
 
+void test("every release carries runner and desktop downloads, checked, signed and attested before publication", () => {
+  for (const flow of [workflow("release"), workflow("nightly")]) {
+    // Built from the candidate's exact source with its version, unprivileged.
+    const clients = flow.jobs.clients!;
+    assert.equal(clients.uses, "./.github/workflows/release-clients.yml");
+    assert.deepEqual(clients.needs, "plan");
+    assert.equal(clients.if, flow.jobs.build!.if);
+    assert.deepEqual(clients.permissions, { contents: "read" });
+    assert.equal(clients.with?.ref, "${{ needs.plan.outputs.sha }}");
+    assert.equal(clients.with?.version, "${{ needs.plan.outputs.version }}");
+    assert.equal(String(clients.with?.signing), "true");
+    const steps = flow.jobs.publish!.steps!;
+    const at = (found: (step: Step) => boolean | undefined) => {
+      const index = steps.findIndex(found);
+      assert.ok(index >= 0, String(found));
+      return index;
+    };
+    const download = at((step) => step.with?.pattern === "clients-*");
+    const check = at((step) => step.run?.includes("bun run release clients"));
+    const sign = at(
+      (step) => step.uses === "./control/.github/actions/sign-clients",
+    );
+    const publish = at((step) => step.run?.includes("bun run release publish"));
+    // Checked by the control checkout's code, signed, then attached.
+    assert.ok(download < check && check < sign && sign < publish);
+    assert.equal(
+      (steps[check] as { "working-directory"?: string })["working-directory"],
+      "control",
+    );
+    assert.equal(steps[sign]!.with?.directory, "${{ runner.temp }}/clients");
+    assert.equal(
+      steps[publish]!.env?.CLIENT_ASSETS_DIRECTORY,
+      "${{ runner.temp }}/clients",
+    );
+  }
+  // The build jobs read the repository and nothing else; signing
+  // certificates reach only the desktop packaging step, only when the caller
+  // asks for signing, from an environment limited to protected branches.
+  const build = workflow("release-clients");
+  assert.deepEqual(Object.keys(build.on).sort(), [
+    "workflow_call",
+    "workflow_dispatch",
+  ]);
+  assert.deepEqual(build.permissions, {});
+  for (const [name, job] of Object.entries(build.jobs)) {
+    assert.deepEqual(job.permissions, { contents: "read" }, name);
+    const checkout = job.steps!.find((step) =>
+      step.uses?.startsWith("actions/checkout@"),
+    )!;
+    assert.equal(checkout.with?.ref, "${{ inputs.ref || github.sha }}");
+    assert.equal(String(checkout.with?.["persist-credentials"]), "false");
+    const setup = job.steps!.find(
+      (step) => step.uses === "./.github/actions/setup",
+    )!;
+    assert.equal(setup.with?.["release-version"], "${{ inputs.version }}");
+    assert.equal(setup.with?.["bun-cache"], "false");
+    for (const step of job.steps!) {
+      if (step.uses?.startsWith("actions/upload-artifact@"))
+        assert.match(step.with!.name!, /^clients-/);
+      for (const [variable, value] of Object.entries(step.env ?? {}))
+        if (value.includes("secrets."))
+          assert.equal(
+            value,
+            `\${{ inputs.signing && secrets.${variable} || '' }}`,
+            variable,
+          );
+    }
+  }
+  // Every installer also goes out under its version-free contract name
+  // (releases/latest/download/<name>, which lictory.com/download links to),
+  // and the whole set is checked as the publishing job checks it.
+  const collect = build.jobs
+    .desktop!.steps!.find((step) => step.name === "Collect the downloads")!
+    .run!.replaceAll("${VERSION}", "$VERSION");
+  for (const [name, versioned] of Object.entries(latestDesktopInstallers))
+    assert.ok(
+      collect.includes(`latest "${versioned("$VERSION")}" ${name}\n`),
+      name,
+    );
+  const check = build.jobs.check!;
+  assert.deepEqual(check.needs, ["runner", "desktop"]);
+  assert.ok(
+    check.steps!.some(
+      (step) =>
+        step.uses?.startsWith("actions/download-artifact@") &&
+        step.with?.pattern === "clients-*",
+    ),
+  );
+  assert.ok(
+    check.steps!.some((step) =>
+      step.run?.startsWith("bun scripts/check-client-downloads.ts "),
+    ),
+  );
+  assert.equal(build.jobs.runner!.environment, undefined);
+  assert.equal(
+    build.jobs.desktop!.environment,
+    "${{ inputs.signing && 'desktop-signing' || '' }}",
+  );
+  assert.ok(
+    !JSON.stringify(build.jobs.runner).includes("secrets."),
+    "the runner job holds no secret",
+  );
+  const sign = compositeAction("sign-clients").runs.steps;
+  assert.match(
+    sign.find((step) => step.run?.includes("cosign"))!.run!,
+    /cosign sign-blob --yes \\\n\s+--bundle "\$DIRECTORY\/SHA256SUMS\.sigstore\.json" \\\n\s+"\$DIRECTORY\/SHA256SUMS"/,
+  );
+  const attest = sign.find((step) => step.uses?.startsWith("actions/attest@"))!;
+  assert.equal(
+    attest.with?.["subject-checksums"],
+    "${{ inputs.directory }}/SHA256SUMS",
+  );
+});
+
 void test("nightlies are scheduled, fully verified before publication and built for both architectures", () => {
   const ci = workflow("ci");
   const nightly = workflow("nightly");
@@ -325,7 +447,12 @@ void test("nightlies are scheduled, fully verified before publication and built 
     "${{ needs.plan.outputs.version }}",
   );
   assert.equal(verify.with?.suite, "full");
-  assert.deepEqual(nightly.jobs.publish!.needs, ["plan", "verify", "build"]);
+  assert.deepEqual(nightly.jobs.publish!.needs, [
+    "plan",
+    "verify",
+    "build",
+    "clients",
+  ]);
   // The published candidate runs the laptop trial; its failure fails the
   // run, which keeps the nightly from being promoted.
   const trial = nightly.jobs.trial!;
@@ -351,7 +478,7 @@ void test("nightlies are scheduled, fully verified before publication and built 
     ),
   );
   // Days without merges publish nothing.
-  for (const job of ["verify", "build"])
+  for (const job of ["verify", "build", "clients"])
     assert.equal(
       nightly.jobs[job]!.if,
       "needs.plan.outputs.due == 'true'",
@@ -551,7 +678,13 @@ void test("third-party actions are pinned to commits", async () => {
       for (const step of job.steps ?? [])
         if (step.uses && !step.uses.startsWith("./"))
           assert.match(step.uses, /@[a-f0-9]{40}$/, `${name}: ${step.uses}`);
-  for (const name of ["setup", "services", "release-manager"])
+  for (const name of [
+    "setup",
+    "services",
+    "release-manager",
+    "sign-images",
+    "sign-clients",
+  ])
     for (const step of compositeAction(name).runs.steps)
       if (step.uses)
         assert.match(step.uses, /@[a-f0-9]{40}$/, `${name}: ${step.uses}`);
@@ -600,6 +733,7 @@ void test("pull requests get layered checks behind one required Verify gate", ()
     "domain",
     "browser",
     "trial",
+    "clients",
     "verify",
   ]);
   const runs = (job: string) =>
@@ -614,10 +748,18 @@ void test("pull requests get layered checks behind one required Verify gate", ()
       ),
     ) as { scripts: Record<string, string> }
   ).scripts;
-  assert.equal(
-    scripts.check,
-    "bun scripts/check-toolchain.ts && bun run typecheck && bun run lint && bun run check:rest",
+  assert.equal(scripts.check, "bun scripts/check.ts");
+  const check = readFileSync(
+    new URL("../../../../scripts/check.ts", import.meta.url),
+    "utf8",
   );
+  for (const command of [
+    '["bun", "scripts/check-toolchain.ts"]',
+    '["bun", "run", "typecheck"]',
+    '["bun", "run", "lint"]',
+    '["bun", "run", "check:rest"]',
+  ])
+    assert.ok(check.includes(command), `bun run check runs ${command}`);
   for (const run of [
     "bun scripts/check-toolchain.ts",
     "bun run typecheck",
@@ -681,6 +823,7 @@ void test("pull requests get layered checks behind one required Verify gate", ()
     "domain",
     "browser",
     "trial",
+    "clients",
   ]);
   assert.equal(jobs.verify!.if, "always()");
   assert.equal(
@@ -702,6 +845,20 @@ void test("pull requests get layered checks behind one required Verify gate", ()
     JSON.stringify(compositeAction("setup")),
     /inject-release-version/,
   );
+  // Pull requests build every client download exactly as releases do (the
+  // same reusable workflow, on macOS, Windows and Linux), unsigned and
+  // without secrets, with a version the injection accepts.
+  const clients = jobs.clients!;
+  assert.equal(clients.uses, "./.github/workflows/release-clients.yml");
+  assert.deepEqual(clients.permissions, { contents: "read" });
+  assert.equal(clients.secrets, undefined);
+  assert.equal(clients.with?.ref, "${{ inputs.ref || github.sha }}");
+  assert.equal(String(clients.with?.signing), "false");
+  const ciVersion = /^\$\{\{ inputs\.release_version \|\| '([^']+)' \}\}$/.exec(
+    clients.with?.version ?? "",
+  )?.[1];
+  assert.ok(ciVersion, `CI builds clients with ${clients.with?.version}`);
+  assertBuildVersion(ciVersion);
   // CI never holds credentials beyond its read-only token.
   assert.ok(!JSON.stringify(ci).includes("secrets."));
   assert.equal(ci.permissions.contents, "read");
@@ -760,6 +917,7 @@ void test("Verify never reports success for a draft whose selected tiers did not
       unit: boolean;
       e2e: boolean;
       trial?: boolean;
+      clients?: boolean;
     },
   ) => {
     try {
@@ -775,6 +933,7 @@ void test("Verify never reports success for a draft whose selected tiers did not
             UNIT: String(selection.unit),
             E2E: String(selection.e2e),
             TRIAL: String(selection.trial ?? false),
+            CLIENTS: String(selection.clients ?? false),
           },
           encoding: "utf8",
         },
@@ -784,7 +943,7 @@ void test("Verify never reports success for a draft whose selected tiers did not
       return { passed: false, output: (error as { stdout: string }).stdout };
     }
   };
-  for (const variable of ["DRAFT", "UNIT", "E2E", "TRIAL"])
+  for (const variable of ["DRAFT", "UNIT", "E2E", "TRIAL", "CLIENTS"])
     assert.match(step.env![variable]!, /^\$\{\{ needs\.changes\.outputs\./);
   const staticOnly = "success success skipped skipped skipped";
 
@@ -825,6 +984,17 @@ void test("Verify never reports success for a draft whose selected tiers did not
   });
   assert.ok(!trialOnly.passed);
   assert.match(trialOnly.output, /Draft: the laptop trial has not run/);
+  const clientsOnly = gate(staticOnly, {
+    draft: true,
+    unit: true,
+    e2e: false,
+    clients: true,
+  });
+  assert.ok(!clientsOnly.passed);
+  assert.match(
+    clientsOnly.output,
+    /Draft: domain tests and runner and desktop packages have not run/,
+  );
   // A failed static check on a draft still fails.
   assert.ok(
     !gate("success failure skipped skipped skipped", {
@@ -853,6 +1023,7 @@ void test("pull request suite selection fails open", () => {
     audit: "false",
     docs: "false",
     trial: "false",
+    clients: "false",
   };
   assert.deepEqual(select("README.md", "docs/operations/releases.md"), none);
   // Documentation pages need their site built, not the application suites.
@@ -887,6 +1058,31 @@ void test("pull request suite selection fails open", () => {
   assert.equal(select("tests/try/trial.spec.ts").trial, "true");
   assert.equal(select(".github/actions/trial/action.yml").trial, "true");
   assert.equal(select("deploy/compose.production.yaml").trial, "false");
+  // The desktop shell needs its unit tests and package, not the browser
+  // workflows; the runner also runs in the @smoke factory workflow.
+  assert.deepEqual(select("apps/desktop/src/main/index.ts"), {
+    ...none,
+    unit: "true",
+    clients: "true",
+  });
+  assert.deepEqual(select("apps/runner/install.sh"), {
+    ...none,
+    unit: "true",
+    e2e: "true",
+    clients: "true",
+  });
+  assert.deepEqual(select(".github/workflows/release-clients.yml"), {
+    ...none,
+    unit: "true",
+    clients: "true",
+  });
+  // So does the contract the build is checked against.
+  for (const path of [
+    "packages/core/src/release/clients.ts",
+    "packages/core/src/release/downloads.ts",
+    "scripts/check-client-downloads.ts",
+  ])
+    assert.equal(select(path).clients, "true", path);
 });
 
 void test("the released version display is preserved", async () => {

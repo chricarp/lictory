@@ -1,6 +1,6 @@
 ---
 title: Specifications and revisions
-description: What a specification is, why its revisions are immutable, how protected main, branches and pull requests change it, and where decisions fit.
+description: What a specification is, why its revisions are immutable, how a protected specification changes through proposed changes, and where decisions fit.
 ---
 
 A **specification** is the structured description of the behavior a team is
@@ -48,25 +48,27 @@ Guides: [the editor](/specifications/editor),
 [edit together](/specifications/live-drafts),
 [versions and changes](/specifications/history).
 
-## Main, branches and pull requests
+## Proposed changes
 
-The agreed specification lives on **main**. While it is taking shape, people
-whose discipline may _edit specifications_ edit main directly. The first
-time it becomes [ready](/concepts/readiness), main is **protected**: from
-then on every change is proposed on a **branch** and merged through a
-reviewed **pull request**. A pull request can also propose the
-**breakdown** of the item into child work, which is reviewed with the text
-and created only when it merges. Merging creates a new revision of main.
+While a specification is taking shape, people whose discipline may _edit
+specifications_ edit it directly. The first time it becomes
+[ready](/concepts/readiness), it is **protected**: from then on every change
+is a **proposed change**, sent for review and applied once the required
+reviews approve its exact result. A proposed change can also carry the
+**breakdown** of the item into child work, which is reviewed with the text and
+created only when it applies. Applying creates a new revision.
 
-Lictory Intelligence and agents connected through MCP use the same branches
-and pull requests as people. Lictory Intelligence only proposes; an agent
-acts with its person's permissions and approves or merges only when that
-person explicitly asks.
+The model is Git-inspired (a proposed change is a branch, a saved version a
+commit, its review a pull request, applying a merge), but the product speaks
+in requirements words. Lictory Intelligence and agents connected through MCP
+use the same proposed changes as people. Lictory Intelligence only proposes;
+an agent acts with its person's permissions and proposes too: Lictory refuses
+it every approval and every apply.
 
-Guides: [branches and pull requests](/specifications/branches),
+Guides: [proposed changes](/specifications/branches),
 [breaking work down](/delivery/breakdown),
-[suggestions](/specifications/suggestions) (the earlier way to propose a
-change, still readable).
+[suggestions](/specifications/suggestions) (new wording for a passage,
+accepted beside the text).
 
 ## Discussions
 

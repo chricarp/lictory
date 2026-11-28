@@ -21,6 +21,7 @@ import { Button } from "@lictory/ui/button";
 import { useWorkspace } from "@lictory/platform/components/workspace/provider";
 import { paths } from "@lictory/core/lib/paths";
 import { cn } from "@lictory/core/lib/utils";
+import { scrimClass } from "@lictory/ui/dialog";
 import {
   ChatList,
   chatLabel,
@@ -44,6 +45,7 @@ import {
 } from "@lictory/platform/components/intelligence/chat/suggestions";
 import { MessageScrollerProvider } from "@lictory/ui/ai/message-scroller";
 import { popupContainer } from "@lictory/ui/popup";
+import { PageHeader } from "@lictory/platform/components/shell/page-header";
 import { Drawer, DrawerBackdrop, DrawerContent } from "@ui-sdk/react/drawer";
 
 const ease = [0.23, 1, 0.32, 1] as const;
@@ -104,7 +106,7 @@ function IntelligenceShell() {
         side="left"
         container={popupContainer()}
       >
-        <DrawerBackdrop className="fixed inset-0 z-50 bg-black/30" />
+        <DrawerBackdrop className={cn("fixed inset-0 z-50", scrimClass)} />
         <DrawerContent
           aria-label="Conversations"
           className="h-full max-h-none w-[280px] max-w-[85vw] gap-0 border-0 border-r bg-background p-0 text-foreground shadow-xl"
@@ -153,7 +155,7 @@ function ListToggles({
   onOpenMobile: () => void;
 }) {
   const cls =
-    "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:outline-none touch:size-11";
+    "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-ring outline-none touch:size-11";
   return (
     <>
       <button
@@ -177,31 +179,31 @@ function ListToggles({
   );
 }
 
-function Header({
-  children,
-  toolbar,
-}: {
-  children?: ReactNode;
-  toolbar: ReactNode;
-}) {
+// The page's header: the conversation's title (the page's h1), then the
+// conversation list's toggle and "New chat".
+function Header({ title, toolbar }: { title: ReactNode; toolbar: ReactNode }) {
   const { newChat } = useChats();
   // No new conversations while Litto cannot answer.
   const ai = useAiState();
   return (
-    <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
-      {toolbar}
-      <div className="min-w-0 flex-1">{children}</div>
-      {ai.ok && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={newChat}
-          title="New conversation (⌘⇧O)"
-        >
-          <SquarePen className="size-3.5" /> New chat
-        </Button>
-      )}
-    </header>
+    <PageHeader
+      title={title}
+      actions={
+        <>
+          {toolbar}
+          {ai.ok && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={newChat}
+              title="New conversation (⌘⇧O)"
+            >
+              <SquarePen className="size-3.5" /> New chat
+            </Button>
+          )}
+        </>
+      }
+    />
   );
 }
 
@@ -331,9 +333,7 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
 
   return (
     <>
-      <Header toolbar={toolbar}>
-        <span className="text-[13px] font-medium">Litto</span>
-      </Header>
+      <Header title="Litto" toolbar={toolbar} />
       <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-16">
         <div className="relative w-full max-w-2xl">
           <motion.div
@@ -347,9 +347,9 @@ function NewConversation({ toolbar }: { toolbar: ReactNode }) {
                 className="size-6 text-primary"
               />
             </span>
-            <h1 className="text-2xl font-semibold tracking-tight">
+            <h2 className="text-2xl font-semibold tracking-tight">
               {ai.ok ? greeting(me?.name ?? "") : ai.title}
-            </h1>
+            </h2>
             {ai.ok && (
               <>
                 <p className="mt-1.5 text-[14px] text-muted-foreground">
@@ -446,27 +446,30 @@ function Conversation({ id, toolbar }: { id: string; toolbar: ReactNode }) {
   const error = loadError(id);
   return (
     <>
-      <Header toolbar={toolbar}>
-        <AnimatePresence mode="popLayout" initial={false}>
-          <motion.h1
-            key={summary?.title ?? "untitled"}
-            initial={
-              freshTitles.has(id) && !reduce
-                ? { opacity: 0, y: 6, filter: "blur(4px)" }
-                : false
-            }
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            exit={{ opacity: 0, y: -6, filter: "blur(4px)" }}
-            transition={{ duration: 0.35, ease }}
-            className={cn(
-              "truncate text-[13px] font-medium",
-              !summary?.title && "text-muted-foreground",
-            )}
-          >
-            {summary ? chatLabel(summary) : "Conversation"}
-          </motion.h1>
-        </AnimatePresence>
-      </Header>
+      <Header
+        toolbar={toolbar}
+        title={
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={summary?.title ?? "untitled"}
+              initial={
+                freshTitles.has(id) && !reduce
+                  ? { opacity: 0, y: 6, filter: "blur(4px)" }
+                  : false
+              }
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -6, filter: "blur(4px)" }}
+              transition={{ duration: 0.35, ease }}
+              className={cn(
+                "block truncate",
+                !summary?.title && "font-medium text-muted-foreground",
+              )}
+            >
+              {summary ? chatLabel(summary) : "Conversation"}
+            </motion.span>
+          </AnimatePresence>
+        }
+      />
       {chat ? (
         <ChatThread chat={chat} />
       ) : error ? (

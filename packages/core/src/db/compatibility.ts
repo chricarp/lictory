@@ -129,9 +129,11 @@ const zeroSlotPattern = String.raw`zero\_0\_%`;
 const verifiedModes = new Set(["verify-full", "verify-ca"]);
 const encryptedModes = new Set(["require", ...verifiedModes]);
 
-const providerHelp = "docs/operations/external-database.md#providers";
+// Operators read these on an installed server, which has no repository
+// checkout: the published guide, never a repository path.
+const providerHelp = "https://docs.lictory.com/self-hosting/database#providers";
 const degradedMode =
-  "Zero runs in degraded mode: a migration that changes a replicated table (sync_entity, space_entity, space_reader, the replicated member columns or the lictory_zero publication) halts replication, and zero-cache (ZERO_AUTO_RESET) rebuilds its replica from scratch, so every client resyncs and live updates pause until the copy completes. Migrations that change only other tables replicate normally.";
+  "Zero runs in degraded mode: a migration that changes a replicated table (sync_entity, space_entity, space_reader, factory_entity, agent_session_event, code_entity, the replicated member columns or the lictory_zero publication) halts replication, and zero-cache (ZERO_AUTO_RESET) rebuilds its replica from scratch, so every client resyncs and live updates pause until the copy completes. Migrations that change only other tables replicate normally.";
 
 // --------------------------------------------------------------- evaluation
 
@@ -226,7 +228,7 @@ function connectionFix(connection: ConnectionFacts) {
   if (/pg_hba\.conf/i.test(message))
     return `The server does not admit ${connection.user} from this server's address: allow it in the provider's access rules (pg_hba.conf, security group, authorized networks or IP allow list).`;
   if (code === "28P01" || code === "28000")
-    return `Create the role ${connection.user} with the password from .env (sudo lictory database setup, or docs/operations/external-database.md#roles), and allow it in the provider's access rules.`;
+    return `Create the role ${connection.user} with the password from .env (sudo lictory database setup, or https://docs.lictory.com/self-hosting/database#set-up-an-external-database), and allow it in the provider's access rules.`;
   if (code === "3D000")
     return "Create the database (sudo lictory database setup) or correct LICTORY_DB_NAME.";
   if (code === "ENOTFOUND" || code === "EAI_AGAIN")
@@ -969,7 +971,7 @@ export function formatReport(checks: readonly CompatibilityCheck[]) {
   const warned = checks.filter((c) => c.status === "warn").length;
   lines.push(
     failed
-      ? `${failed} requirement(s) not met, ${warned} warning(s). See docs/operations/external-database.md.`
+      ? `${failed} requirement(s) not met, ${warned} warning(s). See https://docs.lictory.com/self-hosting/database.`
       : `Compatible${warned ? `, with ${warned} warning(s)` : ""}.`,
   );
   return lines.join("\n");

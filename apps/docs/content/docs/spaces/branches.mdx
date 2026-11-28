@@ -18,10 +18,10 @@ Anyone who can edit the space can start a branch:
 
 - In a Reviewed space, **Start a branch** on the page creates one from the
   published version, suggests a name and opens its draft.
-- In any space, **Version history → Branches → New branch** takes a **Branch
-  name** and where to **Start from**: the **Current main version** or any
-  earlier version, which is how you bring back an old version through a
-  review.
+- In any space, **Start a branch** under **Version history → Branches**
+  takes a **Branch name** and where to **Start from**: the **Current main
+  version** or any earlier version, which is how you bring back an old
+  version through a review.
 - From a work item, **Propose page update** in its **Knowledge** section
   opens a branch of the page you choose, named after the change and linked
   to the item's current revision ([propose a page
@@ -34,7 +34,9 @@ header. It lists main (with _Published_, and whether its draft has
 unpublished changes) and every branch with its author, _uncommitted changes_
 and _pull request_ when they apply, plus **All branches** and **Pull
 requests**. Everyone who can read the space can open any branch and read its
-latest commit.
+latest commit. **Version history → Branches** lists the same lines one per
+row: who started each, whether it is _in review_ (its open pull request) and
+**Open** for any line other than the one shown.
 
 ### Collaborators
 
@@ -47,9 +49,23 @@ together, commit, sync it and open pull requests from it.
 
 On a branch, **Commit** turns what the server has stored into the branch's
 next version, exactly as **Publish** does on main: _Commit to this branch_,
-an optional message, **Commit now**. The editor then says _Committed version
-N_, or _No changes to commit_ when nothing changed. Edits typed afterwards
-stay **Uncommitted changes**.
+an optional message, then:
+
+- **Commit and send for review**, while the branch has no open pull request:
+  it commits, opens a pull request into main titled with the message's first
+  line (or the page title), and asks the **Reviewer** chosen in the same form
+  (the same suggestion as the pull request form below). One step from a
+  written change to a requested review.
+- **Commit only** (or **Commit now** once a pull request is open): the
+  version joins the branch, and an open pull request shows it.
+
+The editor then says _Committed version N_, or _No changes to commit_ when
+nothing changed. Edits typed afterwards stay **Uncommitted changes**.
+
+Committing changes nothing readers see, so the editor says what comes next:
+**View pull request** shows the branch's pull request with the new version,
+or, after **Commit only**, **Open pull request** opens the form below with
+this branch chosen.
 
 Only commits are reviewed. A pull request shows the branch's latest commit,
 never its live draft, and a merge waits until the branch has no uncommitted
@@ -62,6 +78,9 @@ In **Version history → Pull requests**, **Create pull request** asks for:
 - the **Source branch** (one you author or collaborate on);
 - the **Target branch**: **main**, the published page, or another branch;
 - a **Title** and a **Description**;
+- a **Reviewer**: whoever wrote the target's latest version, or else the
+  page's latest other author, is suggested. In a reviewed space the form
+  warns when a pull request ready for review would ask nobody;
 - **Start as draft**, to share it before asking for reviews.
 
 ![A page pull request: its title and description, the resulting changes with the added Automatic retries section, and the review summary with Dev Patel required and Pending, Add reviewer, and the merge check “Requires approval from Dev Patel” above a disabled Merge pull request…](/screenshots/spaces-pull-request.webp)

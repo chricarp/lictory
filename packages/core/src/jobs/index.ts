@@ -7,6 +7,10 @@ import { processNotificationEvents } from "@lictory/core/notifications/events";
 import { processOrganizationExports } from "@lictory/core/export/service";
 import { processOrganizationDeletions } from "@lictory/core/domain/organization-deletion";
 import { storage } from "@lictory/core/storage";
+import { recoverExpiredSessions } from "@lictory/core/factory/sessions";
+import { createCodeIngest } from "@lictory/core/code/ingest";
+import { createCodeOutbox } from "@lictory/core/code/outbox";
+import { createCodeReconciler } from "@lictory/core/code/reconcile";
 
 export {
   WORK_CHANNEL,
@@ -18,6 +22,7 @@ export {
   processAiRuns,
   dispatchNotificationEmails,
   processNotificationEvents,
+  recoverExpiredSessions,
 };
 export { rebuildProjections } from "@lictory/core/domain/projections";
 export {
@@ -68,4 +73,34 @@ export function processDueOrganizationDeletions(
 // Read-only status sync of exported items, least recently checked first.
 export function refreshDeliveryStatuses(db: Database, limit?: number) {
   return deliveryService(db).refreshPending(limit);
+}
+
+// Code hosts (docs/internals/code-hosts.md): verified webhook deliveries
+// first, then writes queued for the hosts. Woken by the `code` signal.
+export async function processCodeWork(
+  db: Database,
+  options: { limit?: number; signal?: AbortSignal } = {},
+) {
+  const limit = options.limit ?? 20;
+  const webhooks = await createCodeIngest(db).processPending(
+    limit,
+    options.signal,
+  );
+  const writes = await createCodeOutbox(db).processDue(limit, options.signal);
+  return {
+    more: webhooks.claimed === limit || writes.due === limit,
+    webhooks,
+    writes,
+  };
+}
+
+// Periodic reconciliation and first backfills of linked repositories.
+export function reconcileCodeRepositories(
+  db: Database,
+  options: { limit?: number; signal?: AbortSignal } = {},
+) {
+  return createCodeReconciler(db).processDue(
+    options.limit ?? 5,
+    options.signal,
+  );
 }

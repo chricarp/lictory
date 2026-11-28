@@ -13,7 +13,7 @@ export type ItemOrigin = "proposals" | "refinement" | "reviews";
 const origins: Record<ItemOrigin, string> = {
   proposals: "Proposals",
   refinement: "Refinement",
-  reviews: "Reviews",
+  reviews: "My reviews",
 };
 export const refinementStages = ["refinement", "review", "ready"] as const;
 export type RefinementStage = (typeof refinementStages)[number];

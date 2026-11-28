@@ -1,0 +1,165 @@
+---
+title: GitHub, GitLab and Bitbucket
+description: Connect your code host to see pull requests, checks, branches and issues next to the work they deliver, and to create branches, open and merge pull requests from Lictory.
+---
+
+Lictory shows the code behind each work item: the branches and pull requests
+that implement it, whether their checks pass, who reviewed them and whether
+they are merged. The code host stays the owner of the code; Lictory owns the
+links between code and work.
+
+## Set up
+
+<Steps>
+<Step>
+
+### Connect the code host (organization administrators)
+
+In **Organization settings → Code hosts**, choose **Connect a host** and pick
+GitHub, GitLab or Bitbucket. **How to set up** lists exactly what to create on
+the host and which permissions to give it.
+
+- **GitHub** (github.com or GitHub Enterprise Server): a **GitHub App** is
+  recommended. Each agent session then gets a token for one repository that
+  expires within an hour. A fine-grained personal access token works too.
+- **GitLab** (gitlab.com or self-managed): a group, project or personal
+  access token with the `api` scope.
+- **Bitbucket Cloud**: a repository, project or workspace access token, an
+  Atlassian API token with your email, or an OAuth consumer.
+
+**Verify and connect** checks the credential before saving it. It is
+encrypted and never shown again.
+
+<Callout title="What agent sessions receive">
+  An agent session that works in a linked repository gets a credential to clone
+  and push. A GitHub App gives it a token for that one repository that expires
+  within an hour, and a Bitbucket OAuth consumer one that expires within two
+  hours. A **stored token** (a GitLab access token, a Bitbucket access or API
+  token, or a GitHub personal access token) is passed to every agent session as
+  is: the runner holds the organization's token while the session runs, and it
+  reaches everything the token reaches, for as long as the token is valid. Give
+  it the narrowest scope the host allows, and prefer an app or an OAuth consumer
+  where agents run. Settings say **Uses a stored token** on such a connection.
+</Callout>
+
+</Step>
+<Step>
+
+### Add the webhook
+
+After connecting, Lictory shows the **webhook URL** and **webhook secret**
+once, next to the host's webhook settings (content type, SSL verification and
+each event or trigger to tick, in the host's own words) as one block you can
+copy. Add the webhook to the host:
+
+- **GitHub App**: on the app's settings (one webhook for every repository the
+  app is installed on).
+- **GitHub fine-grained token**: one organization webhook (Organization
+  settings → Webhooks, added by an organization owner) covers every
+  repository; on a personal account, add it to each repository.
+- **GitLab**: the group's webhooks (one for every project in the group) or
+  each project's.
+- **Bitbucket**: each repository's webhooks.
+
+Until the first delivery arrives the connection reads **no webhook received
+yet** and offers **How to add the webhook** with the same settings. Without a
+webhook Lictory still reads every linked repository every ten minutes, so
+updates arrive more slowly.
+
+</Step>
+<Step>
+
+### Link repositories to projects (project administrators)
+
+Under the connection, choose **Link a repository**, find it and pick the
+project it serves. Lictory reads its last 30 days right away. A repository can
+serve several projects.
+
+When a project uses several repositories, choose **Make _project_'s default
+for agents** on the one its agent sessions should work in. Without a choice,
+sessions use the repository linked to the project first. A session can still
+name another repository of the project.
+
+</Step>
+</Steps>
+
+## Code on a work item
+
+Branches, pull requests and commits that mention an item's key, such as
+`PAY-142`, link to it automatically: in a branch name (`pay-142-refunds`), a
+pull request's title or description, or a commit message. Only the keys of the
+projects a repository serves count.
+
+The **Code** section of the item shows each pull request with its checks and
+review state. From there you can:
+
+- **Copy branch name** for the item, or **Create branch** on the host;
+- **Open pull request** from a linked branch, linked back to the item;
+- **Link** other code by branch name, number or commit, and unlink it. An
+  unlinked pull request is not linked again just because it still mentions
+  the key.
+
+## Pull requests
+
+**Code** in the sidebar lists open, merged and closed pull requests of every
+linked repository, filtered by repository, project, yours, those that ask for
+your review, or those agents opened through Lictory (**Agent-authored**: an
+agent session's branch, or an agent's request, not the author's login on the
+host). Set your login on the host in
+**Organization settings → Code hosts** so **Mine** and **Review requested**
+find yours.
+
+A pull request's page shows its description, checks, reviews and the work
+items it delivers; each check links to its run on the host. **Files
+changed** reads the diff from the host. The header says who merged it: the
+person who merged from Lictory, **Autopilot**, or the login that merged on
+the host.
+
+**Approve** and **Request changes** (with what must change) record your
+review of the head commit in Lictory, as agents' reviews are, and post it
+on the host signed with your name. Reviews are listed with the commit they
+reviewed: new commits need a new review. When only agents approved, the
+merge box says so in its headline: no person has reviewed the code. While
+it only waits for something to report (checks running, a review asked
+for), it says **Waiting to merge**; **Merging is blocked** means something
+failed or must change.
+
+**Merge** is available when the pull request is open, not a draft, its checks
+passed, nobody requested changes (on the host or in Lictory) and it has no
+conflicts. When the work it delivers requires CI in its project's
+[Definition of Done](/factory/autonomy#definition-of-done) (the default), it also waits until
+the host reports checks: no check is no evidence that CI passed. Lictory
+merges the head commit you see; if new commits arrive first, the merge is
+refused. The host's branch protection still applies. Comments you post are
+signed with your name, because the host shows the connection's account as
+their author.
+
+Board cards and backlog rows show an item's open pull request, its checks
+and its review. They do not move the item: its status changes when a person
+moves it or when its Definition of Done passes.
+
+**Code → Repositories** lists each linked repository with the facts that say
+whether Lictory keeps up with it: when the connection last received a
+webhook, when the repository was last read (every ten minutes, whatever the
+webhooks do), whether CI reports checks there, and its open pull requests.
+**Refresh** reads it again now. When Lictory refused a delivery after the
+last one it accepted (its signature does not match the webhook secret, or it
+is not JSON), the row and **Settings → Code hosts** say when and why, until
+the host's next delivery goes through.
+
+If the host refuses a change (a branch that exists, missing permissions),
+the item or pull request shows the host's reason with **Retry** and
+**Cancel**, and you are notified.
+
+## Issues
+
+Issues of linked repositories are listed under **Code → Issues**. They stay
+the host's. **Import as work item** creates an item in a project the
+repository serves; from then on the item is Lictory's, and the issue stays
+linked to it.
+
+## Self-managed hosts
+
+GitHub Enterprise Server and self-managed GitLab must be reachable over
+https. A host on a private network needs your operator to list its name in
+`CODE_HOST_PRIVATE_HOSTS` (see [configuration](/self-hosting/configuration)).

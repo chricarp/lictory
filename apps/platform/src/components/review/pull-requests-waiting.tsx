@@ -35,13 +35,13 @@ export function PullRequestsWaiting() {
   };
   return (
     <section
-      aria-label="Pull requests waiting for your review"
+      aria-label="Proposed changes waiting for your review"
       className="mb-5 rounded-lg border border-primary/25 bg-primary/5 p-3 text-[13px]"
     >
       <p className="mb-1.5 font-medium">
         {waiting.length === 1
-          ? "A pull request waits for your review"
-          : `${waiting.length} pull requests wait for your review`}
+          ? "A proposed change waits for your review"
+          : `${waiting.length} proposed changes wait for your review`}
       </p>
       <ul className="space-y-1">
         {waiting.map((pr) => (

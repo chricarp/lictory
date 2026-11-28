@@ -19,6 +19,7 @@ export type ProductId =
   | "modern-requirements"
   | "reqview"
   | "confluence"
+  | "slack"
   | "doorstop"
   | "strictdoc";
 
@@ -360,6 +361,35 @@ export const products: Record<ProductId, ProductProfile> = {
       },
     ],
     reviewed: "2026-11-08",
+  },
+  slack: {
+    id: "slack",
+    name: "Slack",
+    website: "https://slack.com",
+    license:
+      "Commercial, under the Slack Terms (Main Services Agreement and Supplemental Terms). Not open source.",
+    licenseShort: "Commercial",
+    hosting:
+      "Slack’s online service. Each workspace’s data is stored in one region: the United States unless the workspace uses data residency.",
+    hostingShort: "Cloud",
+    pricing:
+      "Free plan with 90 days of message history; Pro, Business+ and Enterprise+ are priced per user per month. Jira is licensed separately.",
+    sources: [
+      { label: "Pricing", url: "https://slack.com/pricing" },
+      {
+        label: "Data residency",
+        url: "https://slack.com/help/articles/360035633934",
+      },
+      {
+        label: "Main Services Agreement",
+        url: "https://slack.com/main-services-agreement",
+      },
+      {
+        label: "Jira Cloud for Slack (Atlassian)",
+        url: "https://support.atlassian.com/jira-software-cloud/docs/use-jira-cloud-for-slack/",
+      },
+    ],
+    reviewed: "2026-11-24",
   },
   doorstop: {
     id: "doorstop",

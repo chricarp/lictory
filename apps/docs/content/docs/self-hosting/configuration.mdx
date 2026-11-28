@@ -36,7 +36,7 @@ For a database password, PostgreSQL restarts with the new value and applies
 it to its role before the services restart with it, so expect about a
 minute of errors; if PostgreSQL does not take it, the previous value stays.
 `BETTER_AUTH_SECRET` signs everyone out (and needs `DELIVERY_CREDENTIALS_KEY`
-set first). `DELIVERY_CREDENTIALS_KEY` cannot be rotated yet: stored Jira
+set first). `DELIVERY_CREDENTIALS_KEY` cannot be rotated yet: stored Jira and Slack
 tokens would need re-encrypting.
 
 On an [external database](/self-hosting/database), `rotate` does not change
@@ -85,8 +85,13 @@ no email, so password sign-up cannot be completed (single sign-on still works).
 
 ## File storage
 
-Attachments are optional. Without a bucket, the editor offers no upload and
-explains that attachments are unavailable. Configure **one** of two sets,
+Attachments are off until you configure a bucket, and `lictory install`
+leaves them off by default (`--storage none`): Lictory keeps no files on the
+server's disk. Without a bucket, the editors offer no upload, and where people
+would attach a file they read that attachments are off on this server, who
+turns them on and that they can link to files meanwhile. To turn them on later,
+set the variables below with `lictory config set` (it applies them and undoes
+the change if the services reject it). Configure **one** of two sets,
 never both: any S3-compatible service (AWS S3, MinIO, Garage, Ceph, Hetzner…)
 or the Cloudflare R2 preset.
 

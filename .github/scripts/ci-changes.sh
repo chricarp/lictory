@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Decides which CI suites a pull request needs from its changed paths (one per
-# line on stdin) and prints `unit=`, `e2e=`, `audit=`, `docs=` and `trial=`
-# lines for $GITHUB_OUTPUT. Static checks (types, lint, formatting, unused code,
+# line on stdin) and prints `unit=`, `e2e=`, `audit=`, `docs=`, `trial=` and
+# `clients=` lines for $GITHUB_OUTPUT. Static checks (types, lint, formatting, unused code,
 # migrations) always run. Anything not recognised runs everything: a skipped
 # suite must never be the reason a regression reaches main.
 set -euo pipefail
@@ -11,6 +11,7 @@ e2e=false
 audit=false
 docs=false
 trial=false
+clients=false
 while IFS= read -r path || [ -n "$path" ]; do
   [ -n "$path" ] || continue
   case "$path" in
@@ -26,9 +27,20 @@ while IFS= read -r path || [ -n "$path" ]; do
     deploy/try.sh | tests/try/* | .github/actions/trial/*) trial=true ;;
   esac
   case "$path" in
+    # The runner and desktop packages, built for every target as each
+    # release builds them, and the contract they are checked against.
+    apps/desktop/* | apps/runner/* | .github/workflows/release-clients.yml | \
+      packages/core/src/release/clients.ts | packages/core/src/release/downloads.ts | \
+      scripts/check-client-downloads.ts) clients=true ;;
+  esac
+  case "$path" in
     # CI itself: prove the whole pipeline still works.
     .github/workflows/ci.yml | .github/actions/* | .github/scripts/*)
       unit=true e2e=true ;;
+    # The desktop shell: its unit tests run with the domain tests and its
+    # package is built above; no browser workflow loads it. The runner is
+    # different: the @smoke factory workflow runs it against the server.
+    apps/desktop/*) unit=true ;;
     # Rendered by the applications, even when written as Markdown.
     apps/marketing/* | apps/platform/* | packages/*)
       unit=true e2e=true ;;
@@ -43,4 +55,4 @@ while IFS= read -r path || [ -n "$path" ]; do
   esac
 done
 
-printf 'unit=%s\ne2e=%s\naudit=%s\ndocs=%s\ntrial=%s\n' "$unit" "$e2e" "$audit" "$docs" "$trial"
+printf 'unit=%s\ne2e=%s\naudit=%s\ndocs=%s\ntrial=%s\nclients=%s\n' "$unit" "$e2e" "$audit" "$docs" "$trial" "$clients"

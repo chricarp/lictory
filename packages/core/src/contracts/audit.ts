@@ -74,6 +74,20 @@ export const auditActions = {
     category: "access",
     label: "Revoked an access token",
   },
+  "agent.created": { category: "access", label: "Created an agent" },
+  "agent.updated": { category: "access", label: "Changed an agent" },
+  "agent.scope_changed": {
+    category: "access",
+    label: "Changed an agent's access or projects",
+  },
+  "agent.archived": { category: "access", label: "Archived an agent" },
+  "agent.restored": { category: "access", label: "Restored an agent" },
+  "runner.registration_created": {
+    category: "access",
+    label: "Created a runner registration token",
+  },
+  "runner.registered": { category: "access", label: "Registered a runner" },
+  "runner.revoked": { category: "access", label: "Revoked a runner" },
   "two_factor.requirement_changed": {
     category: "access",
     label: "Changed the two-factor requirement",
@@ -82,9 +96,74 @@ export const auditActions = {
     category: "access",
     label: "Reset a member's two-factor authentication",
   },
+  // Agent events (docs/internals/agent-events.md): where a person's events
+  // leave Lictory.
+  "event_webhook.created": {
+    category: "access",
+    label: "Added an agent event webhook",
+  },
+  "event_webhook.deleted": {
+    category: "access",
+    label: "Removed an agent event webhook",
+  },
+  "event_subscription.created": {
+    category: "access",
+    label: "An MCP client subscribed to agent events",
+  },
+  "event_subscription.deleted": {
+    category: "access",
+    label: "An MCP event subscription ended",
+  },
+  // Lictory Channels: who can read a conversation. Public channel joins and
+  // direct conversations are not security events and are not recorded.
+  "channel.created": { category: "access", label: "Created a channel" },
+  "channel.archived": { category: "access", label: "Archived a channel" },
+  "channel.restored": { category: "access", label: "Restored a channel" },
+  "channel.member_added": {
+    category: "access",
+    label: "Added someone to a private channel",
+  },
+  "channel.member_removed": {
+    category: "access",
+    label: "Removed someone from a private channel",
+  },
+  // Slack: conversations leave Lictory for a workspace the organization
+  // controls, so connecting and linking are access events.
+  "slack.app_saved": {
+    category: "access",
+    label: "Saved the Slack app's credentials",
+  },
+  "slack.installed": { category: "access", label: "Installed the Slack app" },
+  "slack.disconnected": { category: "access", label: "Disconnected Slack" },
+  "slack.channel_linked": {
+    category: "access",
+    label: "Linked a channel to Slack",
+  },
+  "slack.channel_unlinked": {
+    category: "access",
+    label: "Unlinked a channel from Slack",
+  },
+  // Autopilot (docs/internals/claims.md#the-dispatcher): Lictory merged an
+  // agent's pull request under a project's autonomy policy. The actor is
+  // the administrator whose policy authorized it.
+  "autopilot.merged": {
+    category: "agent",
+    label: "Autopilot merged a pull request",
+  },
+  // The Definition of Done (docs/internals/claims.md): a person passed a
+  // check without its evidence, or withdrew that. Sign-offs are evidence
+  // and stay in the item's history only.
+  "done_check.overridden": {
+    category: "agent",
+    label: "Passed a Definition of Done check by hand",
+  },
+  "done_check.override_withdrawn": {
+    category: "agent",
+    label: "Withdrew a Definition of Done override",
+  },
 } as const satisfies Record<
   string,
-  { category: Exclude<AuditCategory, "configuration" | "agent">; label: string }
+  { category: Exclude<AuditCategory, "configuration">; label: string }
 >;
 export type AuditAction = keyof typeof auditActions;
 

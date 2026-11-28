@@ -124,6 +124,10 @@ test("a phrase only in a page body is found from the palette and opens the page 
   await expect(again.getByRole("status")).toContainText(
     "No matches in pages, specifications or decisions",
   );
+  // And in words on screen, above the way to search everything.
+  await expect(
+    again.getByText("Nothing matches “zebra crossing”."),
+  ).toBeVisible();
   await page.keyboard.press("Escape");
 
   // Phone width: the result and its excerpt fit without scrolling sideways.
@@ -309,7 +313,7 @@ test("a delivered revision found by search opens that revision after the specifi
   await expect(hit).toHaveCount(1);
   // The item as it is now is a separate, explicit way in.
   await expect(
-    hit.getByRole("link", { name: "Open LED-1 as it is now" }),
+    hit.getByRole("link", { name: "Open current LED-1" }),
   ).toHaveAttribute("href", seeded.itemPath(1));
   await hit.getByRole("link", { name: "Retry ledger" }).click();
   await expect(page).toHaveURL(

@@ -29,6 +29,19 @@ export function workspaceTitle(pathname: string, ctx: TitleContext) {
   const context = ctx.project?.name ?? ctx.organization.name;
   switch (first) {
     case undefined:
+      parts.push("Home", ctx.organization.name);
+      break;
+    case "channels":
+      parts.push("Channels", ctx.organization.name);
+      break;
+    case "factory":
+      parts.push("Factory", ctx.organization.name);
+      break;
+    case "code":
+      parts.push("Code", ctx.organization.name);
+      break;
+    case "search":
+      parts.push("Search", ctx.organization.name);
       break;
     case "intelligence":
       parts.push("Litto", ctx.organization.name);
@@ -74,6 +87,7 @@ export function workspaceTitle(pathname: string, ctx: TitleContext) {
       else if (second === "board") parts.push("Board", context);
       else if (second === "backlog") parts.push("Backlog", context);
       else if (second === "handoff") parts.push("Hand-off", context);
+      else if (second === "queue") parts.push("Factory queue", context);
       else if (second === "reviews") parts.push("Needs my review", context);
       else if (second === "views" && third) {
         const view = views.find((v) => v.id === third);

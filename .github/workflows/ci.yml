@@ -6,6 +6,7 @@ name: CI
 #   Domain tests    bun test against PostgreSQL         (unless prose only)
 #   Browser smoke   the @smoke critical journeys        (when apps change)
 #   Laptop trial    deploy/try.sh on the newest stable  (when it changes)
+#   Client packages runner and desktop app, every OS    (when they change)
 #
 # Every tier is split across parallel jobs so the slowest job, not the sum,
 # sets the duration: lint runs as three jobs over disjoint paths, domain test
@@ -71,6 +72,7 @@ jobs:
       audit: ${{ steps.detect.outputs.audit }}
       docs: ${{ steps.detect.outputs.docs }}
       trial: ${{ steps.detect.outputs.trial }}
+      clients: ${{ steps.detect.outputs.clients }}
       # Drafts defer the domain and browser tiers to ready for review.
       draft: ${{ steps.state.outputs.draft == 'true' }}
     steps:
@@ -109,11 +111,12 @@ jobs:
           # requests GitHub cannot list completely (3000+ files) do too.
           # The laptop trial tests published images, not this source:
           # nightlies run it on their own candidate after publishing it.
+          # Releases build every client package themselves (Release clients).
           if [ "$EVENT" != pull_request ] || [ "${CHANGED:-0}" -ge 3000 ] ||
             ! gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --jq '.[].filename' > "$RUNNER_TEMP/changed"; then
             trial=false
             [ "$EVENT" = workflow_call ] || trial=true
-            printf 'unit=true\ne2e=true\naudit=true\ndocs=true\ntrial=%s\n' "$trial" | tee -a "$GITHUB_OUTPUT"
+            printf 'unit=true\ne2e=true\naudit=true\ndocs=true\ntrial=%s\nclients=%s\n' "$trial" "$trial" | tee -a "$GITHUB_OUTPUT"
             exit 0
           fi
           bash .github/scripts/ci-changes.sh < "$RUNNER_TEMP/changed" | tee -a "$GITHUB_OUTPUT"
@@ -289,9 +292,26 @@ jobs:
       - uses: ./.github/actions/setup
       - uses: ./.github/actions/trial
 
+  # Every client download a release publishes, built the way releases build
+  # it (the same reusable workflow): the runner for every target, the
+  # desktop app on macOS, Windows and Linux for each architecture, unsigned,
+  # and the whole set checked against the release contract. A nightly-shaped
+  # version, because the version injection accepts only release versions.
+  clients:
+    name: Runner and desktop packages
+    needs: changes
+    if: needs.changes.outputs.clients == 'true' && needs.changes.outputs.draft != 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/release-clients.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      version: ${{ inputs.release_version || '0.0.0-nightly.20260101.1' }}
+      signing: false
+
   verify:
     name: Verify
-    needs: [changes, static, domain, browser, trial]
+    needs: [changes, static, domain, browser, trial, clients]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -303,6 +323,7 @@ jobs:
           UNIT: ${{ needs.changes.outputs.unit }}
           E2E: ${{ needs.changes.outputs.e2e }}
           TRIAL: ${{ needs.changes.outputs.trial }}
+          CLIENTS: ${{ needs.changes.outputs.clients }}
         run: |
           echo "Job results: $RESULTS"
           status=0
@@ -319,6 +340,7 @@ jobs:
             [ "$UNIT" != true ] || deferred+=("domain tests")
             [ "$E2E" != true ] || deferred+=("browser smoke workflows")
             [ "$TRIAL" != true ] || deferred+=("the laptop trial")
+            [ "$CLIENTS" != true ] || deferred+=("runner and desktop packages")
           fi
           if [ "${#deferred[@]}" -gt 0 ]; then
             tiers=$(printf '%s and ' "${deferred[@]}")

@@ -1,4 +1,5 @@
-import { Bot, Copy } from "lucide-react";
+import { formatDate } from "@lictory/core/lib/work-items";
+import { Copy, KeyRound } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { AccessTokenSummary } from "@lictory/core/capabilities/access-tokens";
 import { callCapability } from "@lictory/core/capabilities/client";
@@ -9,6 +10,9 @@ import {
 } from "@lictory/ui/dropdown-select";
 import { Input } from "@lictory/ui/input";
 import { Badge } from "@lictory/ui/primitives";
+import { Link } from "@lictory/platform/lib/navigation";
+import { factoryPaths } from "@lictory/platform/components/factory/paths";
+import type { Organization } from "@lictory/platform/components/app/event-webhooks";
 import {
   InlineError,
   SettingsBody,
@@ -24,12 +28,7 @@ const expiries = [
   { value: "never", label: "No expiry" },
 ];
 
-const date = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+const date = formatDate;
 
 function stateOf(token: AccessTokenSummary) {
   if (token.revokedAt) return "Revoked";
@@ -38,8 +37,50 @@ function stateOf(token: AccessTokenSummary) {
   return null;
 }
 
-// Personal access tokens let an external AI agent (an MCP client such as
-// Claude, Cursor or Codex) work in Lictory as you, with your permissions.
+// Where an agent is connected: each organization's Factory › Agents. An
+// agent has its own name, scope, token and wake-ups there.
+function ConnectAgentLinks() {
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  useEffect(() => {
+    callCapability<{ organizations: Organization[] }>("listOrganizations").then(
+      (result) => setOrganizations(result.organizations),
+      () => undefined,
+    );
+  }, []);
+  if (!organizations.length) return null;
+  const link =
+    "inline-flex items-center gap-1 rounded-sm font-medium text-foreground focus-ring outline-none hover:underline";
+  return (
+    <p className="text-xs text-muted-foreground">
+      Connecting an AI agent? A personal token can also make your decisions
+      (approve, merge, hand off), and Lictory cannot tell the agent from you.
+      Give it an agent instead: a name, a scope, wake-ups of its own, and
+      decisions left to you:{" "}
+      {organizations.length === 1 ? (
+        <Link
+          href={factoryPaths.agents(organizations[0]!.slug)}
+          className={link}
+        >
+          Connect an agent → Factory › Agents
+        </Link>
+      ) : (
+        organizations.map((o, i) => (
+          <span key={o.id}>
+            {i > 0 && " · "}
+            <Link href={factoryPaths.agents(o.slug)} className={link}>
+              {o.name} › Factory › Agents
+            </Link>
+          </span>
+        ))
+      )}
+    </p>
+  );
+}
+
+// Personal access tokens let a script or tool (any MCP client) work in
+// Lictory as you, with exactly your permissions in every organization. An
+// AI agent with its own name and scope is a Factory agent instead; its
+// tokens are on its page, never here.
 export function AgentAccessSection() {
   const [tokens, setTokens] = useState<AccessTokenSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,15 +153,14 @@ export function AgentAccessSection() {
 
   return (
     <SettingsSection
-      id="agents"
-      icon={<Bot />}
-      title="AI agents (MCP)"
+      id="tokens"
+      icon={<KeyRound />}
+      title="Personal access tokens"
       description={
         <>
-          Connect an AI agent that supports the Model Context Protocol. It acts
-          as you, with exactly your permissions in each organization, and its
-          actions are recorded under the token&apos;s name. Create one token per
-          agent so history shows which agent did what. Endpoint:{" "}
+          For scripts and tools that work in Lictory as you, with exactly your
+          permissions in every organization you belong to, over MCP. Their
+          actions are recorded under the token&apos;s name. Endpoint:{" "}
           <code className="rounded bg-muted px-1 py-0.5 text-xs">
             {endpoint}
           </code>
@@ -140,7 +180,16 @@ export function AgentAccessSection() {
           </Button>
         ) : undefined
       }
-      footer="Agents never see your password and cannot create tokens, connect integrations or change your account. Revoke a token to disconnect its agent immediately."
+      footer={
+        <div className="space-y-1.5">
+          <p>
+            A token never sees your password and cannot create tokens, connect
+            integrations or change your account. Revoke a token to disconnect it
+            immediately.
+          </p>
+          <ConnectAgentLinks />
+        </div>
+      }
     >
       {secret && (
         <SettingsBody className="space-y-2 bg-muted/40">
@@ -167,7 +216,7 @@ export function AgentAccessSection() {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Configure your agent to send it as{" "}
+            Configure your tool to send it as{" "}
             <code>Authorization: Bearer &lt;token&gt;</code> to the endpoint
             above.
           </p>
@@ -177,14 +226,14 @@ export function AgentAccessSection() {
         <SettingsBody>
           <form onSubmit={create} className="flex flex-wrap items-end gap-3">
             <label className="block min-w-48 flex-1 text-[13px] font-medium">
-              Agent name
+              Name
               <Input
                 autoFocus
                 required
                 maxLength={80}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Claude spec reviewer"
+                placeholder="e.g. Release notes script"
                 className="mt-1.5 h-8 rounded-md text-sm"
               />
             </label>

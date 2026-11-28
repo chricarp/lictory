@@ -1,12 +1,14 @@
+import { Actor } from "@lictory/platform/components/identity/actor";
 import { Link } from "@lictory/platform/lib/navigation";
 import { memo } from "react";
 import { cn } from "@lictory/core/lib/utils";
 import {
+  absoluteTime,
   identifier,
   isTopLevel,
   relativeTime,
-  typeOf,
   type Project,
+  typeOf,
 } from "@lictory/core/lib/work-items";
 import { useDelivery } from "@lictory/platform/components/workspace/provider";
 import type { WorkItem } from "@lictory/core/contracts/protocol";
@@ -14,7 +16,6 @@ import {
   deliveryCategory,
   type ExternalLink,
 } from "@lictory/core/lib/lifecycle";
-import { Avatar } from "@lictory/ui/primitives";
 import {
   IssueStatus,
   StatusIcon,
@@ -27,6 +28,7 @@ import { IssueIdentifier } from "@lictory/platform/components/items/identifier";
 import {
   ReadinessBar,
   ReviewSignal,
+  hasReviewSignal,
 } from "@lictory/platform/components/items/signals";
 import { TypeIcon, epicGlyph } from "@lictory/platform/components/items/icons";
 import {
@@ -47,7 +49,6 @@ export const IssueRow = memo(function IssueRow({
   selected,
   focused,
   compact,
-  memberName,
   onUpdate,
   onFocus,
   onBlur,
@@ -56,6 +57,7 @@ export const IssueRow = memo(function IssueRow({
   hint,
   preview,
   pages,
+  showEstimate = true,
 }: {
   item: WorkItem;
   project: Project | undefined;
@@ -66,7 +68,8 @@ export const IssueRow = memo(function IssueRow({
   selected: boolean;
   focused: boolean;
   compact: boolean;
-  memberName: (id: string | null) => string;
+  // Kept for callers; avatars look people up themselves.
+  memberName?: (id: string | null) => string;
   // Absent when the viewer's roles cannot change properties.
   onUpdate?: (patch: {
     statusId?: string;
@@ -84,6 +87,8 @@ export const IssueRow = memo(function IssueRow({
   preview?: ItemPreviewTarget;
   // Readable pages about the item (knowledge links).
   pages?: number;
+  // The list shows an estimate column (some item in it is estimated).
+  showEstimate?: boolean;
 }) {
   const delivery = useDelivery();
   const type = typeOf(delivery, item);
@@ -163,13 +168,17 @@ export const IssueRow = memo(function IssueRow({
           </span>
           <TypeIcon type={type} />
           <IssueIdentifier project={project} number={item.number} />
-          <ReviewSignal item={item} compact className="ml-auto" />
+          {/* A phone's row (no preview card) says the next step here. */}
+          {hint && !preview && (
+            <span className="min-w-0 truncate text-xs text-muted-foreground">
+              {hint}
+            </span>
+          )}
+          <ReviewSignal item={item} compact className="ml-auto shrink-0" />
           {project?.deliveryMode !== "external" && item.assigneeId && (
-            <Avatar
-              userId={item.assigneeId}
-              name={memberName(item.assigneeId)}
-              size="xs"
-            />
+            // Initials, not a bare dot: the owner is told apart by more
+            // than color.
+            <Actor userId={item.assigneeId} label="none" size={20} />
           )}
         </div>
       </li>
@@ -263,22 +272,31 @@ export const IssueRow = memo(function IssueRow({
         itemHref={href}
         className="hidden sm:inline-flex"
       />
-      {project?.deliveryMode !== "external" && (
+      {project?.deliveryMode !== "external" && showEstimate && (
         <span className="inline-flex shrink-0 justify-center md:w-7">
           {item.estimate !== null && (
             <span
               className="rounded bg-muted px-1.5 text-[11px] text-muted-foreground tabular-nums"
-              title="Estimate"
+              title={`Estimate: ${item.estimate}`}
             >
-              {item.estimate}
+              <span aria-hidden>{item.estimate}</span>
+              <span className="sr-only">Estimate {item.estimate}</span>
             </span>
           )}
         </span>
       )}
-      <ReviewSignal
-        item={item}
-        className="md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap @min-[65rem]/frame:w-52"
-      />
+      {hasReviewSignal(item) ? (
+        <ReviewSignal
+          item={item}
+          className="md:mr-3 md:w-36 md:shrink-0 md:justify-start md:whitespace-nowrap @min-[65rem]/frame:w-52"
+        />
+      ) : (
+        // No review and no discussion: the slot stays empty and aligned.
+        <span
+          aria-hidden
+          className="hidden md:mr-3 md:inline md:w-36 md:shrink-0 @min-[65rem]/frame:w-52"
+        />
+      )}
       {/* A fixed slot keeps assignee and time aligned on rows without checks. */}
       <span className="hidden w-16 shrink-0 md:inline-flex @min-[65rem]/frame:w-24">
         <ReadinessBar item={item} labelled />
@@ -295,16 +313,28 @@ export const IssueRow = memo(function IssueRow({
             : "Not handed off"}
         </span>
       ) : (
-        <AssigneePicker
-          assigneeId={item.assigneeId}
-          compact
-          onChange={onUpdate && ((assigneeId) => onUpdate({ assigneeId }))}
-        />
+        // Nobody assigned: no placeholder face on every row; the picker
+        // shows on hover and focus for people who assign.
+        <span
+          className={cn(
+            "inline-flex",
+            !item.assigneeId &&
+              (onUpdate
+                ? "opacity-0 group-hover:opacity-100 focus-within:opacity-100 touch:opacity-100"
+                : "invisible"),
+          )}
+        >
+          <AssigneePicker
+            assigneeId={item.assigneeId}
+            compact
+            onChange={onUpdate && ((assigneeId) => onUpdate({ assigneeId }))}
+          />
+        </span>
       )}
       <time
         className="hidden w-14 text-right text-xs text-muted-foreground tabular-nums sm:block"
         dateTime={item.updatedAt}
-        title={new Date(item.updatedAt).toLocaleString()}
+        title={absoluteTime(item.updatedAt)}
       >
         {relativeTime(item.updatedAt)}
       </time>
